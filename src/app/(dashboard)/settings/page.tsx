@@ -117,7 +117,7 @@ export default async function SettingsPage() {
             <div className="mt-6 flex flex-col gap-4 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-sm font-medium text-foreground">Sign out</p>
-                <p className="text-sm text-muted">Sign out of your Buddget account.</p>
+                <p className="text-sm text-muted">Sign out of your Ghina account.</p>
               </div>
               <SignOutButton action={doSignOut} />
             </div>

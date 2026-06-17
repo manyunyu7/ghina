@@ -28,6 +28,7 @@ model User {
   transactions  Transaction[]
   budgets       Budget[]
   subscriptions Subscription[]
+  prayers       PrayerEntry[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -177,4 +178,19 @@ model Subscription {
   updatedAt DateTime @updatedAt
 
   @@index([userId])
+}
+
+// A logged prayer. A row's existence means that prayer was performed that day.
+model PrayerEntry {
+  id     String @id @default(cuid())
+  userId String
+  date   String // local date as YYYY-MM-DD
+  prayer String // subuh | dzuhur | ashar | maghrib | isya
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, date, prayer])
+  @@index([userId, date])
 }

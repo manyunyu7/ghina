@@ -9,7 +9,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20">
             <Wallet className="h-5 w-5" />
           </div>
-          <span className="text-xl font-bold">Buddget</span>
+          <span className="text-xl font-bold">Ghina</span>
         </div>
         <div className="relative z-10">
           <h1 className="text-4xl font-bold leading-tight">
@@ -45,7 +45,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-white">
               <Wallet className="h-5 w-5" />
             </div>
-            <span className="text-xl font-bold">Buddget</span>
+            <span className="text-xl font-bold">Ghina</span>
           </div>
           {children}
         </div>

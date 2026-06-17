@@ -1,4 +1,4 @@
-# 💰 Buddget
+# 💰 Ghina
 
 A complete personal **budget & expense tracker**, built from scratch with the latest stack. Track transactions, manage multiple wallets, set monthly budgets per category, and visualize your money with rich reports — all behind **Sign in with Google**.
 

@@ -5,12 +5,12 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
   LayoutDashboard, ArrowLeftRight, Wallet, Target, Tags, PieChart,
-  Settings, Repeat, Menu, X, Wallet as Logo,
+  Settings, Repeat, Moon, Menu, X, Wallet as Logo,
 } from "lucide-react";
 import { NAV_ITEMS } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 
-const ICONS = { LayoutDashboard, ArrowLeftRight, Wallet, Target, Tags, PieChart, Settings, Repeat };
+const ICONS = { LayoutDashboard, ArrowLeftRight, Wallet, Target, Tags, PieChart, Settings, Repeat, Moon };
 
 export function Sidebar({ user }: { user: { name?: string | null; email?: string | null; image?: string | null } }) {
   const pathname = usePathname();
@@ -49,7 +49,7 @@ export function Sidebar({ user }: { user: { name?: string | null; email?: string
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-white">
             <Logo className="h-5 w-5" />
           </div>
-          <span className="text-lg font-bold">Buddget</span>
+          <span className="text-lg font-bold">Ghina</span>
         </div>
         <button onClick={() => setOpen(true)} className="rounded-lg p-2 hover:bg-accent" aria-label="Open menu">
           <Menu className="h-5 w-5" />
@@ -66,7 +66,7 @@ export function Sidebar({ user }: { user: { name?: string | null; email?: string
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-white">
                   <Logo className="h-5 w-5" />
                 </div>
-                <span className="text-lg font-bold">Buddget</span>
+                <span className="text-lg font-bold">Ghina</span>
               </div>
               <button onClick={() => setOpen(false)} className="rounded-lg p-2 hover:bg-accent" aria-label="Close menu">
                 <X className="h-5 w-5" />
@@ -84,7 +84,7 @@ export function Sidebar({ user }: { user: { name?: string | null; email?: string
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-white">
             <Logo className="h-5 w-5" />
           </div>
-          <span className="text-xl font-bold tracking-tight">Buddget</span>
+          <span className="text-xl font-bold tracking-tight">Ghina</span>
         </div>
         {nav}
         <UserCard user={user} />

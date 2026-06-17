@@ -50,7 +50,7 @@ export default async function DashboardPage() {
         <Greeting name={user.name} />
         <EmptyState
           icon={Sparkles}
-          title="Welcome to Buddget"
+          title="Welcome to Ghina"
           description="Let's get you set up. Create a wallet to hold your money, add a few categories, then start logging transactions."
           action={
             <div className="flex flex-wrap items-center justify-center gap-3">

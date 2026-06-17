@@ -4,6 +4,7 @@ export const NAV_ITEMS = [
   { href: "/wallets", label: "Wallets", icon: "Wallet" },
   { href: "/budgets", label: "Budgets", icon: "Target" },
   { href: "/subscriptions", label: "Subscriptions", icon: "Repeat" },
+  { href: "/prayers", label: "Prayers", icon: "Moon" },
   { href: "/categories", label: "Categories", icon: "Tags" },
   { href: "/reports", label: "Reports", icon: "PieChart" },
   { href: "/settings", label: "Settings", icon: "Settings" },
