@@ -29,6 +29,7 @@ model User {
   budgets       Budget[]
   subscriptions Subscription[]
   prayers       PrayerEntry[]
+  health        HealthEntry[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -192,5 +193,24 @@ model PrayerEntry {
   createdAt DateTime @default(now())
 
   @@unique([userId, date, prayer])
+  @@index([userId, date])
+}
+
+// A health measurement (body weight and/or blood pressure) at a point in time.
+model HealthEntry {
+  id        String   @id @default(cuid())
+  userId    String
+  date      DateTime @default(now())
+  weight    Float? // kg
+  systolic  Int? // mmHg
+  diastolic Int? // mmHg
+  pulse     Int? // bpm
+  note      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([userId, date])
 }

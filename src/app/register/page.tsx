@@ -5,7 +5,7 @@ import { AuthForm } from "../login/auth-form";
 
 export default async function RegisterPage() {
   const session = await auth();
-  if (session?.user) redirect("/dashboard");
+  if (session?.user?.id) redirect("/dashboard");
 
   return (
     <AuthShell>
