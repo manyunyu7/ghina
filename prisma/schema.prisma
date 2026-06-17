@@ -1,0 +1,180 @@
+// Buddget — personal budgeting app
+// Prisma schema: NextAuth models + budgeting domain models
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- NextAuth (Auth.js) models ----------
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  password      String? // bcrypt hash, for email/password (credentials) login
+  currency      String    @default("IDR")
+
+  accounts      Account[]
+  sessions      Session[]
+  wallets       Wallet[]
+  categories    Category[]
+  transactions  Transaction[]
+  budgets       Budget[]
+  subscriptions Subscription[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ---------- Budgeting domain models ----------
+
+// A wallet / account holding money (cash, bank, e-wallet, credit card...)
+model Wallet {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  type      String   @default("cash") // cash | bank | ewallet | credit | savings | investment
+  balance   Float    @default(0)
+  currency  String   @default("IDR")
+  color     String   @default("#6366f1")
+  icon      String   @default("wallet")
+  archived  Boolean  @default(false)
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions  Transaction[]
+  subscriptions Subscription[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Category {
+  id     String @id @default(cuid())
+  userId String
+  name   String
+  type   String @default("expense") // expense | income
+  color  String @default("#6366f1")
+  icon   String @default("circle")
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions  Transaction[]
+  budgets       Budget[]
+  subscriptions Subscription[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Transaction {
+  id         String   @id @default(cuid())
+  userId     String
+  walletId   String
+  categoryId String?
+  type       String   @default("expense") // expense | income | transfer
+  amount     Float
+  note       String?
+  date       DateTime @default(now())
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  wallet   Wallet    @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([walletId])
+  @@index([categoryId])
+  @@index([date])
+}
+
+// Monthly budget per category
+model Budget {
+  id         String @id @default(cuid())
+  userId     String
+  categoryId String
+  amount     Float
+  month      Int // 1-12
+  year       Int
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, categoryId, month, year])
+  @@index([userId])
+}
+
+// A recurring subscription (Netflix, Spotify, gym, ...) — tracking only.
+model Subscription {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  amount      Float
+  currency    String   @default("IDR")
+  cycle       String   @default("monthly") // weekly | monthly | yearly
+  nextBilling DateTime
+  categoryId  String?
+  walletId    String? // the payment method (which wallet it's billed to)
+  color       String   @default("#6366f1")
+  icon        String   @default("credit-card")
+  note        String?
+  active      Boolean  @default(true)
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  wallet   Wallet?   @relation(fields: [walletId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
