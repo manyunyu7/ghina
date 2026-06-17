@@ -4,11 +4,10 @@ import { prisma } from "@/lib/prisma";
 import { getCategories, monthRange, currentMonth } from "@/lib/queries";
 import { formatCurrency, cn, MONTHS } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge, EmptyState, PageHeader, Progress } from "@/components/ui/misc";
-import { CategoryIcon } from "@/components/icon";
+import { EmptyState, PageHeader, Progress } from "@/components/ui/misc";
 import { AddBudgetButton } from "./add-budget-button";
-import { BudgetActions } from "./budget-actions";
 import { MonthSelector } from "./month-selector";
+import { BudgetCard, type BudgetTx } from "./budget-card";
 import type { BudgetEditData } from "./budget-form";
 
 type SearchParams = { month?: string; year?: string };
@@ -35,23 +34,33 @@ export default async function BudgetsPage({
 
   const { start, end } = monthRange(year, month);
 
-  const [expenseCategories, budgets, spentRows] = await Promise.all([
+  const [expenseCategories, budgets, monthTx] = await Promise.all([
     getCategories(user.id, "expense"),
     prisma.budget.findMany({
       where: { userId: user.id, month, year },
       include: { category: true },
     }),
-    prisma.transaction.groupBy({
-      by: ["categoryId"],
-      where: { userId: user.id, type: "expense", date: { gte: start, lte: end } },
-      _sum: { amount: true },
+    prisma.transaction.findMany({
+      where: {
+        userId: user.id,
+        type: "expense",
+        date: { gte: start, lte: end },
+        categoryId: { not: null },
+      },
+      select: { id: true, note: true, amount: true, date: true, categoryId: true },
+      orderBy: [{ date: "desc" }, { createdAt: "desc" }],
     }),
   ]);
 
-  // categoryId -> total spent this month
+  // categoryId -> total spent + the individual transactions making it up
   const spentByCategory = new Map<string, number>();
-  for (const row of spentRows) {
-    if (row.categoryId) spentByCategory.set(row.categoryId, row._sum.amount ?? 0);
+  const txByCategory = new Map<string, BudgetTx[]>();
+  for (const t of monthTx) {
+    const cid = t.categoryId as string;
+    spentByCategory.set(cid, (spentByCategory.get(cid) ?? 0) + t.amount);
+    const list = txByCategory.get(cid) ?? [];
+    list.push({ id: t.id, note: t.note, amount: t.amount, date: t.date.toISOString() });
+    txByCategory.set(cid, list);
   }
 
   // Build per-budget view models, sorted by usage (most spent first).
@@ -178,45 +187,18 @@ export default async function BudgetsPage({
                   amount: budget.amount,
                 };
                 return (
-                  <Card key={budget.id}>
-                    <CardContent className="space-y-3 p-4">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full"
-                          style={{ background: `${c.color}1a`, color: c.color }}
-                        >
-                          <CategoryIcon name={c.icon} className="h-5 w-5" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <p className="truncate font-medium text-foreground">{c.name}</p>
-                            {over && <Badge variant="expense">Over budget</Badge>}
-                          </div>
-                          <p className="mt-0.5 text-xs text-muted">
-                            {formatCurrency(spent, user.currency)} of{" "}
-                            {formatCurrency(budget.amount, user.currency)}
-                          </p>
-                        </div>
-                        <BudgetActions budget={editData} month={month} year={year} />
-                      </div>
-
-                      <Progress value={pct} color={c.color} />
-
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-muted">{Math.round(pct)}% used</span>
-                        <span
-                          className={cn(
-                            "font-medium tabular-nums",
-                            remaining < 0 ? "text-expense" : "text-income",
-                          )}
-                        >
-                          {remaining < 0
-                            ? `${formatCurrency(Math.abs(remaining), user.currency)} over`
-                            : `${formatCurrency(remaining, user.currency)} left`}
-                        </span>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <BudgetCard
+                    key={budget.id}
+                    editData={editData}
+                    spent={spent}
+                    remaining={remaining}
+                    pct={pct}
+                    over={over}
+                    currency={user.currency}
+                    month={month}
+                    year={year}
+                    transactions={txByCategory.get(budget.categoryId) ?? []}
+                  />
                 );
               })}
             </div>

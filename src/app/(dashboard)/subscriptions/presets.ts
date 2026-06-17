@@ -59,6 +59,14 @@ export function nextOccurrence(anchor: Date | string, cycle: string, from: Date 
   return d;
 }
 
+/** Advance a date forward by exactly one billing cycle. */
+export function advanceCycle(date: Date | string, cycle: string): Date {
+  const d = new Date(date);
+  if (cycle === "weekly") return addWeeks(d, 1);
+  if (cycle === "yearly") return addYears(d, 1);
+  return addMonths(d, 1);
+}
+
 export function daysUntil(date: Date, from: Date = new Date()): number {
   const a = new Date(date.getFullYear(), date.getMonth(), date.getDate());
   const b = new Date(from.getFullYear(), from.getMonth(), from.getDate());

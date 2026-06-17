@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
+import { nextOccurrence, advanceCycle } from "./presets";
 
 const schema = z.object({
   name: z.string().trim().min(1, "Name is required").max(80),
@@ -53,6 +54,69 @@ async function assertOwnership(userId: string, categoryId?: string | null, walle
 function revalidate() {
   revalidatePath("/subscriptions");
   revalidatePath("/dashboard");
+}
+
+/**
+ * Record an actual payment for a subscription: creates an expense transaction,
+ * deducts the wallet balance, and rolls the next billing date forward one cycle.
+ * Closes the double-entry gap between tracking a subscription and logging the spend.
+ */
+export async function markSubscriptionPaid(formData: FormData): Promise<Result> {
+  const user = await requireUser();
+  const id = String(formData.get("id") ?? "");
+
+  const sub = await prisma.subscription.findFirst({ where: { id, userId: user.id } });
+  if (!sub) return { ok: false, error: "Subscription not found" };
+
+  // Need a wallet to debit. Use the subscription's payment wallet, else the first wallet.
+  let walletId = sub.walletId;
+  if (!walletId) {
+    const firstWallet = await prisma.wallet.findFirst({
+      where: { userId: user.id, archived: false },
+      orderBy: { createdAt: "asc" },
+      select: { id: true },
+    });
+    if (!firstWallet) {
+      return { ok: false, error: "Create a wallet first, or set a payment wallet on this subscription." };
+    }
+    walletId = firstWallet.id;
+  }
+
+  // The occurrence being paid (rolled to today/future), then advance one more cycle.
+  const paidOccurrence = nextOccurrence(sub.nextBilling, sub.cycle);
+  const newNextBilling = advanceCycle(paidOccurrence, sub.cycle);
+
+  try {
+    await prisma.$transaction([
+      prisma.transaction.create({
+        data: {
+          userId: user.id,
+          walletId,
+          categoryId: sub.categoryId,
+          type: "expense",
+          amount: sub.amount,
+          note: sub.name,
+          date: new Date(),
+        },
+      }),
+      prisma.wallet.update({
+        where: { id: walletId },
+        data: { balance: { decrement: sub.amount } },
+      }),
+      prisma.subscription.update({
+        where: { id: sub.id },
+        data: { nextBilling: newNextBilling },
+      }),
+    ]);
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed to record payment" };
+  }
+
+  revalidatePath("/subscriptions");
+  revalidatePath("/dashboard");
+  revalidatePath("/transactions");
+  revalidatePath("/wallets");
+  return { ok: true };
 }
 
 export async function createSubscription(formData: FormData): Promise<Result> {

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import type { Wallet, Category } from "@prisma/client";
-import { Pencil, Trash2, Pause, Play, CalendarClock, CreditCard } from "lucide-react";
+import { Pencil, Trash2, Pause, Play, CalendarClock, CreditCard, Check } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/misc";
@@ -11,7 +11,7 @@ import { CategoryIcon } from "@/components/icon";
 import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import { cycleLabel, nextOccurrence, daysUntil } from "./presets";
 import { SubscriptionForm, type SubscriptionFormData } from "./subscription-form";
-import { deleteSubscription, toggleSubscription } from "./actions";
+import { deleteSubscription, toggleSubscription, markSubscriptionPaid } from "./actions";
 
 type Sub = SubscriptionFormData;
 
@@ -54,6 +54,7 @@ function SubscriptionCard({
 }) {
   const [editing, setEditing] = React.useState(false);
   const [confirming, setConfirming] = React.useState(false);
+  const [payError, setPayError] = React.useState<string | null>(null);
   const [pending, startTransition] = React.useTransition();
 
   const wallet = wallets.find((w) => w.id === sub.walletId);
@@ -73,6 +74,15 @@ function SubscriptionCard({
     startTransition(async () => {
       await deleteSubscription(fd);
       setConfirming(false);
+    });
+  }
+  function runMarkPaid() {
+    const fd = new FormData();
+    fd.set("id", sub.id);
+    setPayError(null);
+    startTransition(async () => {
+      const res = await markSubscriptionPaid(fd);
+      if (!res.ok) setPayError(res.error ?? "Failed to record payment");
     });
   }
 
@@ -119,19 +129,28 @@ function SubscriptionCard({
         </div>
       </div>
 
-      <div className="mt-3 flex items-center justify-end gap-1 border-t border-border-soft pt-3">
-        <Button variant="ghost" size="sm" onClick={runToggle} disabled={pending}>
-          {sub.active ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-          {sub.active ? "Pause" : "Resume"}
-        </Button>
-        <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
-          <Pencil className="h-4 w-4" />
-          Edit
-        </Button>
-        <Button variant="ghost" size="icon" onClick={() => setConfirming(true)} aria-label="Delete">
-          <Trash2 className="h-4 w-4 text-expense" />
-        </Button>
+      <div className="mt-3 flex items-center gap-1 border-t border-border-soft pt-3">
+        {sub.active && (
+          <Button variant="secondary" size="sm" onClick={runMarkPaid} disabled={pending}>
+            <Check className="h-4 w-4" />
+            {pending ? "Recording…" : "Mark paid"}
+          </Button>
+        )}
+        <div className="ml-auto flex items-center gap-1">
+          <Button variant="ghost" size="sm" onClick={runToggle} disabled={pending}>
+            {sub.active ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+            {sub.active ? "Pause" : "Resume"}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
+            <Pencil className="h-4 w-4" />
+            Edit
+          </Button>
+          <Button variant="ghost" size="icon" onClick={() => setConfirming(true)} aria-label="Delete">
+            <Trash2 className="h-4 w-4 text-expense" />
+          </Button>
+        </div>
       </div>
+      {payError && <p className="mt-2 text-xs text-expense">{payError}</p>}
 
       <SubscriptionForm
         open={editing}
