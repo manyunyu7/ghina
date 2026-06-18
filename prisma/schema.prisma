@@ -30,6 +30,7 @@ model User {
   subscriptions Subscription[]
   prayers       PrayerEntry[]
   health        HealthEntry[]
+  foodLogs      FoodLog[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -206,6 +207,25 @@ model HealthEntry {
   diastolic Int? // mmHg
   pulse     Int? // bpm
   note      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, date])
+}
+
+// A logged meal/food item, with an optional photo, calories and note.
+model FoodLog {
+  id       String   @id @default(cuid())
+  userId   String
+  date     DateTime @default(now())
+  name     String
+  meal     String? // breakfast | lunch | dinner | snack
+  calories Int?
+  photoUrl String?
+  note     String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

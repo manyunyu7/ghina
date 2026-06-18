@@ -16,6 +16,8 @@ export type HealthFormData = {
   note: string | null;
 };
 
+export type HealthMode = "weight" | "bp";
+
 function toDateInput(value: Date | string | undefined): string {
   const d = value ? new Date(value) : new Date();
   const off = d.getTimezoneOffset();
@@ -25,26 +27,29 @@ function toDateInput(value: Date | string | undefined): string {
 export function HealthForm({
   open,
   onClose,
+  mode,
   entry,
 }: {
   open: boolean;
   onClose: () => void;
+  mode: HealthMode;
   entry?: HealthFormData;
 }) {
   const isEdit = Boolean(entry);
+  const title = mode === "weight" ? "weight" : "blood pressure";
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title={isEdit ? "Edit measurement" : "Add measurement"}
-      description="Log your weight, blood pressure, or both."
+      title={`${isEdit ? "Edit" : "Log"} ${title}`}
+      description={mode === "weight" ? "Record your body weight." : "Record your blood pressure and pulse."}
     >
-      {open && <FormBody entry={entry} onClose={onClose} />}
+      {open && <FormBody mode={mode} entry={entry} onClose={onClose} />}
     </Modal>
   );
 }
 
-function FormBody({ entry, onClose }: { entry?: HealthFormData; onClose: () => void }) {
+function FormBody({ mode, entry, onClose }: { mode: HealthMode; entry?: HealthFormData; onClose: () => void }) {
   const isEdit = Boolean(entry);
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -70,29 +75,34 @@ function FormBody({ entry, onClose }: { entry?: HealthFormData; onClose: () => v
         <Input name="date" type="date" required defaultValue={toDateInput(entry?.date)} />
       </Field>
 
-      <Field label="Weight (kg)">
-        <Input
-          name="weight"
-          type="number"
-          inputMode="decimal"
-          step="0.1"
-          min="1"
-          placeholder="e.g. 68.5"
-          defaultValue={val(entry?.weight)}
-        />
-      </Field>
-
-      <div>
-        <p className="mb-1.5 text-sm font-medium text-foreground">Blood pressure (mmHg)</p>
-        <div className="grid grid-cols-2 gap-3">
-          <Input name="systolic" type="number" inputMode="numeric" min="50" placeholder="Systolic (120)" defaultValue={val(entry?.systolic)} />
-          <Input name="diastolic" type="number" inputMode="numeric" min="30" placeholder="Diastolic (80)" defaultValue={val(entry?.diastolic)} />
-        </div>
-      </div>
-
-      <Field label="Pulse (bpm)">
-        <Input name="pulse" type="number" inputMode="numeric" min="20" placeholder="e.g. 72" defaultValue={val(entry?.pulse)} />
-      </Field>
+      {mode === "weight" ? (
+        <Field label="Weight (kg)">
+          <Input
+            name="weight"
+            type="number"
+            inputMode="decimal"
+            step="0.1"
+            min="1"
+            required
+            autoFocus
+            placeholder="e.g. 68.5"
+            defaultValue={val(entry?.weight)}
+          />
+        </Field>
+      ) : (
+        <>
+          <div>
+            <p className="mb-1.5 text-sm font-medium text-foreground">Blood pressure (mmHg)</p>
+            <div className="grid grid-cols-2 gap-3">
+              <Input name="systolic" type="number" inputMode="numeric" min="50" required autoFocus placeholder="Systolic (120)" defaultValue={val(entry?.systolic)} />
+              <Input name="diastolic" type="number" inputMode="numeric" min="30" required placeholder="Diastolic (80)" defaultValue={val(entry?.diastolic)} />
+            </div>
+          </div>
+          <Field label="Pulse (bpm)">
+            <Input name="pulse" type="number" inputMode="numeric" min="20" placeholder="e.g. 72 (optional)" defaultValue={val(entry?.pulse)} />
+          </Field>
+        </>
+      )}
 
       <Field label="Note">
         <Input name="note" placeholder="Optional (e.g. after workout)" defaultValue={entry?.note ?? ""} />
@@ -105,7 +115,7 @@ function FormBody({ entry, onClose }: { entry?: HealthFormData; onClose: () => v
           Cancel
         </Button>
         <Button type="submit" disabled={submitting}>
-          {submitting ? "Saving…" : isEdit ? "Save changes" : "Add measurement"}
+          {submitting ? "Saving…" : isEdit ? "Save changes" : "Save"}
         </Button>
       </div>
     </form>

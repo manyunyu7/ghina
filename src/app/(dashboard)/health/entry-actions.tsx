@@ -21,6 +21,8 @@ export function EntryActions({ entry }: { entry: HealthFormData }) {
     });
   }
 
+  const mode = entry.weight != null ? "weight" : "bp";
+
   return (
     <div className="flex items-center gap-0.5">
       <Button variant="ghost" size="icon" onClick={() => setEditing(true)} aria-label="Edit">
@@ -30,7 +32,7 @@ export function EntryActions({ entry }: { entry: HealthFormData }) {
         <Trash2 className="h-4 w-4 text-expense" />
       </Button>
 
-      <HealthForm open={editing} onClose={() => setEditing(false)} entry={entry} />
+      <HealthForm open={editing} onClose={() => setEditing(false)} mode={mode} entry={entry} />
 
       <Modal open={confirming} onClose={() => setConfirming(false)} title="Delete measurement?" description="This entry will be permanently removed.">
         <div className="flex justify-end gap-2">

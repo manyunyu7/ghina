@@ -30,7 +30,12 @@ export default async function HealthPage() {
           icon={HeartPulse}
           title="No measurements yet"
           description="Log your weight or blood pressure to start seeing your trends and history."
-          action={<AddEntryButton />}
+          action={
+            <div className="flex flex-wrap justify-center gap-2">
+              <AddEntryButton mode="weight" />
+              <AddEntryButton mode="bp" variant="outline" />
+            </div>
+          }
         />
       </div>
     );
@@ -63,7 +68,12 @@ export default async function HealthPage() {
       <PageHeader
         title="Health"
         description="Track your body weight and blood pressure over time."
-        action={<AddEntryButton />}
+        action={
+          <div className="flex flex-wrap gap-2">
+            <AddEntryButton mode="weight" />
+            <AddEntryButton mode="bp" variant="outline" />
+          </div>
+        }
       />
 
       {/* Latest stats */}
