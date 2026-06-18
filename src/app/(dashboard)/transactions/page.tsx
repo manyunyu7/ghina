@@ -1,4 +1,4 @@
-import { ArrowDownLeft, ArrowUpRight, Receipt } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Receipt, ArrowLeftRight } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 import { requireUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
@@ -69,7 +69,7 @@ export default async function TransactionsPage({
 
   const transactions = await prisma.transaction.findMany({
     where,
-    include: { wallet: true, category: true },
+    include: { wallet: true, toWallet: true, category: true },
     orderBy: [{ date: "desc" }, { createdAt: "desc" }],
   });
 
@@ -145,12 +145,14 @@ export default async function TransactionsPage({
                   {items.map((t) => {
                     const isIncome = t.type === "income";
                     const isExpense = t.type === "expense";
-                    const tint = t.category?.color ?? "#6366f1";
+                    const isTransfer = t.type === "transfer";
+                    const tint = isTransfer ? "#6366f1" : t.category?.color ?? "#6366f1";
                     const formData: TransactionFormData = {
                       id: t.id,
                       type: t.type,
                       amount: t.amount,
                       walletId: t.walletId,
+                      toWalletId: t.toWalletId,
                       categoryId: t.categoryId,
                       note: t.note,
                       date: t.date,
@@ -162,7 +164,11 @@ export default async function TransactionsPage({
                           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
                           style={{ backgroundColor: `${tint}1a`, color: tint }}
                         >
-                          <CategoryIcon name={t.category?.icon} className="h-5 w-5" />
+                          {isTransfer ? (
+                            <ArrowLeftRight className="h-5 w-5" />
+                          ) : (
+                            <CategoryIcon name={t.category?.icon} className="h-5 w-5" />
+                          )}
                         </div>
 
                         <div className="min-w-0 flex-1">
@@ -171,7 +177,13 @@ export default async function TransactionsPage({
                             {t.category && t.note ? (
                               <span className="text-xs text-muted">{t.category.name}</span>
                             ) : null}
-                            <Badge>{t.wallet.name}</Badge>
+                            {isTransfer ? (
+                              <Badge>
+                                {t.wallet.name} → {t.toWallet?.name ?? "—"}
+                              </Badge>
+                            ) : (
+                              <Badge>{t.wallet.name}</Badge>
+                            )}
                             <span className="text-xs text-muted-soft">{formatDate(t.date)}</span>
                           </div>
                         </div>

@@ -86,7 +86,8 @@ model Wallet {
   archived  Boolean  @default(false)
 
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  transactions  Transaction[]
+  transactions  Transaction[]  @relation("WalletTransactions")
+  transfersIn   Transaction[]  @relation("WalletTransfersIn")
   subscriptions Subscription[]
 
   createdAt DateTime @default(now())
@@ -118,6 +119,7 @@ model Transaction {
   id         String   @id @default(cuid())
   userId     String
   walletId   String
+  toWalletId String? // destination wallet for type = transfer
   categoryId String?
   type       String   @default("expense") // expense | income | transfer
   amount     Float
@@ -125,7 +127,8 @@ model Transaction {
   date       DateTime @default(now())
 
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  wallet   Wallet    @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  wallet   Wallet    @relation("WalletTransactions", fields: [walletId], references: [id], onDelete: Cascade)
+  toWallet Wallet?   @relation("WalletTransfersIn", fields: [toWalletId], references: [id], onDelete: SetNull)
   category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())

@@ -13,6 +13,7 @@ export type TransactionFormData = {
   type: string;
   amount: number;
   walletId: string;
+  toWalletId: string | null;
   categoryId: string | null;
   note: string | null;
   date: Date | string;
@@ -80,6 +81,7 @@ function TransactionFormBody({
 }) {
   const isEdit = Boolean(transaction);
   const [type, setType] = React.useState<string>(transaction?.type ?? "expense");
+  const [walletId, setWalletId] = React.useState<string>(transaction?.walletId ?? "");
   const [submitting, setSubmitting] = React.useState(false);
 
   // Categories filtered by the chosen type. Transfers have no category list.
@@ -146,8 +148,13 @@ function TransactionFormBody({
           />
         </Field>
 
-        <Field label="Wallet">
-          <Select name="walletId" required defaultValue={transaction?.walletId ?? ""}>
+        <Field label={type === "transfer" ? "From wallet" : "Wallet"}>
+          <Select
+            name="walletId"
+            required
+            value={walletId}
+            onChange={(e) => setWalletId(e.target.value)}
+          >
             <option value="" disabled>
               Select a wallet
             </option>
@@ -158,6 +165,23 @@ function TransactionFormBody({
             ))}
           </Select>
         </Field>
+
+        {type === "transfer" && (
+          <Field label="To wallet">
+            <Select name="toWalletId" key={walletId} required defaultValue={transaction?.toWalletId ?? ""}>
+              <option value="" disabled>
+                Select destination
+              </option>
+              {wallets
+                .filter((w) => w.id !== walletId)
+                .map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name}
+                  </option>
+                ))}
+            </Select>
+          </Field>
+        )}
 
         {type !== "transfer" && (
           <Field label="Category">
