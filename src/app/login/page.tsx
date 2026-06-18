@@ -1,11 +1,11 @@
 import { redirect } from "next/navigation";
-import { auth, signIn, googleEnabled } from "@/auth";
+import { signIn, googleEnabled } from "@/auth";
+import { getCurrentUser } from "@/lib/auth-helpers";
 import { AuthShell, GoogleIcon } from "@/components/auth-shell";
 import { AuthForm } from "./auth-form";
 
 export default async function LoginPage() {
-  const session = await auth();
-  if (session?.user?.id) redirect("/dashboard");
+  if (await getCurrentUser()) redirect("/dashboard");
 
   async function signInWithGoogle() {
     "use server";

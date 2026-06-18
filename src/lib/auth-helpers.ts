@@ -16,6 +16,19 @@ export async function requireUser() {
   return user;
 }
 
+/**
+ * Returns the authenticated user's DB record, or null.
+ * Does NOT redirect — safe for public pages (login/register/home) to decide
+ * whether to bounce an already-authenticated user to the dashboard.
+ * Returns null for a stale cookie whose user no longer exists in the DB
+ * (prevents login<->dashboard redirect loops).
+ */
+export async function getCurrentUser() {
+  const session = await auth();
+  if (!session?.user?.id) return null;
+  return prisma.user.findUnique({ where: { id: session.user.id } });
+}
+
 /** Lightweight: returns just the user id or redirects. */
 export async function requireUserId() {
   const session = await auth();
