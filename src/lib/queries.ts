@@ -65,6 +65,23 @@ export async function getSpendingByCategory(userId: string, range: DateRange) {
     .sort((a, b) => b.total - a.total);
 }
 
+/** Income grouped by category within a range (income only). */
+export async function getIncomeByCategory(userId: string, range: DateRange) {
+  const rows = await prisma.transaction.groupBy({
+    by: ["categoryId"],
+    where: { userId, type: "income", date: { gte: range.start, lte: range.end } },
+    _sum: { amount: true },
+  });
+  const categories = await getCategories(userId);
+  const map = new Map(categories.map((c) => [c.id, c]));
+  return rows
+    .map((r) => ({
+      category: r.categoryId ? map.get(r.categoryId) ?? null : null,
+      total: r._sum.amount ?? 0,
+    }))
+    .sort((a, b) => b.total - a.total);
+}
+
 export async function getRecentTransactions(userId: string, take = 8) {
   return prisma.transaction.findMany({
     where: { userId },

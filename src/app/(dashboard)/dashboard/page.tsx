@@ -152,7 +152,7 @@ export default async function DashboardPage() {
 
       {/* Charts row */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card>
+        <Card className="min-w-0">
           <CardHeader>
             <CardTitle>Spending by category</CardTitle>
             <Badge variant="default">{MONTHS[cm.month - 1]}</Badge>
@@ -169,7 +169,7 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="min-w-0">
           <CardHeader>
             <CardTitle>Income vs Expense</CardTitle>
             <Badge variant="default">Last 6 months</Badge>

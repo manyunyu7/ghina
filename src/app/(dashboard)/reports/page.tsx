@@ -1,13 +1,16 @@
-import { TrendingUp, TrendingDown, PiggyBank, Percent, BarChart3, PieChart } from "lucide-react";
+import { TrendingUp, TrendingDown, PiggyBank, Percent, BarChart3, PieChart, Wallet as WalletIcon, ArrowDownToLine } from "lucide-react";
 import { requireUser } from "@/lib/auth-helpers";
 import {
   getMonthlyTotals,
   getSpendingByCategory,
+  getIncomeByCategory,
+  getWallets,
   monthRange,
   currentMonth,
   type DateRange,
 } from "@/lib/queries";
 import { formatCurrency, cn, MONTHS } from "@/lib/utils";
+import { walletIconFor } from "@/lib/constants";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState, PageHeader } from "@/components/ui/misc";
 import { CategoryIcon } from "@/components/icon";
@@ -96,9 +99,11 @@ export default async function ReportsPage({
 
   // Per-month income/expense (one query per month, run in parallel) +
   // whole-period category spending.
-  const [monthlyTotals, spending] = await Promise.all([
+  const [monthlyTotals, spending, incomeByCat, wallets] = await Promise.all([
     Promise.all(months.map((m) => getMonthlyTotals(user.id, monthRange(m.year, m.month)))),
     getSpendingByCategory(user.id, full),
+    getIncomeByCategory(user.id, full),
+    getWallets(user.id),
   ]);
 
   // Serializable chart data (plain numbers/strings only).
@@ -136,6 +141,30 @@ export default async function ReportsPage({
       total: s.total,
       pct: totalCategorySpend > 0 ? (s.total / totalCategorySpend) * 100 : 0,
     }));
+
+  // Income sources (income grouped by category) for the period.
+  const incomeDonut = incomeByCat
+    .filter((s) => s.total > 0)
+    .map((s) => ({
+      name: s.category?.name ?? "Uncategorized",
+      value: s.total,
+      color: s.category?.color ?? UNCATEGORIZED_COLOR,
+    }));
+  const totalIncomeCat = incomeDonut.reduce((sum, d) => sum + d.value, 0);
+  const topIncome = incomeByCat
+    .filter((s) => s.total > 0)
+    .slice(0, 5)
+    .map((s) => ({
+      name: s.category?.name ?? "Uncategorized",
+      icon: s.category?.icon ?? null,
+      color: s.category?.color ?? UNCATEGORIZED_COLOR,
+      total: s.total,
+      pct: totalIncomeCat > 0 ? (s.total / totalIncomeCat) * 100 : 0,
+    }));
+
+  // Net worth across wallets (current stored balances).
+  const netWorth = wallets.reduce((sum, w) => sum + w.balance, 0);
+  const walletRows = [...wallets].sort((a, b) => b.balance - a.balance);
 
   const hasData = totalIncome > 0 || totalExpense > 0;
 
@@ -223,7 +252,7 @@ export default async function ReportsPage({
 
           {/* Income vs expense + category donut */}
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
-            <Card className="lg:col-span-3">
+            <Card className="lg:col-span-3 min-w-0">
               <CardHeader>
                 <CardTitle>Income vs expense</CardTitle>
                 <BarChart3 className="h-5 w-5 text-muted-soft" />
@@ -233,7 +262,7 @@ export default async function ReportsPage({
               </CardContent>
             </Card>
 
-            <Card className="lg:col-span-2">
+            <Card className="lg:col-span-2 min-w-0">
               <CardHeader>
                 <CardTitle>Spending by category</CardTitle>
                 <PieChart className="h-5 w-5 text-muted-soft" />
@@ -252,7 +281,7 @@ export default async function ReportsPage({
 
           {/* Top categories + cashflow trend */}
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
-            <Card className="lg:col-span-2">
+            <Card className="lg:col-span-2 min-w-0">
               <CardHeader>
                 <CardTitle>Top spending categories</CardTitle>
               </CardHeader>
@@ -293,7 +322,7 @@ export default async function ReportsPage({
               </CardContent>
             </Card>
 
-            <Card className="lg:col-span-3">
+            <Card className="lg:col-span-3 min-w-0">
               <CardHeader>
                 <CardTitle>Net cashflow trend</CardTitle>
                 <TrendingUp className="h-5 w-5 text-muted-soft" />
@@ -303,6 +332,118 @@ export default async function ReportsPage({
               </CardContent>
             </Card>
           </div>
+
+          {/* Income sources + Net worth */}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
+            <Card className="lg:col-span-2 min-w-0">
+              <CardHeader>
+                <CardTitle>Income sources</CardTitle>
+                <ArrowDownToLine className="h-5 w-5 text-muted-soft" />
+              </CardHeader>
+              <CardContent>
+                {incomeDonut.length === 0 ? (
+                  <p className="py-12 text-center text-sm text-muted">
+                    No income recorded in this period.
+                  </p>
+                ) : (
+                  <CategoryDonut data={incomeDonut} currency={user.currency} />
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="lg:col-span-3 min-w-0">
+              <CardHeader>
+                <CardTitle>Top income</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {topIncome.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-muted">No income to rank yet.</p>
+                ) : (
+                  <ul className="space-y-4">
+                    {topIncome.map((c) => (
+                      <li key={c.name}>
+                        <div className="mb-1.5 flex items-center gap-2.5">
+                          <div
+                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+                            style={{ background: `${c.color}1a`, color: c.color }}
+                          >
+                            <CategoryIcon name={c.icon} className="h-4 w-4" />
+                          </div>
+                          <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+                            {c.name}
+                          </span>
+                          <span className="shrink-0 text-sm font-semibold tabular-nums text-income">
+                            {formatCurrency(c.total, user.currency)}
+                          </span>
+                          <span className="w-10 shrink-0 text-right text-xs tabular-nums text-muted">
+                            {c.pct.toFixed(0)}%
+                          </span>
+                        </div>
+                        <div className="h-2 w-full overflow-hidden rounded-full bg-accent">
+                          <div
+                            className="h-full rounded-full transition-all"
+                            style={{ width: `${Math.max(2, c.pct)}%`, background: c.color }}
+                          />
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Net worth across wallets */}
+          <Card className="min-w-0">
+            <CardHeader>
+              <CardTitle>Net worth by wallet</CardTitle>
+              <WalletIcon className="h-5 w-5 text-muted-soft" />
+            </CardHeader>
+            <CardContent>
+              <p className="mb-4 text-2xl font-bold text-foreground">
+                {formatCurrency(netWorth, user.currency)}
+              </p>
+              {walletRows.length === 0 ? (
+                <p className="py-4 text-center text-sm text-muted">No wallets yet.</p>
+              ) : (
+                <ul className="space-y-3">
+                  {walletRows.map((w) => {
+                    const pct = netWorth > 0 ? (w.balance / netWorth) * 100 : 0;
+                    const Icon = walletIconFor(w.icon);
+                    return (
+                      <li key={w.id}>
+                        <div className="mb-1.5 flex items-center gap-2.5">
+                          <div
+                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+                            style={{ background: `${w.color}1a`, color: w.color }}
+                          >
+                            <Icon className="h-4 w-4" />
+                          </div>
+                          <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+                            {w.name}
+                          </span>
+                          <span
+                            className={cn(
+                              "shrink-0 text-sm font-semibold tabular-nums",
+                              w.balance >= 0 ? "text-foreground" : "text-expense",
+                            )}
+                          >
+                            {formatCurrency(w.balance, w.currency)}
+                          </span>
+                        </div>
+                        <div className="h-2 w-full overflow-hidden rounded-full bg-accent">
+                          <div
+                            className="h-full rounded-full transition-all"
+                            style={{ width: `${Math.max(2, Math.abs(pct))}%`, background: w.color }}
+                          />
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
         </div>
       )}
     </div>

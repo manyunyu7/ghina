@@ -47,3 +47,6 @@ next-env.d.ts
 # Uploaded food photos (keep the dir, ignore contents)
 /public/uploads/*
 !/public/uploads/.gitkeep
+
+# infra runbook — JANGAN commit ke repo publik
+DEPLOY.md

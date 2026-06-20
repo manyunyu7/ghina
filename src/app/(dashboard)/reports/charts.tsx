@@ -154,7 +154,7 @@ export function CategoryDonut({
         </div>
       </div>
 
-      <ul className="flex w-full flex-col gap-2">
+      <ul className="flex w-full min-w-0 flex-col gap-2">
         {data.map((slice) => {
           const pct = total > 0 ? Math.round((slice.value / total) * 100) : 0;
           return (
