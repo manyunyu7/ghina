@@ -114,6 +114,61 @@ export async function deletePlanned(formData: FormData): Promise<Result> {
   return { ok: true };
 }
 
+/**
+ * Turn a planned item into a real transaction: creates the Transaction, moves the
+ * wallet balance (debit for expense, credit for income), and removes the plan so it
+ * can't be double-counted. Mirrors `markSubscriptionPaid`.
+ */
+export async function convertPlanned(formData: FormData): Promise<Result> {
+  const user = await requireUser();
+  const id = String(formData.get("id") ?? "");
+
+  const item = await prisma.plannedTransaction.findFirst({ where: { id, userId: user.id } });
+  if (!item) return { ok: false, error: "Planned item not found" };
+
+  // Need a wallet to move money on. Prefer the item's tagged wallet, else the first one.
+  let walletId = item.walletId;
+  if (!walletId) {
+    const firstWallet = await prisma.wallet.findFirst({
+      where: { userId: user.id, archived: false },
+      orderBy: { createdAt: "asc" },
+      select: { id: true },
+    });
+    if (!firstWallet) {
+      return { ok: false, error: "Create a wallet first, or set a wallet on this item." };
+    }
+    walletId = firstWallet.id;
+  }
+
+  const balanceChange = item.type === "expense" ? { decrement: item.amount } : { increment: item.amount };
+
+  try {
+    await prisma.$transaction([
+      prisma.transaction.create({
+        data: {
+          userId: user.id,
+          walletId,
+          categoryId: item.categoryId,
+          type: item.type,
+          amount: item.amount,
+          note: item.note,
+          date: item.date,
+        },
+      }),
+      prisma.wallet.update({ where: { id: walletId }, data: { balance: balanceChange } }),
+      prisma.plannedTransaction.delete({ where: { id: item.id } }),
+    ]);
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed to convert" };
+  }
+
+  revalidatePath("/forecast");
+  revalidatePath("/dashboard");
+  revalidatePath("/transactions");
+  revalidatePath("/wallets");
+  return { ok: true };
+}
+
 export async function togglePlannedDone(formData: FormData): Promise<Result> {
   const user = await requireUser();
   const id = String(formData.get("id") ?? "");

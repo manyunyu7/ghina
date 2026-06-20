@@ -2,14 +2,14 @@
 
 import * as React from "react";
 import type { Wallet, Category } from "@prisma/client";
-import { Pencil, Trash2, Check, CalendarClock, Wallet as WalletIcon } from "lucide-react";
+import { Pencil, Trash2, Check, CalendarClock, Wallet as WalletIcon, ArrowRightLeft } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { CategoryIcon } from "@/components/icon";
 import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import { PlannedForm, type PlannedFormData } from "./planned-form";
-import { deletePlanned, togglePlannedDone } from "./actions";
+import { deletePlanned, togglePlannedDone, convertPlanned } from "./actions";
 
 type Item = PlannedFormData & { done: boolean };
 
@@ -52,12 +52,15 @@ function PlannedCard({
 }) {
   const [editing, setEditing] = React.useState(false);
   const [confirming, setConfirming] = React.useState(false);
+  const [converting, setConverting] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
   const [pending, startTransition] = React.useTransition();
 
   const done = item.done;
   const isExpense = item.type === "expense";
   const category = categories.find((c) => c.id === item.categoryId);
   const wallet = wallets.find((w) => w.id === item.walletId);
+  const targetWallet = wallet ?? wallets[0];
 
   function runToggle() {
     const fd = new FormData();
@@ -72,6 +75,16 @@ function PlannedCard({
     startTransition(async () => {
       await deletePlanned(fd);
       setConfirming(false);
+    });
+  }
+  function runConvert() {
+    const fd = new FormData();
+    fd.set("id", item.id);
+    setError(null);
+    startTransition(async () => {
+      const res = await convertPlanned(fd);
+      if (res.ok) setConverting(false);
+      else setError(res.error ?? "Failed to convert");
     });
   }
 
@@ -115,6 +128,10 @@ function PlannedCard({
           <Check className="h-4 w-4" />
           {done ? "Done" : "Mark done"}
         </Button>
+        <Button variant="ghost" size="sm" onClick={() => setConverting(true)} disabled={pending}>
+          <ArrowRightLeft className="h-4 w-4" />
+          Make real
+        </Button>
         <div className="ml-auto flex items-center gap-1">
           <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
             <Pencil className="h-4 w-4" />
@@ -146,6 +163,40 @@ function PlannedCard({
           </Button>
           <Button variant="danger" onClick={runDelete} disabled={pending}>
             {pending ? "Deleting…" : "Delete"}
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal
+        open={converting}
+        onClose={() => {
+          setConverting(false);
+          setError(null);
+        }}
+        title="Make this a real transaction?"
+        description={
+          targetWallet
+            ? `This logs a real ${isExpense ? "expense" : "income"} of ${formatCurrency(
+                item.amount,
+                currency,
+              )} ${isExpense ? "from" : "to"} “${targetWallet.name}” and updates its balance. The planned item is then removed.`
+            : "You need a wallet first — create one on the Wallets page, then come back."
+        }
+      >
+        {error && <p className="mb-3 text-sm text-expense">{error}</p>}
+        <div className="flex justify-end gap-2">
+          <Button
+            variant="outline"
+            onClick={() => {
+              setConverting(false);
+              setError(null);
+            }}
+            disabled={pending}
+          >
+            Cancel
+          </Button>
+          <Button onClick={runConvert} disabled={pending || !targetWallet}>
+            {pending ? "Working…" : "Make real"}
           </Button>
         </div>
       </Modal>

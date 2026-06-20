@@ -5,12 +5,12 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
   LayoutDashboard, ArrowLeftRight, Wallet, Target, Tags, PieChart,
-  Settings, Repeat, Moon, HeartPulse, Utensils, Menu, X, Wallet as Logo,
+  Settings, Repeat, Moon, HeartPulse, Utensils, TrendingUp, Menu, X, Wallet as Logo,
 } from "lucide-react";
 import { NAV_ITEMS } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 
-const ICONS = { LayoutDashboard, ArrowLeftRight, Wallet, Target, Tags, PieChart, Settings, Repeat, Moon, HeartPulse, Utensils };
+const ICONS = { LayoutDashboard, ArrowLeftRight, Wallet, Target, Tags, PieChart, Settings, Repeat, Moon, HeartPulse, Utensils, TrendingUp };
 
 export function Sidebar({ user }: { user: { name?: string | null; email?: string | null; image?: string | null } }) {
   const pathname = usePathname();
