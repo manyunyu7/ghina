@@ -98,14 +98,34 @@ export function IncomeExpenseChart({
 
 /* ------------------------------ Category donut ----------------------------- */
 
+const OTHER_COLOR = "#94a3b8";
+
 export function CategoryDonut({
   data,
   currency,
+  maxSlices = 8,
 }: {
   data: DonutSlice[];
   currency: string;
+  /** Slices beyond this count are collapsed into a single "Other" entry. */
+  maxSlices?: number;
 }) {
   const total = data.reduce((sum, d) => sum + d.value, 0);
+
+  // Keep the biggest slices; fold the long tail into one "Other" bucket so the
+  // donut and legend stay readable instead of dissolving into slivers.
+  const sorted = [...data].sort((a, b) => b.value - a.value);
+  const slices: DonutSlice[] =
+    sorted.length > maxSlices
+      ? [
+          ...sorted.slice(0, maxSlices),
+          {
+            name: "Other",
+            color: OTHER_COLOR,
+            value: sorted.slice(maxSlices).reduce((sum, d) => sum + d.value, 0),
+          },
+        ]
+      : sorted;
 
   return (
     <div className="flex flex-col items-center gap-4 sm:flex-row">
@@ -113,7 +133,7 @@ export function CategoryDonut({
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
-              data={data}
+              data={slices}
               dataKey="value"
               nameKey="name"
               cx="50%"
@@ -124,7 +144,7 @@ export function CategoryDonut({
               stroke="var(--color-card)"
               strokeWidth={2}
             >
-              {data.map((slice) => (
+              {slices.map((slice) => (
                 <Cell key={slice.name} fill={slice.color} />
               ))}
             </Pie>
@@ -155,7 +175,7 @@ export function CategoryDonut({
       </div>
 
       <ul className="flex w-full min-w-0 flex-col gap-2">
-        {data.map((slice) => {
+        {slices.map((slice) => {
           const pct = total > 0 ? Math.round((slice.value / total) * 100) : 0;
           return (
             <li key={slice.name} className="flex items-center gap-2 text-sm">
@@ -164,10 +184,12 @@ export function CategoryDonut({
                 style={{ background: slice.color }}
               />
               <span className="min-w-0 flex-1 truncate text-foreground">{slice.name}</span>
-              <span className="shrink-0 tabular-nums text-muted">
-                {formatCurrency(slice.value, currency)}
+              <span className="w-20 shrink-0 text-right text-xs tabular-nums text-muted">
+                {formatCompactCurrency(slice.value, currency)}
               </span>
-              <span className="w-9 shrink-0 text-right tabular-nums text-muted-soft">{pct}%</span>
+              <span className="w-8 shrink-0 text-right text-xs tabular-nums text-muted-soft">
+                {pct}%
+              </span>
             </li>
           );
         })}

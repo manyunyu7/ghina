@@ -82,6 +82,39 @@ export async function getIncomeByCategory(userId: string, range: DateRange) {
     .sort((a, b) => b.total - a.total);
 }
 
+/**
+ * Average monthly spend per expense category over the last `months` complete
+ * months (excluding the current, still-running month). Used as the "estimated
+ * from history" baseline in the forecast. Only categories with spend are returned.
+ */
+export async function getCategoryMonthlyAverages(userId: string, months = 3) {
+  const now = new Date();
+  // From the 1st of `months` ago through the last day of last month.
+  const start = new Date(now.getFullYear(), now.getMonth() - months, 1, 0, 0, 0, 0);
+  const end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+
+  const rows = await prisma.transaction.groupBy({
+    by: ["categoryId"],
+    where: {
+      userId,
+      type: "expense",
+      categoryId: { not: null },
+      date: { gte: start, lte: end },
+    },
+    _sum: { amount: true },
+  });
+
+  const categories = await getCategories(userId, "expense");
+  const map = new Map(categories.map((c) => [c.id, c]));
+  return rows
+    .map((r) => ({
+      category: r.categoryId ? map.get(r.categoryId) ?? null : null,
+      avg: (r._sum.amount ?? 0) / months,
+    }))
+    .filter((r): r is { category: NonNullable<typeof r.category>; avg: number } => Boolean(r.category) && r.avg > 0)
+    .sort((a, b) => b.avg - a.avg);
+}
+
 export async function getRecentTransactions(userId: string, take = 8) {
   return prisma.transaction.findMany({
     where: { userId },

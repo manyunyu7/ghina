@@ -28,6 +28,7 @@ model User {
   transactions  Transaction[]
   budgets       Budget[]
   subscriptions Subscription[]
+  planned       PlannedTransaction[]
   prayers       PrayerEntry[]
   health        HealthEntry[]
   foodLogs      FoodLog[]
@@ -85,10 +86,11 @@ model Wallet {
   icon      String   @default("wallet")
   archived  Boolean  @default(false)
 
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  transactions  Transaction[]  @relation("WalletTransactions")
-  transfersIn   Transaction[]  @relation("WalletTransfersIn")
+  user          User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions  Transaction[]        @relation("WalletTransactions")
+  transfersIn   Transaction[]        @relation("WalletTransfersIn")
   subscriptions Subscription[]
+  planned       PlannedTransaction[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -104,10 +106,11 @@ model Category {
   color  String @default("#6366f1")
   icon   String @default("circle")
 
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions  Transaction[]
   budgets       Budget[]
   subscriptions Subscription[]
+  planned       PlannedTransaction[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -183,6 +186,30 @@ model Subscription {
   updatedAt DateTime @updatedAt
 
   @@index([userId])
+}
+
+// A user-entered expectation of a future transaction — a forecast/planning note.
+// Unlike Transaction, this NEVER touches a wallet balance; it's purely a projection.
+model PlannedTransaction {
+  id         String   @id @default(cuid())
+  userId     String
+  type       String   @default("expense") // expense | income
+  amount     Float
+  note       String?
+  categoryId String?
+  walletId   String? // optional tag for which wallet it's expected from
+  date       DateTime // expected date
+  done       Boolean  @default(false) // user ticked it off as having happened
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  wallet   Wallet?   @relation(fields: [walletId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([date])
 }
 
 // A logged prayer. A row's existence means that prayer was performed that day.
