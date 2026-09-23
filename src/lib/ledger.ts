@@ -1,0 +1,103 @@
+import type { Prisma } from "@prisma/client";
+import { writeTombstones } from "@/lib/tombstones";
+
+/**
+ * The single implementation of how transactions move wallet balances.
+ * Used by the web server actions and the mobile sync endpoint — never adjust
+ * `wallet.balance` for a transaction anywhere else.
+ *
+ * income: +amount to wallet · expense: −amount · transfer: −amount from source, +amount to destination.
+ * Editing reverses the old effect and applies the new one; deleting reverses it.
+ */
+
+export type Db = Prisma.TransactionClient;
+
+export type LedgerTx = { type: string; amount: number; walletId: string; toWalletId: string | null };
+
+export type TransactionInput = LedgerTx & {
+  categoryId: string | null;
+  note: string | null;
+  date: Date;
+};
+
+/** Net effect of a transaction on wallet balances, keyed by walletId. */
+export function effects(t: LedgerTx): Record<string, number> {
+  const e: Record<string, number> = {};
+  const add = (id: string, d: number) => {
+    e[id] = (e[id] ?? 0) + d;
+  };
+  if (t.type === "income") add(t.walletId, t.amount);
+  else if (t.type === "expense") add(t.walletId, -t.amount);
+  else if (t.type === "transfer" && t.toWalletId) {
+    add(t.walletId, -t.amount);
+    add(t.toWalletId, t.amount);
+  }
+  return e;
+}
+
+/** Per-wallet balance change for replacing `before` with `after` (either may be null). */
+export function ledgerDeltas(before: LedgerTx | null, after: LedgerTx | null): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (before) for (const [id, d] of Object.entries(effects(before))) out[id] = (out[id] ?? 0) - d;
+  if (after) for (const [id, d] of Object.entries(effects(after))) out[id] = (out[id] ?? 0) + d;
+  return out;
+}
+
+async function applyDeltas(db: Db, deltas: Record<string, number>) {
+  for (const [id, d] of Object.entries(deltas)) {
+    if (d === 0) continue;
+    await db.wallet.update({ where: { id }, data: { balance: { increment: d } } });
+  }
+}
+
+/**
+ * Validate that the referenced wallets/category belong to the user and normalize
+ * a transfer's fields (transfers need a different destination and carry no category).
+ */
+export async function validateTransactionRefs(
+  db: Db,
+  userId: string,
+  p: { type: string; walletId: string; toWalletId: string | null; categoryId: string | null },
+): Promise<{ toWalletId: string | null; categoryId: string | null }> {
+  const wallet = await db.wallet.findFirst({ where: { id: p.walletId, userId }, select: { id: true } });
+  if (!wallet) throw new Error("Wallet not found");
+
+  if (p.type === "transfer") {
+    if (!p.toWalletId) throw new Error("Choose a destination wallet");
+    if (p.toWalletId === p.walletId) throw new Error("Source and destination must differ");
+    const dest = await db.wallet.findFirst({ where: { id: p.toWalletId, userId }, select: { id: true } });
+    if (!dest) throw new Error("Destination wallet not found");
+    // Transfers carry no category.
+    return { toWalletId: p.toWalletId, categoryId: null };
+  }
+
+  if (p.categoryId) {
+    const category = await db.category.findFirst({ where: { id: p.categoryId, userId }, select: { id: true } });
+    if (!category) throw new Error("Category not found");
+  }
+  return { toWalletId: null, categoryId: p.categoryId };
+}
+
+/** Create a transaction and apply its balance effect. Caller validates ownership. */
+export async function createLedgerTransaction(db: Db, userId: string, data: TransactionInput, id?: string) {
+  const tx = await db.transaction.create({ data: { ...(id ? { id } : {}), userId, ...data } });
+  await applyDeltas(db, ledgerDeltas(null, data));
+  return tx;
+}
+
+/** Update a transaction: reverse the old effect, apply the new one (netted per wallet). */
+export async function updateLedgerTransaction(db: Db, existing: LedgerTx & { id: string }, data: TransactionInput) {
+  const tx = await db.transaction.update({ where: { id: existing.id }, data });
+  await applyDeltas(db, ledgerDeltas(existing, data));
+  return tx;
+}
+
+/** Delete a transaction, reverse its balance effect, and tombstone it for sync. */
+export async function deleteLedgerTransaction(
+  db: Db,
+  existing: LedgerTx & { id: string; userId: string },
+) {
+  await db.transaction.delete({ where: { id: existing.id } });
+  await applyDeltas(db, ledgerDeltas(existing, null));
+  await writeTombstones(db, existing.userId, "transactions", [existing.id]);
+}

@@ -5,7 +5,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { signIn } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { DEFAULT_EXPENSE_CATEGORIES, DEFAULT_INCOME_CATEGORIES } from "@/lib/constants";
+import { starterUserData } from "@/lib/user-defaults";
 
 const loginSchema = z.object({
   email: z.string().email("Enter a valid email"),
@@ -69,15 +69,7 @@ export async function registerUser(_prev: AuthState, formData: FormData): Promis
       email,
       password: hashed,
       currency: "IDR",
-      wallets: {
-        create: { name: "Cash", type: "cash", balance: 0, currency: "IDR", color: "#22c55e", icon: "cash" },
-      },
-      categories: {
-        create: [
-          ...DEFAULT_EXPENSE_CATEGORIES.map((c) => ({ ...c, type: "expense" })),
-          ...DEFAULT_INCOME_CATEGORIES.map((c) => ({ ...c, type: "income" })),
-        ],
-      },
+      ...starterUserData(),
     },
   });
 

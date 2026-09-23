@@ -4,19 +4,9 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
-import { WALLET_TYPES, COLOR_PALETTE } from "@/lib/constants";
-import { CURRENCIES } from "@/lib/utils";
-
-const TYPE_VALUES = WALLET_TYPES.map((t) => t.value) as [string, ...string[]];
-
-const walletSchema = z.object({
-  name: z.string().trim().min(1, "Name is required").max(60),
-  type: z.enum(TYPE_VALUES),
-  balance: z.coerce.number().finite(),
-  currency: z.enum(CURRENCIES as [string, ...string[]]),
-  color: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Invalid color"),
-  icon: z.string().trim().min(1).max(40),
-});
+import { COLOR_PALETTE } from "@/lib/constants";
+import { walletSchema } from "@/lib/schemas";
+import { deleteSynced } from "@/lib/sync-deletes";
 
 export type WalletActionResult = { ok: boolean; error?: string };
 
@@ -74,7 +64,7 @@ export async function updateWallet(formData: FormData): Promise<WalletActionResu
     const data = parse(formData, user.currency);
     await prisma.wallet.update({
       where: { id },
-      data,
+      data: { ...data, editedAt: new Date() },
     });
   } catch (err) {
     if (err instanceof z.ZodError) {
@@ -92,12 +82,12 @@ export async function deleteWallet(formData: FormData): Promise<WalletActionResu
   if (!id) return { ok: false, error: "Missing wallet id" };
 
   try {
-    // Verify ownership before deleting; cascades transactions per schema.
+    // Verify ownership before deleting; its transactions are deleted too (see sync-deletes).
     const existing = await prisma.wallet.findUnique({ where: { id }, select: { userId: true } });
     if (!existing || existing.userId !== user.id) {
       return { ok: false, error: "Wallet not found" };
     }
-    await prisma.wallet.delete({ where: { id } });
+    await deleteSynced(user.id, "wallets", id);
   } catch {
     return { ok: false, error: "Failed to delete wallet" };
   }

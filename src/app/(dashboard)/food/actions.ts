@@ -1,46 +1,17 @@
 "use server";
 
-import { writeFile, mkdir, unlink } from "node:fs/promises";
-import { join } from "node:path";
-import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
+import { MEALS } from "@/lib/schemas";
+import { saveUpload as saveFile, deleteUpload } from "@/lib/uploads";
+import { deleteSynced } from "@/lib/sync-deletes";
 
 type Result = { ok: boolean; error?: string };
 
-const MEALS = ["breakfast", "lunch", "dinner", "snack"];
 const MAX_BYTES = 8 * 1024 * 1024;
-const EXT: Record<string, string> = {
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
-  "image/gif": "gif",
-  "image/heic": "heic",
-};
 
-const UPLOAD_DIR = join(process.cwd(), "public", "uploads");
-
-/** Persist an uploaded image to /public/uploads and return its public path. */
-async function saveUpload(file: File): Promise<string> {
-  if (!file.type.startsWith("image/")) throw new Error("Please upload an image file");
-  if (file.size > MAX_BYTES) throw new Error("Image is too large (max 8 MB)");
-  const ext = EXT[file.type] ?? "img";
-  const name = `${randomUUID()}.${ext}`;
-  await mkdir(UPLOAD_DIR, { recursive: true });
-  await writeFile(join(UPLOAD_DIR, name), Buffer.from(await file.arrayBuffer()));
-  return `/uploads/${name}`;
-}
-
-/** Best-effort removal of a previously stored upload. */
-async function deleteUpload(photoUrl: string | null | undefined) {
-  if (!photoUrl?.startsWith("/uploads/")) return;
-  try {
-    await unlink(join(process.cwd(), "public", photoUrl));
-  } catch {
-    // ignore — file may already be gone
-  }
-}
+const saveUpload = (file: File) => saveFile(file, MAX_BYTES);
 
 type Parsed = { date: Date; name: string; meal: string | null; calories: number | null; note: string | null };
 
@@ -124,7 +95,7 @@ export async function deleteFood(formData: FormData): Promise<Result> {
   if (!existing) return { ok: false, error: "Entry not found" };
 
   await deleteUpload(existing.photoUrl);
-  await prisma.foodLog.delete({ where: { id } });
+  await deleteSynced(user.id, "food", id);
   revalidatePath("/food");
   revalidatePath("/dashboard");
   return { ok: true };

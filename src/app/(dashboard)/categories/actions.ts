@@ -10,13 +10,8 @@ import {
   DEFAULT_EXPENSE_CATEGORIES,
   DEFAULT_INCOME_CATEGORIES,
 } from "@/lib/constants";
-
-const categorySchema = z.object({
-  name: z.string().trim().min(1, "Name is required").max(60),
-  type: z.enum(["expense", "income"]),
-  color: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Invalid color"),
-  icon: z.enum(CATEGORY_ICONS as [string, ...string[]]),
-});
+import { categorySchema } from "@/lib/schemas";
+import { deleteSynced } from "@/lib/sync-deletes";
 
 export type CategoryActionResult = { ok: boolean; error?: string };
 
@@ -89,12 +84,12 @@ export async function deleteCategory(formData: FormData): Promise<CategoryAction
   if (!id) return { ok: false, error: "Missing category id" };
 
   try {
-    // Verify ownership before deleting; transactions.categoryId is set null per schema.
+    // Verify ownership before deleting; references are nulled and budgets deleted (see sync-deletes).
     const existing = await prisma.category.findUnique({ where: { id }, select: { userId: true } });
     if (!existing || existing.userId !== user.id) {
       return { ok: false, error: "Category not found" };
     }
-    await prisma.category.delete({ where: { id } });
+    await deleteSynced(user.id, "categories", id);
   } catch {
     return { ok: false, error: "Failed to delete category" };
   }

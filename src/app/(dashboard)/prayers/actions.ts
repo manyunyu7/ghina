@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
+import { deleteSynced } from "@/lib/sync-deletes";
 import { PRAYER_IDS } from "./constants";
 
 type Result = { ok: boolean; done?: boolean; error?: string };
@@ -25,7 +26,7 @@ export async function togglePrayer(formData: FormData): Promise<Result> {
 
   let done: boolean;
   if (existing) {
-    await prisma.prayerEntry.delete({ where: { id: existing.id } });
+    await deleteSynced(user.id, "prayers", existing.id);
     done = false;
   } else {
     await prisma.prayerEntry.create({ data: { userId: user.id, date, prayer } });

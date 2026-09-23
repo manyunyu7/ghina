@@ -4,14 +4,10 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
-import { CURRENCIES } from "@/lib/utils";
+import { profileSchema } from "@/lib/schemas";
+import { resetFinanceData } from "@/lib/sync-deletes";
 
 export type SettingsActionResult = { ok: boolean; error?: string };
-
-const profileSchema = z.object({
-  currency: z.enum(CURRENCIES as [string, ...string[]]),
-  name: z.string().trim().min(1, "Name is required").max(60),
-});
 
 function revalidate() {
   revalidatePath("/settings");
@@ -42,12 +38,8 @@ export async function updateProfile(formData: FormData): Promise<SettingsActionR
 export async function resetData(): Promise<SettingsActionResult> {
   const user = await requireUser();
   try {
-    await prisma.$transaction([
-      prisma.budget.deleteMany({ where: { userId: user.id } }),
-      prisma.transaction.deleteMany({ where: { userId: user.id } }),
-      prisma.category.deleteMany({ where: { userId: user.id } }),
-      prisma.wallet.deleteMany({ where: { userId: user.id } }),
-    ]);
+    // Also rotates the sync epoch so mobile clients wipe and re-pull.
+    await resetFinanceData(user.id);
   } catch {
     return { ok: false, error: "Failed to reset data" };
   }

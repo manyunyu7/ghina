@@ -1,18 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
 import { requireUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
-
-const schema = z.object({
-  type: z.enum(["expense", "income"]),
-  amount: z.coerce.number().positive("Amount must be greater than 0"),
-  note: z.string().trim().max(200).optional().nullable(),
-  date: z.coerce.date(),
-  categoryId: z.string().optional().nullable(),
-  walletId: z.string().optional().nullable(),
-});
+import { plannedSchema as schema } from "@/lib/schemas";
+import { createLedgerTransaction } from "@/lib/ledger";
+import { deleteSynced, deleteSyncedRow } from "@/lib/sync-deletes";
 
 type Result = { ok: boolean; error?: string };
 
@@ -109,7 +102,7 @@ export async function deletePlanned(formData: FormData): Promise<Result> {
   const existing = await prisma.plannedTransaction.findFirst({ where: { id, userId: user.id }, select: { id: true } });
   if (!existing) return { ok: false, error: "Planned item not found" };
 
-  await prisma.plannedTransaction.delete({ where: { id } });
+  await deleteSynced(user.id, "planned", id);
   revalidate();
   return { ok: true };
 }
@@ -140,24 +133,19 @@ export async function convertPlanned(formData: FormData): Promise<Result> {
     walletId = firstWallet.id;
   }
 
-  const balanceChange = item.type === "expense" ? { decrement: item.amount } : { increment: item.amount };
-
   try {
-    await prisma.$transaction([
-      prisma.transaction.create({
-        data: {
-          userId: user.id,
-          walletId,
-          categoryId: item.categoryId,
-          type: item.type,
-          amount: item.amount,
-          note: item.note,
-          date: item.date,
-        },
-      }),
-      prisma.wallet.update({ where: { id: walletId }, data: { balance: balanceChange } }),
-      prisma.plannedTransaction.delete({ where: { id: item.id } }),
-    ]);
+    await prisma.$transaction(async (db) => {
+      await createLedgerTransaction(db, user.id, {
+        walletId: walletId!,
+        toWalletId: null,
+        categoryId: item.categoryId,
+        type: item.type,
+        amount: item.amount,
+        note: item.note,
+        date: item.date,
+      });
+      await deleteSyncedRow(db, user.id, "planned", item.id);
+    });
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Failed to convert" };
   }

@@ -1,24 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
 import { requireUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
+import { subscriptionSchema as schema } from "@/lib/schemas";
+import { createLedgerTransaction } from "@/lib/ledger";
+import { deleteSynced } from "@/lib/sync-deletes";
 import { nextOccurrence, advanceCycle } from "./presets";
-
-const schema = z.object({
-  name: z.string().trim().min(1, "Name is required").max(80),
-  amount: z.coerce.number().positive("Amount must be greater than 0"),
-  currency: z.string().min(1).max(8),
-  cycle: z.enum(["weekly", "monthly", "yearly"]),
-  nextBilling: z.coerce.date(),
-  categoryId: z.string().optional().nullable(),
-  walletId: z.string().optional().nullable(),
-  color: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Invalid color").default("#6366f1"),
-  icon: z.string().min(1).default("credit-card"),
-  note: z.string().max(200).optional().nullable(),
-  active: z.coerce.boolean().optional(),
-});
 
 type Result = { ok: boolean; error?: string };
 
@@ -87,27 +75,21 @@ export async function markSubscriptionPaid(formData: FormData): Promise<Result> 
   const newNextBilling = advanceCycle(paidOccurrence, sub.cycle);
 
   try {
-    await prisma.$transaction([
-      prisma.transaction.create({
-        data: {
-          userId: user.id,
-          walletId,
-          categoryId: sub.categoryId,
-          type: "expense",
-          amount: sub.amount,
-          note: sub.name,
-          date: new Date(),
-        },
-      }),
-      prisma.wallet.update({
-        where: { id: walletId },
-        data: { balance: { decrement: sub.amount } },
-      }),
-      prisma.subscription.update({
+    await prisma.$transaction(async (db) => {
+      await createLedgerTransaction(db, user.id, {
+        walletId: walletId!,
+        toWalletId: null,
+        categoryId: sub.categoryId,
+        type: "expense",
+        amount: sub.amount,
+        note: sub.name,
+        date: new Date(),
+      });
+      await db.subscription.update({
         where: { id: sub.id },
         data: { nextBilling: newNextBilling },
-      }),
-    ]);
+      });
+    });
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Failed to record payment" };
   }
@@ -193,7 +175,7 @@ export async function deleteSubscription(formData: FormData): Promise<Result> {
   const existing = await prisma.subscription.findFirst({ where: { id, userId: user.id }, select: { id: true } });
   if (!existing) return { ok: false, error: "Subscription not found" };
 
-  await prisma.subscription.delete({ where: { id } });
+  await deleteSynced(user.id, "subscriptions", id);
   revalidate();
   return { ok: true };
 }

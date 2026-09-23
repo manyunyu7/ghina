@@ -50,3 +50,4 @@ next-env.d.ts
 
 # infra runbook — JANGAN commit ke repo publik
 DEPLOY.md
+/prisma/*.db*

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
+import { deleteSynced } from "@/lib/sync-deletes";
 
 type Result = { ok: boolean; error?: string };
 
@@ -82,7 +83,7 @@ export async function deleteHealthEntry(formData: FormData): Promise<Result> {
   const existing = await prisma.healthEntry.findFirst({ where: { id, userId: user.id }, select: { id: true } });
   if (!existing) return { ok: false, error: "Entry not found" };
 
-  await prisma.healthEntry.delete({ where: { id } });
+  await deleteSynced(user.id, "health", id);
   revalidatePath("/health");
   revalidatePath("/dashboard");
   return { ok: true };

@@ -20,6 +20,8 @@ model User {
   image         String?
   password      String? // bcrypt hash, for email/password (credentials) login
   currency      String    @default("IDR")
+  // Rotated by "reset all data" — tells mobile clients to wipe and do a full pull.
+  syncEpoch     String    @default(cuid())
 
   accounts      Account[]
   sessions      Session[]
@@ -32,6 +34,7 @@ model User {
   prayers       PrayerEntry[]
   health        HealthEntry[]
   foodLogs      FoodLog[]
+  tombstones    SyncTombstone[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -85,6 +88,9 @@ model Wallet {
   color     String   @default("#6366f1")
   icon      String   @default("wallet")
   archived  Boolean  @default(false)
+  // Last time the wallet's own fields were edited (not bumped by balance changes).
+  // Used for last-write-wins in mobile sync, since `updatedAt` moves with every transaction.
+  editedAt  DateTime @default(now())
 
   user          User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions  Transaction[]        @relation("WalletTransactions")
@@ -222,6 +228,7 @@ model PrayerEntry {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 
   @@unique([userId, date, prayer])
   @@index([userId, date])
@@ -263,4 +270,21 @@ model FoodLog {
   updatedAt DateTime @updatedAt
 
   @@index([userId, date])
+}
+
+// ---------- Mobile sync ----------
+
+// Record of a deleted synced row, so mobile clients can drop it on their next pull.
+// `entity` is the sync wire name (wallets, transactions, ...). Written by src/lib/sync-deletes.ts.
+model SyncTombstone {
+  id        String   @id @default(cuid())
+  userId    String
+  entity    String
+  entityId  String
+  deletedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, deletedAt])
+  @@index([userId, entity, entityId])
 }

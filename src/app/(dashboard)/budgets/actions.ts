@@ -4,15 +4,10 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
+import { budgetSchema } from "@/lib/schemas";
+import { deleteSynced } from "@/lib/sync-deletes";
 
 export type BudgetActionResult = { ok: boolean; error?: string };
-
-const budgetSchema = z.object({
-  categoryId: z.string().trim().min(1, "Category is required"),
-  amount: z.number().positive("Amount must be greater than 0"),
-  month: z.number().int().min(1, "Invalid month").max(12, "Invalid month"),
-  year: z.number().int().min(1970, "Invalid year").max(9999, "Invalid year"),
-});
 
 function parse(formData: FormData): z.infer<typeof budgetSchema> {
   return budgetSchema.parse({
@@ -109,7 +104,7 @@ export async function deleteBudget(formData: FormData): Promise<BudgetActionResu
     if (!existing || existing.userId !== user.id) {
       return { ok: false, error: "Budget not found" };
     }
-    await prisma.budget.delete({ where: { id } });
+    await deleteSynced(user.id, "budgets", id);
   } catch {
     return { ok: false, error: "Failed to delete budget" };
   }
