@@ -1,4 +1,5 @@
 import { Wallet, TrendingUp, Target, PieChart } from "lucide-react";
+import { AppDownload } from "@/components/app-download";
 
 export function AuthShell({ children }: { children: React.ReactNode }) {
   return (
@@ -48,6 +49,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
             <span className="text-xl font-bold">Ghina</span>
           </div>
           {children}
+          <AppDownload className="mt-8" />
         </div>
       </div>
     </div>

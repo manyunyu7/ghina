@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { NAV_ITEMS } from "@/lib/nav";
 import { cn } from "@/lib/utils";
+import { AppDownload } from "@/components/app-download";
 
 const ICONS = { LayoutDashboard, ArrowLeftRight, Wallet, Target, Tags, PieChart, Settings, Repeat, Moon, HeartPulse, Utensils, TrendingUp };
 
@@ -96,6 +97,7 @@ export function Sidebar({ user }: { user: { name?: string | null; email?: string
 function UserCard({ user }: { user: { name?: string | null; email?: string | null; image?: string | null } }) {
   return (
     <div className="mt-4 border-t border-border pt-4">
+      <AppDownload compact className="mb-2" />
       <Link href="/settings" className="flex items-center gap-3 rounded-lg p-2 transition hover:bg-accent">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
