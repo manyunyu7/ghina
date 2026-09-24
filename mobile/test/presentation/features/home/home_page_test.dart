@@ -7,6 +7,7 @@ import 'package:ghina/presentation/design_system/design_system.dart';
 import 'package:ghina/presentation/features/home/pages/home_page.dart';
 
 import '../shell/test_utils.dart';
+import '_task_harness.dart';
 
 void main() {
   testWidgets(
@@ -15,7 +16,7 @@ void main() {
       await pumpPage(
         tester,
         const HomePage(),
-        overrides: pageOverrides(events: streakEvents(4)),
+        overrides: withTasks(pageOverrides(events: streakEvents(4))),
       );
 
       expect(find.text('Selamat siang, Ghina!'), findsOneWidget);
@@ -49,14 +50,22 @@ void main() {
   testWidgets('balance card opens wallets and quick actions navigate', (
     tester,
   ) async {
-    await pumpPage(tester, const HomePage(), overrides: pageOverrides());
+    await pumpPage(
+      tester,
+      const HomePage(),
+      overrides: withTasks(pageOverrides()),
+    );
     await tester.tap(find.text('TOTAL SALDO'));
     await settle(tester);
     expect(find.text('ROUTE:/wallets'), findsOneWidget);
   });
 
   testWidgets('quick action grid pushes the module route', (tester) async {
-    await pumpPage(tester, const HomePage(), overrides: pageOverrides());
+    await pumpPage(
+      tester,
+      const HomePage(),
+      overrides: withTasks(pageOverrides()),
+    );
     await tester.scrollUntilVisible(
       find.byKey(const ValueKey('qa-/prayers')),
       300,
@@ -73,9 +82,11 @@ void main() {
     await pumpPage(
       tester,
       const HomePage(),
-      overrides: pageOverrides(
-        dashboard: sampleDashboard(empty: true),
-        budgets: sampleBudgets(empty: true),
+      overrides: withTasks(
+        pageOverrides(
+          dashboard: sampleDashboard(empty: true),
+          budgets: sampleBudgets(empty: true),
+        ),
       ),
     );
     await tester.scrollUntilVisible(
@@ -94,8 +105,8 @@ void main() {
     await pumpPage(
       tester,
       const HomePage(),
-      overrides: pageOverrides(
-        dashboardStream: const Stream<DashboardSummary>.empty(),
+      overrides: withTasks(
+        pageOverrides(dashboardStream: const Stream<DashboardSummary>.empty()),
       ),
     );
     expect(find.byType(Skeleton), findsWidgets);
@@ -105,8 +116,10 @@ void main() {
     await pumpPage(
       tester,
       const HomePage(),
-      overrides: pageOverrides(
-        dashboardStream: Stream<DashboardSummary>.error(Exception('boom')),
+      overrides: withTasks(
+        pageOverrides(
+          dashboardStream: Stream<DashboardSummary>.error(Exception('boom')),
+        ),
       ),
     );
     expect(find.text('Ups, ada yang salah'), findsOneWidget);
@@ -120,7 +133,7 @@ void main() {
     await pumpPage(
       tester,
       const HomePage(),
-      overrides: pageOverrides(syncService: sync),
+      overrides: withTasks(pageOverrides(syncService: sync)),
     );
     await tester.fling(find.text('TOTAL SALDO'), const Offset(0, 400), 1000);
     await settle(tester, 20);
@@ -141,7 +154,9 @@ void main() {
     await pumpPage(
       tester,
       const HomePage(),
-      overrides: pageOverrides(events: streakEvents(1, today: 3), store: store),
+      overrides: withTasks(
+        pageOverrides(events: streakEvents(1, today: 3), store: store),
+      ),
     );
     await settle(tester, 8);
     expect(find.text('Target harian tercapai!'), findsOneWidget);

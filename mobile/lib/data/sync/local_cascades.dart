@@ -15,7 +15,7 @@ class LocalCascades {
   final Outbox _outbox;
 
   /// Wallet deleted → its transactions (either side) deleted; subscriptions/planned
-  /// get `walletId = null`.
+  /// and tasks get `walletId = null` (tasks also lose links to those transactions).
   Future<void> walletDeleted(String walletId) async {
     final txs =
         await (_db.select(_db.transactions)..where(
@@ -48,10 +48,49 @@ class LocalCascades {
       );
       await _outbox.patchQueued(SyncEntity.planned, p.id, {'walletId': null});
     }
+    for (final t in txs) {
+      await transactionDeleted(t.id);
+    }
+    await _nullTaskRef(_db.tasks.walletId, 'walletId', walletId);
   }
 
-  /// Category deleted → transactions/subscriptions/planned get `categoryId = null`;
-  /// its budgets are deleted.
+  /// Transaction deleted → tasks get `transactionId = null`.
+  Future<void> transactionDeleted(String transactionId) =>
+      _nullTaskRef(_db.tasks.transactionId, 'transactionId', transactionId);
+
+  /// Task area deleted → its tasks are deleted (the server tombstones them).
+  Future<void> taskAreaDeleted(String areaId) async {
+    final tasks = await (_db.select(
+      _db.tasks,
+    )..where((t) => t.areaId.equals(areaId))).get();
+    for (final t in tasks) {
+      await (_db.delete(_db.tasks)..where((x) => x.id.equals(t.id))).go();
+      await _outbox.dropQueued(SyncEntity.tasks, t.id);
+    }
+  }
+
+  Future<void> _nullTaskRef(
+    GeneratedColumn<String> column,
+    String field,
+    String id,
+  ) async {
+    final rows = await (_db.select(
+      _db.tasks,
+    )..where((_) => column.equals(id))).get();
+    for (final t in rows) {
+      await (_db.update(_db.tasks)..where((x) => x.id.equals(t.id))).write(
+        TasksCompanion.custom(
+          walletId: field == 'walletId' ? const Constant(null) : null,
+          categoryId: field == 'categoryId' ? const Constant(null) : null,
+          transactionId: field == 'transactionId' ? const Constant(null) : null,
+        ),
+      );
+      await _outbox.patchQueued(SyncEntity.tasks, t.id, {field: null});
+    }
+  }
+
+  /// Category deleted → transactions/subscriptions/planned/tasks get
+  /// `categoryId = null`; its budgets are deleted.
   Future<void> categoryDeleted(String categoryId) async {
     final txs = await (_db.select(
       _db.transactions,
@@ -89,5 +128,6 @@ class LocalCascades {
       await (_db.delete(_db.budgets)..where((x) => x.id.equals(b.id))).go();
       await _outbox.dropQueued(SyncEntity.budgets, b.id);
     }
+    await _nullTaskRef(_db.tasks.categoryId, 'categoryId', categoryId);
   }
 }

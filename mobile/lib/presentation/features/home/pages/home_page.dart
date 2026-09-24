@@ -10,10 +10,12 @@ import '../../../../di/di.dart';
 import '../../../../domain/entities/entities.dart';
 import '../../../design_system/design_system.dart';
 import '../../../state/game/game_providers.dart';
+import '../../../state/game/task_game_providers.dart';
 import '../../../state/session_controller.dart';
 import '../../../shared/rewards/rewards.dart';
 import '../../../shared/widgets/widgets.dart';
 import '../widgets/home_sections.dart';
+import '../widgets/home_tasks.dart';
 
 /// Beranda: game stats, mascot, daily goal, money overview, shortcuts, and what's
 /// coming up. Also presents pending reward celebrations whenever it's on screen.
@@ -57,6 +59,8 @@ class _HomePageState extends ConsumerState<HomePage> {
     final game = ref.watch(gameSummaryProvider);
     final dash = ref.watch(watchDashboardProvider);
     final summary = game.value;
+    // Records yesterday's "FIRE kosong" snapshot on the first open of a day.
+    ref.listen(fireClearRecorderProvider, (_, _) {});
 
     if (summary != null && summary.celebrations.isNotEmpty && _visible) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -139,8 +143,12 @@ class _HomePageState extends ConsumerState<HomePage> {
         Skeleton(height: 108, radius: 20),
       ];
     }
+    final line = ref.watch(homeMascotProvider);
     return [
-      HomeMascot(summary: s),
+      HomeMascot(
+        mood: line?.mood ?? s.mood,
+        message: line?.message ?? s.message,
+      ),
       GhinaSpace.gapLg,
       DailyGoalCard(summary: s),
     ];
@@ -162,6 +170,8 @@ class _HomePageState extends ConsumerState<HomePage> {
           actionLabel: 'Coba lagi',
           onAction: () => ref.invalidate(watchDashboardProvider),
         ),
+        GhinaSpace.gapXl,
+        const HomeTasksSection(),
       ];
     }
     if (d == null) {
@@ -169,6 +179,8 @@ class _HomePageState extends ConsumerState<HomePage> {
         Skeleton(height: 104, radius: 20),
         SizedBox(height: 12),
         Skeleton(height: 120, radius: 20),
+        SizedBox(height: 24),
+        HomeTasksSection(),
         SizedBox(height: 24),
         SkeletonList(count: 3),
       ];
@@ -189,6 +201,8 @@ class _HomePageState extends ConsumerState<HomePage> {
       BalanceCard(dash: d, currency: currency),
       GhinaSpace.gapMd,
       MonthFlowCard(dash: d, currency: currency),
+      GhinaSpace.gapXl,
+      const HomeTasksSection(),
       if (path != null) ...[GhinaSpace.gapLg, ContinueLearningCard(path: path)],
       GhinaSpace.gapXl,
       const SectionHeader(title: 'Menu'),

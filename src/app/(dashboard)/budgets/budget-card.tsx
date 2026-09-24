@@ -5,11 +5,12 @@ import { ChevronDown, Receipt } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge, Progress } from "@/components/ui/misc";
 import { CategoryIcon } from "@/components/icon";
+import { PhotoBadge } from "@/components/photo-viewer";
 import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import { BudgetActions } from "./budget-actions";
 import type { BudgetEditData } from "./budget-form";
 
-export type BudgetTx = { id: string; note: string | null; amount: number; date: string };
+export type BudgetTx = { id: string; note: string | null; amount: number; date: string; photos: string[] };
 
 export function BudgetCard({
   editData,
@@ -119,7 +120,10 @@ export function BudgetCard({
                   <li key={t.id} className="flex items-center justify-between gap-3 py-2 text-sm">
                     <div className="min-w-0">
                       <p className="truncate text-foreground">{t.note?.trim() || categoryName}</p>
-                      <p className="text-xs text-muted-soft">{formatDate(t.date)}</p>
+                      <p className="flex items-center gap-2 text-xs text-muted-soft">
+                        {formatDate(t.date)}
+                        <PhotoBadge photos={t.photos} />
+                      </p>
                     </div>
                     <span className="shrink-0 tabular-nums text-expense">
                       −{formatCurrency(t.amount, currency)}

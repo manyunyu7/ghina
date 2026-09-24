@@ -322,3 +322,56 @@ Subscription subscription(
   createdAt: t0,
   updatedAt: t0,
 );
+
+class FakeTaskAreaRepository implements TaskAreaRepository {
+  final s = _Store<TaskArea>((a) => a.id);
+
+  /// Tasks cascaded on delete (optional).
+  FakeTaskRepository? tasks;
+
+  List<TaskArea> _all() => s.items.values.toList()
+    ..sort((a, b) {
+      final c = a.sortOrder.compareTo(b.sortOrder);
+      return c != 0 ? c : a.name.compareTo(b.name);
+    });
+
+  @override
+  Stream<List<TaskArea>> watchAll() => s.watch(_all);
+  @override
+  Future<List<TaskArea>> getAll() async => _all();
+  @override
+  Stream<TaskArea?> watchById(String id) => s.watch(() => s.items[id]);
+  @override
+  Future<TaskArea?> getById(String id) async => s.items[id];
+  @override
+  Future<void> save(TaskArea area) async => s.put(area);
+  @override
+  Future<void> delete(String id) async {
+    s.remove(id);
+    final t = tasks;
+    if (t == null) return;
+    for (final x in t.s.items.values.where((x) => x.areaId == id).toList()) {
+      t.s.remove(x.id);
+    }
+  }
+}
+
+class FakeTaskRepository implements TaskRepository {
+  final s = _Store<Task>((t) => t.id);
+
+  @override
+  Stream<List<Task>> watchAll() => s.watch(() => s.items.values.toList());
+  @override
+  Future<List<Task>> getAll({String? areaId}) async => [
+    for (final t in s.items.values)
+      if (areaId == null || t.areaId == areaId) t,
+  ];
+  @override
+  Stream<Task?> watchById(String id) => s.watch(() => s.items[id]);
+  @override
+  Future<Task?> getById(String id) async => s.items[id];
+  @override
+  Future<void> save(Task task) async => s.put(task);
+  @override
+  Future<void> delete(String id) async => s.remove(id);
+}

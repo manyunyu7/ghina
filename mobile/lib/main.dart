@@ -8,5 +8,8 @@ import 'di/di.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Fmt.initFormatting();
-  runApp(ProviderScope(overrides: gameOverrides, child: const GhinaApp()));
+  runApp(ProviderScope(
+    overrides: [...gameOverrides, ...reminderOverrides],
+    child: const GhinaApp(),
+  ));
 }

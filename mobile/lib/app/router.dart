@@ -29,6 +29,11 @@ import '../presentation/features/settings/pages/sync_page.dart';
 import '../presentation/features/shell/app_shell.dart';
 import '../presentation/features/subscriptions/pages/subscription_form_page.dart';
 import '../presentation/features/subscriptions/pages/subscriptions_page.dart';
+import '../presentation/features/tasks/pages/task_area_form_page.dart';
+import '../presentation/features/tasks/pages/task_areas_page.dart';
+import '../presentation/features/tasks/pages/task_form_page.dart';
+import '../presentation/features/tasks/pages/tasks_page.dart';
+import '../presentation/features/tasks/task_draft.dart';
 import '../presentation/features/transactions/pages/transaction_form_page.dart';
 import '../presentation/features/transactions/pages/transactions_page.dart';
 import '../presentation/features/wallets/pages/wallet_form_page.dart';
@@ -96,7 +101,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           StatefulShellBranch(
             routes: [
-              GoRoute(path: '/learn', builder: (_, _) => const LearnPage()),
+              GoRoute(path: '/tasks', builder: (_, _) => const TasksPage()),
             ],
           ),
           StatefulShellBranch(
@@ -135,6 +140,28 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       ..._crud('/health', const HealthPage(), (id) => HealthFormPage(id: id)),
       ..._crud('/food', const FoodPage(), (id) => FoodFormPage(id: id)),
+      // Tugas (the tab lives in the shell above).
+      GoRoute(path: '/tasks/areas', builder: (_, _) => const TaskAreasPage()),
+      GoRoute(
+        path: '/tasks/areas/new',
+        builder: (_, _) => const TaskAreaFormPage(),
+      ),
+      GoRoute(
+        path: '/tasks/areas/:id',
+        builder: (_, s) => TaskAreaFormPage(id: s.pathParameters['id']),
+      ),
+      GoRoute(
+        path: '/tasks/new',
+        builder: (_, s) => TaskFormPage(
+          draft: s.extra is TaskDraft ? s.extra as TaskDraft : null,
+        ),
+      ),
+      GoRoute(
+        path: '/tasks/:id',
+        builder: (_, s) => TaskFormPage(id: s.pathParameters['id']),
+      ),
+      // Belajar is no longer a tab; reachable from home and profile.
+      GoRoute(path: '/learn', builder: (_, _) => const LearnPage()),
       GoRoute(path: '/reports', builder: (_, _) => const ReportsPage()),
       GoRoute(path: '/prayers', builder: (_, _) => const PrayersPage()),
       GoRoute(

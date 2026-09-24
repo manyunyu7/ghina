@@ -1,7 +1,8 @@
 // End-to-end check against a real server. Skipped unless GHINA_E2E_BASE_URL is set:
 //   (cd .. && npx next dev -p 3100)
 //   GHINA_E2E_BASE_URL=http://localhost:3100 flutter test test/data/e2e_sync_test.dart
-// Creates a throwaway user mobile-test-dart-*@example.test (delete it afterwards).
+// Creates a throwaway user mobile-test-dart-sync-*@example.test, removed (with its
+// upload files) at the end via `node scripts/e2e-helper.mjs cleanup …`.
 import 'dart:io';
 
 import 'package:drift/drift.dart' show driftRuntimeOptions;
@@ -60,11 +61,20 @@ void main() {
   final base = Platform.environment['GHINA_E2E_BASE_URL'];
   driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
 
+  tearDownAll(() async {
+    if (base == null) return;
+    await Process.run('node', [
+      'scripts/e2e-helper.mjs',
+      'cleanup',
+      'mobile-test-dart-sync-',
+    ], workingDirectory: Directory.current.parent.path);
+  });
+
   test(
     'full round trip against the real server',
     () async {
       final email =
-          'mobile-test-dart-${DateTime.now().millisecondsSinceEpoch}@example.test';
+          'mobile-test-dart-sync-${DateTime.now().millisecondsSinceEpoch}@example.test';
       final a = Client(base!, MemoryTokenStore());
       final user = await a.auth.register(
         name: 'Dart E2E',

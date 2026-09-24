@@ -36,6 +36,18 @@ abstract final class XpRules {
   static const food = 5;
   static const foodDailyCap = 6;
 
+  /// Completed task XP by bucket (`docs/tasks.md` → Gamification); mirrors
+  /// `TaskBucket.xp` (fire 10 / want 8 / should 5).
+  static const taskBucketXp = <String, int>{'fire': 10, 'want': 8, 'should': 5};
+
+  /// Max completed tasks per local day (of `doneAt`) that earn XP / count toward
+  /// the daily goal; mirrors `taskXpDailyCap` in `domain/usecases/task_rules.dart`.
+  static const taskDailyCap = 20;
+
+  /// XP of one completed task in [bucket] (unknown → the SHOULD value).
+  static int taskXp(String? bucket) =>
+      taskBucketXp[bucket] ?? taskBucketXp['should']!;
+
   // --- Lessons --------------------------------------------------------------
   static const lessonBase = 15;
   static const lessonPerfectBonus = 5;

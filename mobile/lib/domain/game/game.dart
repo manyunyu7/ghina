@@ -4,6 +4,7 @@ library;
 export 'achievements.dart';
 export 'activity.dart';
 export 'daily_goal.dart';
+export 'fire_clear.dart';
 export 'game_date.dart';
 export 'game_store.dart';
 export 'game_summary.dart';

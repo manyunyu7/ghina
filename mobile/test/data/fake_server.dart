@@ -29,6 +29,17 @@ class FakeServer implements SyncApi {
   /// Mutations on these entity ids are rejected with "Nope" (test hook).
   final rejectIds = <String>{};
   final uploads = <String>[];
+
+  /// Upload of these file paths fails with the given failure (test hook).
+  final uploadErrors = <String, Failure>{};
+
+  /// Pretend to be an old server: no `taskAreas`/`tasks` keys, those entities
+  /// unknown on push.
+  bool legacy = false;
+
+  /// When set, a pull seeds the default task areas for this user id if there are
+  /// none (like the real server).
+  String? seedAreasFor;
   final pushed = <PushMutation>[];
 
   /// Every rejected mutation with its error.
@@ -54,8 +65,33 @@ class FakeServer implements SyncApi {
     _checkOnline();
     pullCount++;
     final start = tick();
+    final seed = seedAreasFor;
+    if (!legacy && seed != null && rows[SyncEntity.taskAreas]!.isEmpty) {
+      _write(SyncEntity.taskAreas, 'area-kerjaan-$seed', {
+        'name': 'Kerjaan',
+        'code': 'KERJA',
+        'color': '#1CB0F6',
+        'icon': 'briefcase',
+        'schedule': {
+          'days': [1, 2, 3, 4, 5],
+          'start': '09:00',
+          'end': '17:00',
+        },
+        'sortOrder': 0,
+        'archived': false,
+      });
+      _write(SyncEntity.taskAreas, 'area-life-$seed', {
+        'name': 'Keseharian',
+        'code': 'LIFE',
+        'color': '#58CC02',
+        'icon': 'home',
+        'schedule': null,
+        'sortOrder': 1,
+        'archived': false,
+      });
+    }
     final changes = {
-      for (final e in SyncEntity.all)
+      for (final e in _entities)
         e: [
           for (final r in rows[e]!.values)
             if (ms(r['updatedAt']) >= since) _public(e, r),
@@ -83,7 +119,16 @@ class FakeServer implements SyncApi {
     );
   }
 
-  Json _public(String entity, Json r) => Map<String, dynamic>.from(r);
+  List<String> get _entities => [
+    for (final e in SyncEntity.all)
+      if (!legacy || (e != SyncEntity.taskAreas && e != SyncEntity.tasks)) e,
+  ];
+
+  Json _public(String entity, Json r) {
+    final out = Map<String, dynamic>.from(r);
+    if (legacy && entity == SyncEntity.transactions) out.remove('photos');
+    return out;
+  }
 
   @override
   Future<PushResponse> push(
@@ -110,6 +155,8 @@ class FakeServer implements SyncApi {
   @override
   Future<String> upload(String filePath) async {
     _checkOnline();
+    final err = uploadErrors[filePath];
+    if (err != null) throw err;
     final url = '/uploads/${uploads.length}-${filePath.split('/').last}';
     uploads.add(filePath);
     return url;
@@ -119,7 +166,7 @@ class FakeServer implements SyncApi {
 
   (PushStatus, String?) _apply(PushMutation m) {
     final e = m.entity;
-    if (!rows.containsKey(e) || !_idRe.hasMatch(m.entityId)) {
+    if (!_entities.contains(e) || !_idRe.hasMatch(m.entityId)) {
       return (PushStatus.rejected, 'Malformed');
     }
     if (foreignIds.contains(m.entityId)) {
@@ -147,12 +194,41 @@ class FakeServer implements SyncApi {
       return (PushStatus.applied, null);
     }
 
-    final data = m.data!;
+    final data = _normalize(e, m.entityId, existing, m.data!);
     final err = _validate(e, data);
     if (err != null) return (PushStatus.rejected, err);
     if (_duplicate(e, m.entityId, data)) return (PushStatus.duplicate, null);
     _write(e, m.entityId, data);
     return (PushStatus.applied, null);
+  }
+
+  static final _photoRe = RegExp(r'^/uploads/[A-Za-z0-9-]+\.[a-z]+$');
+  static final _codeRe = RegExp(r'^[A-Z0-9]{1,8}$');
+
+  /// Server-side defaults (docs/mobile-sync.md → Tasks, transactions.photos).
+  Json _normalize(String e, String id, Json? existing, Json d) {
+    final out = Map<String, dynamic>.from(d);
+    if (e == SyncEntity.transactions && !legacy) {
+      if (!out.containsKey('photos')) {
+        out['photos'] = existing?['photos'] ?? <String>[];
+      } else if (out['photos'] == null) {
+        out['photos'] = <String>[];
+      }
+    }
+    if (e == SyncEntity.taskAreas && out['code'] is String) {
+      out['code'] = (out['code'] as String).trim().toUpperCase();
+    }
+    if (e == SyncEntity.tasks) {
+      if (out['recurrence'] != null && out['seriesId'] == null) {
+        out['seriesId'] = id;
+      }
+      if (out['done'] != true) {
+        out['doneAt'] = null;
+      } else {
+        out['doneAt'] ??= iso(now);
+      }
+    }
+    return out;
   }
 
   bool _owned(String entity, String? id) =>
@@ -224,6 +300,46 @@ class FakeServer implements SyncApi {
       case SyncEntity.food:
         final p = d['photoUrl'] as String?;
         if (p != null && !p.startsWith('/uploads/')) return 'Invalid photoUrl';
+      case SyncEntity.taskAreas:
+        final name = (d['name'] as String? ?? '').trim();
+        if (name.isEmpty || name.length > 40) return 'Invalid name';
+        if (!_codeRe.hasMatch(d['code'] as String? ?? '')) {
+          return 'Invalid code';
+        }
+        if (d['schedule'] != null && d['schedule'] is! Map) {
+          return 'Invalid schedule';
+        }
+      case SyncEntity.tasks:
+        if (!_owned(SyncEntity.taskAreas, d['areaId'] as String?)) {
+          return 'Area not found';
+        }
+        final title = (d['title'] as String? ?? '').trim();
+        if (title.isEmpty || title.length > 200) return 'Invalid title';
+        if (d['recurrence'] != null && d['recurrence'] is! Map) {
+          return 'Invalid recurrence';
+        }
+        if (d['recurrence'] != null && d['dueDate'] == null) {
+          return 'A recurring task needs a due date';
+        }
+        if (d['dueTime'] != null && d['dueDate'] == null) {
+          return 'A due time needs a due date';
+        }
+        for (final (field, entity) in [
+          ('walletId', SyncEntity.wallets),
+          ('categoryId', SyncEntity.categories),
+          ('transactionId', SyncEntity.transactions),
+        ]) {
+          final ref = d[field] as String?;
+          if (ref != null && !_owned(entity, ref)) return '$field not found';
+        }
+    }
+    if (e == SyncEntity.transactions && d.containsKey('photos')) {
+      final photos = d['photos'];
+      if (photos is! List ||
+          photos.length > 5 ||
+          photos.any((p) => p is! String || !_photoRe.hasMatch(p))) {
+        return 'Invalid photos';
+      }
     }
     return null;
   }
@@ -241,6 +357,7 @@ class FakeServer implements SyncApi {
             r['month'] == d['month'] &&
             r['year'] == d['year'],
       ),
+      SyncEntity.taskAreas => clash((r) => r['code'] == d['code']),
       _ => false,
     };
   }
@@ -295,8 +412,21 @@ class FakeServer implements SyncApi {
   void delete(String e, String id) {
     final row = rows[e]!.remove(id);
     if (row == null) return;
-    if (e == SyncEntity.transactions) _ledger(row, -1);
+    if (e == SyncEntity.transactions) {
+      _ledger(row, -1);
+      _nullRef(SyncEntity.tasks, 'transactionId', id);
+    }
     _tomb(e, id);
+    if (e == SyncEntity.taskAreas) {
+      final tasks = rows[SyncEntity.tasks]!.values
+          .where((t) => t['areaId'] == id)
+          .map((t) => t['id'] as String)
+          .toList();
+      for (final t in tasks) {
+        rows[SyncEntity.tasks]!.remove(t);
+        _tomb(SyncEntity.tasks, t);
+      }
+    }
     if (e == SyncEntity.wallets) {
       final txs = rows[SyncEntity.transactions]!.values
           .where((t) => t['walletId'] == id || t['toWalletId'] == id)
@@ -305,14 +435,17 @@ class FakeServer implements SyncApi {
       for (final t in txs) {
         rows[SyncEntity.transactions]!.remove(t); // no balance reversal
         _tomb(SyncEntity.transactions, t);
+        _nullRef(SyncEntity.tasks, 'transactionId', t);
       }
       _nullRef(SyncEntity.subscriptions, 'walletId', id);
       _nullRef(SyncEntity.planned, 'walletId', id);
+      _nullRef(SyncEntity.tasks, 'walletId', id);
     }
     if (e == SyncEntity.categories) {
       _nullRef(SyncEntity.transactions, 'categoryId', id);
       _nullRef(SyncEntity.subscriptions, 'categoryId', id);
       _nullRef(SyncEntity.planned, 'categoryId', id);
+      _nullRef(SyncEntity.tasks, 'categoryId', id);
       final budgets = rows[SyncEntity.budgets]!.values
           .where((b) => b['categoryId'] == id)
           .map((b) => b['id'] as String)

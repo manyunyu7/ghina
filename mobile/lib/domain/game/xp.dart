@@ -21,6 +21,9 @@ enum XpSource {
   health,
   food,
   lesson,
+
+  /// Completed tasks (by bucket, `docs/tasks.md`).
+  task,
   dailyGoal,
   streakMilestone,
 }
@@ -47,6 +50,10 @@ class DayXp {
   int healthCounted = 0;
   int foodCounted = 0;
   int lessons = 0;
+
+  /// Completed tasks that earned XP (≤ [XpRules.taskDailyCap]) / all completed.
+  int tasksCounted = 0;
+  int tasksTotal = 0;
 
   int get total => breakdown.values.fold(0, (a, b) => a + b);
   bool get goalMet => activities >= goal.target;
@@ -148,6 +155,14 @@ abstract final class XpCalculator {
         case ActivityKind.lesson:
           // Lessons come from local completions below.
           break;
+        case ActivityKind.task:
+          // By doneAt's local day; never part of the (transaction) streak.
+          day.tasksTotal++;
+          if (day.tasksCounted < XpRules.taskDailyCap) {
+            day.tasksCounted++;
+            day.activities++;
+            day.add(XpSource.task, XpRules.taskXp(e.taskBucket));
+          }
       }
     }
 

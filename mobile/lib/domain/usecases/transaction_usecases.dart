@@ -19,6 +19,7 @@ final class TransactionInput {
     this.categoryId,
     this.note,
     required this.date,
+    this.photos,
   });
 
   final TxType type;
@@ -32,6 +33,27 @@ final class TransactionInput {
   final String? categoryId;
   final String? note;
   final DateTime date;
+
+  /// Up to [maxTransactionPhotos]. `TransactionPhoto.local(pickedFile.path)` for
+  /// new photos (compress first: `maxWidth: 1600, imageQuality: 80`), kept
+  /// `TransactionPhoto.remote` ones from the current list. Null = no photos on
+  /// create, unchanged on update.
+  final List<TransactionPhoto>? photos;
+}
+
+/// ≤ [maxTransactionPhotos], duplicates dropped (first wins), order kept.
+List<TransactionPhoto> validatePhotos(List<TransactionPhoto> photos) {
+  final out = <TransactionPhoto>[];
+  for (final p in photos) {
+    if (!out.contains(p)) out.add(p);
+  }
+  if (out.length > maxTransactionPhotos) {
+    throw const ValidationFailure(
+      'Maksimal $maxTransactionPhotos foto',
+      field: 'photos',
+    );
+  }
+  return List.unmodifiable(out);
 }
 
 /// Validates references like the web's `validateRefs` and returns the normalized
@@ -80,8 +102,9 @@ Future<Transaction> _build(
   DateTime createdAt,
   DateTime now,
   WalletRepository wallets,
-  CategoryRepository categories,
-) async {
+  CategoryRepository categories, {
+  List<TransactionPhoto> photos = const [],
+}) async {
   final amount = input.type == TxType.adjustment
       ? requireNonZeroAmount(input.amount)
       : requirePositiveAmount(input.amount);
@@ -97,6 +120,7 @@ Future<Transaction> _build(
     date: input.date,
     createdAt: createdAt,
     updatedAt: now,
+    photos: validatePhotos(input.photos ?? photos),
   );
 }
 
@@ -171,6 +195,7 @@ final class UpdateTransaction {
           _clock.now(),
           _wallets,
           _categories,
+          photos: existing.photos,
         );
         await _tx.save(t);
         return t;
@@ -187,6 +212,70 @@ final class DeleteTransaction {
     }
     await _tx.delete(id);
   });
+}
+
+// ---------------------------------------------------------------- photos
+
+/// Appends picked photos (file paths) to a transaction. They show at once (local
+/// file) and upload on the next sync. Fails with a [ValidationFailure] beyond
+/// [maxTransactionPhotos].
+final class AddTransactionPhotos {
+  const AddTransactionPhotos(this._tx, this._clock);
+  final TransactionRepository _tx;
+  final Clock _clock;
+
+  Future<Result<Transaction>> call(String id, List<String> filePaths) =>
+      guard(() async {
+        final t = await _tx.getById(id);
+        if (t == null) throw const NotFoundFailure('Transaksi tidak ditemukan');
+        final u = t.withPhotos(
+          validatePhotos([
+            ...t.photos,
+            for (final p in filePaths) TransactionPhoto.local(p),
+          ]),
+          updatedAt: _clock.now(),
+        );
+        await _tx.save(u);
+        return u;
+      });
+}
+
+/// Removes one photo (uploaded or pending). The server deletes the file of a
+/// removed upload; a pending local file is deleted right away.
+final class RemoveTransactionPhoto {
+  const RemoveTransactionPhoto(this._tx, this._clock);
+  final TransactionRepository _tx;
+  final Clock _clock;
+
+  Future<Result<Transaction>> call(String id, TransactionPhoto photo) =>
+      guard(() async {
+        final t = await _tx.getById(id);
+        if (t == null) throw const NotFoundFailure('Transaksi tidak ditemukan');
+        if (!t.photos.contains(photo)) return t;
+        final u = t.withPhotos([
+          for (final p in t.photos)
+            if (p != photo) p,
+        ], updatedAt: _clock.now());
+        await _tx.save(u);
+        return u;
+      });
+}
+
+/// Replaces the whole photo list (reorder / bulk edit); same rules as the input's
+/// `photos`.
+final class SetTransactionPhotos {
+  const SetTransactionPhotos(this._tx, this._clock);
+  final TransactionRepository _tx;
+  final Clock _clock;
+
+  Future<Result<Transaction>> call(String id, List<TransactionPhoto> photos) =>
+      guard(() async {
+        final t = await _tx.getById(id);
+        if (t == null) throw const NotFoundFailure('Transaksi tidak ditemukan');
+        final u = t.withPhotos(validatePhotos(photos), updatedAt: _clock.now());
+        await _tx.save(u);
+        return u;
+      });
 }
 
 /// Joins transactions with wallets/categories and applies the text search.

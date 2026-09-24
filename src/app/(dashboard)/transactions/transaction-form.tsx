@@ -6,7 +6,9 @@ import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea, Select, Field } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { MAX_TRANSACTION_PHOTOS } from "@/lib/photos";
 import { createTransaction, updateTransaction } from "./actions";
+import { PhotoField, initialPhotoItems, type PhotoItem } from "./photo-field";
 
 export type TransactionFormData = {
   id: string;
@@ -17,6 +19,8 @@ export type TransactionFormData = {
   categoryId: string | null;
   note: string | null;
   date: Date | string;
+  /** Saved photo URLs, in display order. */
+  photos?: string[];
 };
 
 const TYPES: { value: "expense" | "income" | "transfer"; label: string }[] = [
@@ -86,6 +90,9 @@ function TransactionFormBody({
   const [type, setType] = React.useState<string>(transaction?.type ?? "expense");
   const [walletId, setWalletId] = React.useState<string>(transaction?.walletId ?? "");
   const [submitting, setSubmitting] = React.useState(false);
+  const [photos, setPhotos] = React.useState<PhotoItem[]>(() => initialPhotoItems(transaction?.photos));
+  const [photosBusy, setPhotosBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
 
   // Categories filtered by the chosen type. Transfers have no category list.
   const filteredCategories = React.useMemo(() => {
@@ -94,8 +101,21 @@ function TransactionFormBody({
     return [];
   }, [categories, type]);
 
-  async function handleAction(formData: FormData) {
+  // onSubmit (not `action`) so a failed save doesn't reset the fields React-19 style.
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (submitting || photosBusy) return;
+    const formData = new FormData(e.currentTarget);
     setSubmitting(true);
+    setError(null);
+    // Photos: kept URLs (edit) in order, then the new, already-compressed files.
+    formData.delete("photos");
+    formData.delete("keepPhotos");
+    if (isEdit) {
+      formData.set("photosManaged", "1");
+      for (const p of photos) if (p.kind === "existing") formData.append("keepPhotos", p.url);
+    }
+    for (const p of photos) if (p.kind === "new") formData.append("photos", p.file, p.file.name);
     try {
       if (isEdit) {
         await updateTransaction(formData);
@@ -103,13 +123,23 @@ function TransactionFormBody({
         await createTransaction(formData);
       }
       onClose();
+    } catch (e) {
+      // Production hides server error messages; keep the form open with a hint.
+      const msg = e instanceof Error ? e.message : "";
+      setError(
+        /At most \d+ photos/.test(msg)
+          ? "Maksimal 5 foto per transaksi."
+          : /too large|Body exceeded/i.test(msg)
+            ? "Foto terlalu besar. Coba kurangi jumlah atau ukuran foto."
+            : "Gagal menyimpan transaksi. Periksa isian lalu coba lagi.",
+      );
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <form action={handleAction} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4">
         {isEdit && transaction && <input type="hidden" name="id" value={transaction.id} />}
 
         {/* Type toggle */}
@@ -222,12 +252,22 @@ function TransactionFormBody({
           <Textarea name="note" placeholder="Optional note" defaultValue={transaction?.note ?? ""} />
         </Field>
 
+        <Field label={`Foto (maks ${MAX_TRANSACTION_PHOTOS})`}>
+          <PhotoField items={photos} onChange={setPhotos} onBusyChange={setPhotosBusy} disabled={submitting} />
+        </Field>
+
+        {error && (
+          <p role="alert" className="rounded-lg bg-expense-soft px-3 py-2 text-sm text-expense">
+            {error}
+          </p>
+        )}
+
         <div className="flex justify-end gap-2 pt-1">
           <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>
             Cancel
           </Button>
-          <Button type="submit" disabled={submitting || wallets.length === 0}>
-            {submitting ? "Saving…" : isEdit ? "Save changes" : "Add transaction"}
+          <Button type="submit" disabled={submitting || photosBusy || wallets.length === 0}>
+            {submitting ? "Saving…" : photosBusy ? "Memproses foto…" : isEdit ? "Save changes" : "Add transaction"}
           </Button>
         </div>
     </form>

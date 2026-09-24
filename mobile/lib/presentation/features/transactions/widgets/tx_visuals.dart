@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/formatters.dart';
 import '../../../../domain/entities/entities.dart';
 import '../../../design_system/design_system.dart';
+import '../../../shared/widgets/widgets.dart';
 
 ChunkySwatch txSwatch(TxType t) => switch (t) {
   TxType.expense => GhinaColors.expense,
@@ -146,10 +147,40 @@ class TransactionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final photos = view.transaction.photos;
     return ChunkyTile(
       framed: false,
       leading: TxAvatar(view: view, size: 42),
       title: view.title,
+      titleWidget: photos.isEmpty
+          ? null
+          : Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    view.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GhinaType.body
+                        .w(800)
+                        .copyWith(color: context.ghina.textPrimary),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                MediaQuery.withClampedTextScaling(
+                  maxScaleFactor: 1.15,
+                  child: PhotoCountBadge(
+                    key: ValueKey('tx-photos-${view.id}'),
+                    count: photos.length,
+                    onTap: () => showPhotoViewer(
+                      context,
+                      viewerPhotos(photos),
+                      heroScope: 'row-${view.id}',
+                    ),
+                  ),
+                ),
+              ],
+            ),
       subtitle: _subtitle,
       dense: true,
       onTap: onTap,
@@ -166,6 +197,21 @@ class TransactionRow extends StatelessWidget {
     );
   }
 }
+
+// ---------------------------------------------------------------- photos
+
+/// Transaction photo → generic viewer photo (pending = local file).
+ViewerPhoto viewerPhoto(TransactionPhoto p) =>
+    p.isPending ? ViewerPhoto.file(p.localPath!) : ViewerPhoto.network(p.url!);
+
+List<ViewerPhoto> viewerPhotos(List<TransactionPhoto> ps) => [
+  for (final p in ps) viewerPhoto(p),
+];
+
+/// Viewer photo back to a transaction photo (exact round trip).
+TransactionPhoto txPhoto(ViewerPhoto p) => p.isLocal
+    ? TransactionPhoto.local(p.filePath!)
+    : TransactionPhoto.remote(p.url!);
 
 // ---------------------------------------------------------------- form presets
 

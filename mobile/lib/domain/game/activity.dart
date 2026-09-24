@@ -1,7 +1,10 @@
 import 'game_date.dart';
 
 /// What kind of logged activity an [ActivityEvent] is.
-enum ActivityKind { transaction, prayer, health, food, lesson }
+///
+/// [task] = a completed to-do (`docs/tasks.md`): earns XP by bucket, counts toward
+/// the daily goal and task achievements, never toward the transaction streak.
+enum ActivityKind { transaction, prayer, health, food, lesson, task }
 
 /// Transaction type, mirrors `Transaction.type` (expense | income | transfer).
 /// Balance adjustments are not activity: the data seam never maps them to
@@ -50,6 +53,9 @@ class ActivityEvent {
     this.qobliyah = false,
     this.badiyah = false,
     this.hasWeight = false,
+    this.taskBucket,
+    this.taskSeriesId,
+    this.taskAreaId,
   });
 
   /// A transaction. [createdAt] drives streak/XP; [date] drives monthly stats.
@@ -118,6 +124,29 @@ class ActivityEvent {
     occurredAt: date,
   );
 
+  /// A completed task (`docs/tasks.md` → Gamification). One event per task that
+  /// is currently done; un-completing removes it (derived, like everything here).
+  /// [doneAt] drives the day (XP "by doneAt local day"), [createdAt] is when the
+  /// task was created. [bucket] is `fire | want | should` (XP 10 / 8 / 5).
+  /// [seriesId] is shared by every occurrence of a recurring task (null for a
+  /// one-off); [areaId] is the task's area.
+  factory ActivityEvent.task({
+    String? id,
+    required DateTime doneAt,
+    required String bucket,
+    String? seriesId,
+    String? areaId,
+    DateTime? createdAt,
+  }) => ActivityEvent(
+    kind: ActivityKind.task,
+    id: id,
+    at: doneAt,
+    occurredAt: createdAt,
+    taskBucket: bucket.toLowerCase(),
+    taskSeriesId: seriesId,
+    taskAreaId: areaId,
+  );
+
   final ActivityKind kind;
 
   /// When it was logged (local or UTC; converted to the local day).
@@ -151,6 +180,15 @@ class ActivityEvent {
 
   /// Health entry includes a weight measurement.
   final bool hasWeight;
+
+  /// Task bucket (`fire | want | should`), task events only.
+  final String? taskBucket;
+
+  /// Series of a recurring task (null for one-off tasks), task events only.
+  final String? taskSeriesId;
+
+  /// Area of the task, task events only.
+  final String? taskAreaId;
 
   /// Local day the activity counts for (XP, streak, daily goal).
   GameDate get day => dayOverride ?? GameDate.fromDateTime(at);

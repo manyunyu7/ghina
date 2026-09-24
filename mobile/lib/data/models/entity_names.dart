@@ -9,6 +9,8 @@ abstract final class SyncEntity {
   static const prayers = 'prayers';
   static const health = 'health';
   static const food = 'food';
+  static const taskAreas = 'taskAreas';
+  static const tasks = 'tasks';
 
   /// Apply order for pulls (referenced entities first).
   static const all = [
@@ -21,5 +23,7 @@ abstract final class SyncEntity {
     prayers,
     health,
     food,
+    taskAreas,
+    tasks,
   ];
 }

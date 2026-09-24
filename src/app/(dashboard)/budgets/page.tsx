@@ -2,6 +2,7 @@ import { PiggyBank, Wallet as WalletIcon } from "lucide-react";
 import { requireUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { getCategories, monthRange, currentMonth } from "@/lib/queries";
+import { parsePhotos } from "@/lib/photos";
 import { formatCurrency, cn, MONTHS } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState, PageHeader, Progress } from "@/components/ui/misc";
@@ -47,7 +48,7 @@ export default async function BudgetsPage({
         date: { gte: start, lte: end },
         categoryId: { not: null },
       },
-      select: { id: true, note: true, amount: true, date: true, categoryId: true },
+      select: { id: true, note: true, amount: true, date: true, categoryId: true, photos: true },
       orderBy: [{ date: "desc" }, { createdAt: "desc" }],
     }),
   ]);
@@ -59,7 +60,7 @@ export default async function BudgetsPage({
     const cid = t.categoryId as string;
     spentByCategory.set(cid, (spentByCategory.get(cid) ?? 0) + t.amount);
     const list = txByCategory.get(cid) ?? [];
-    list.push({ id: t.id, note: t.note, amount: t.amount, date: t.date.toISOString() });
+    list.push({ id: t.id, note: t.note, amount: t.amount, date: t.date.toISOString(), photos: parsePhotos(t.photos) });
     txByCategory.set(cid, list);
   }
 

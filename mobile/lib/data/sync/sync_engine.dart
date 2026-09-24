@@ -1,18 +1,21 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:dio/dio.dart' show DioException;
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 
 import '../../core/clock.dart';
 import '../../core/failure.dart';
 import '../../core/streams.dart';
-import '../../domain/entities/sync_status.dart';
+import '../../domain/entities/entities.dart';
 import '../../domain/repositories/repositories.dart';
+import '../../domain/usecases/task_rules.dart' show defaultTaskAreas;
 import '../datasources/local/app_database.dart';
 import '../datasources/remote/sync_api.dart';
 import '../models/api_dto.dart';
 import '../models/entity_names.dart';
+import '../models/mappers.dart';
 import '../models/wire.dart';
 import '../repositories/photo_store.dart';
 import 'local_cascades.dart';
@@ -315,7 +318,21 @@ class SyncEngine implements SyncService {
           // Another row holds the unique key; the server row arrives on the pull.
           await _outbox.complete(entry, applied: false);
           await _outbox.dropQueued(entry.entity, entry.entityId);
+          if (entry.entity == SyncEntity.taskAreas) {
+            // Same area code created elsewhere: keep this area's tasks and move
+            // them to the server's area once the pull brings it.
+            final area = await (_db.select(
+              _db.taskAreas,
+            )..where((a) => a.id.equals(entry.entityId))).getSingleOrNull();
+            if (area != null) _areaRemaps[area.id] = area.code;
+          }
           await _deleteRow(entry.entity, entry.entityId);
+        case PushStatus.rejected
+            when entry.entity == SyncEntity.tasks &&
+                await _inRemappedArea(entry.entityId):
+          // Its area was a duplicate: re-queued after the pull (see above).
+          await _outbox.complete(entry, applied: false);
+          await _outbox.dropQueued(entry.entity, entry.entityId);
         case PushStatus.rejected:
           rejections.add(r.error ?? 'Perubahan ditolak server');
           await _outbox.complete(entry, applied: false);
@@ -338,8 +355,74 @@ class SyncEngine implements SyncService {
     }
   }
 
-  /// Uploads offline food photos, then points the queued upsert at the returned URL.
+  /// Local area id → its code, for areas the server answered `duplicate` to.
+  final _areaRemaps = <String, String>{};
+
+  Future<bool> _inRemappedArea(String taskId) async {
+    if (_areaRemaps.isEmpty) return false;
+    final t = await (_db.select(
+      _db.tasks,
+    )..where((x) => x.id.equals(taskId))).getSingleOrNull();
+    return t != null && _areaRemaps.containsKey(t.areaId);
+  }
+
+  /// After a pull: tasks of an area that lost a code clash move to the area now
+  /// holding that code, and are queued again.
+  Future<void> _applyAreaRemaps() async {
+    if (_areaRemaps.isEmpty) return;
+    final remaps = Map.of(_areaRemaps);
+    _areaRemaps.clear();
+    var moved = false;
+    await _db.transaction(() async {
+      for (final MapEntry(key: oldId, value: code) in remaps.entries) {
+        final target =
+            await (_db.select(_db.taskAreas)
+                  ..where((a) => a.code.equals(code) & a.id.equals(oldId).not())
+                  ..limit(1))
+                .getSingleOrNull();
+        if (target == null) continue;
+        final rows = await (_db.select(
+          _db.tasks,
+        )..where((t) => t.areaId.equals(oldId))).get();
+        for (final r in rows) {
+          final t = r.toEntity().copyWith(
+            areaId: target.id,
+            updatedAt: _clock.now(),
+          );
+          await _db.into(_db.tasks).insertOnConflictUpdate(t.toCompanion());
+          await _outbox.enqueueUpsert(
+            entity: SyncEntity.tasks,
+            entityId: t.id,
+            data: taskToWire(t),
+            clientUpdatedAt: t.updatedAt,
+            isCreate: false,
+          );
+          moved = true;
+        }
+      }
+    });
+    if (moved) _outbox.notifyLocalWrite();
+  }
+
+  /// A failed upload the server refused (bad/too large image): the photo is
+  /// dropped. Anything else (offline, 5xx, expired session) is retried with backoff.
+  static bool _isRejection(Failure f) => switch (f) {
+    ValidationFailure() || NotFoundFailure() || ConflictFailure() => true,
+    UnknownFailure(:final cause) =>
+      cause is DioException &&
+          (cause.response?.statusCode ?? 0) >= 400 &&
+          (cause.response?.statusCode ?? 0) < 500,
+    _ => false,
+  };
+
+  /// Uploads photos taken offline (food logs, transactions) before the push, then
+  /// points the rows and their queued upserts at the returned URLs.
   Future<void> _uploadPendingPhotos(List<String> rejections) async {
+    await _uploadFoodPhotos(rejections);
+    await _uploadTransactionPhotos(rejections);
+  }
+
+  Future<void> _uploadFoodPhotos(List<String> rejections) async {
     final queued =
         await (_db.select(_db.outbox)..where(
               (o) =>
@@ -357,9 +440,8 @@ class SyncEngine implements SyncService {
       String? url;
       try {
         url = await _api.upload(path);
-      } on NetworkFailure {
-        rethrow;
       } on Failure catch (f) {
+        if (!_isRejection(f)) rethrow;
         rejections.add('Foto "${row!.name}" gagal diunggah: ${f.message}');
       }
       await _db.transaction(() async {
@@ -381,6 +463,81 @@ class SyncEngine implements SyncService {
           'photoUrl': url,
         });
       });
+      await _photos.delete(path);
+    }
+  }
+
+  /// Every transaction row with pending (`local:`) photos: upload each file, swap
+  /// it for its URL (a refused one is dropped with an error), then patch the
+  /// queued upsert — or queue one if the row has none (e.g. a photo added while
+  /// the previous upsert was in flight). Uploaded files are deleted locally. On a
+  /// retryable failure the photos uploaded so far are kept and the error rethrown.
+  Future<void> _uploadTransactionPhotos(List<String> rejections) async {
+    final rows = await (_db.select(
+      _db.transactions,
+    )..where((t) => t.photos.like('%"$localPhotoPrefix%'))).get();
+    for (final row in rows) {
+      final pending = [
+        for (final p in decodePhotos(row.photos))
+          if (p.isPending) p.localPath!,
+      ];
+      if (pending.isEmpty) continue;
+      final done = <String, String?>{}; // local path → url (null = dropped)
+      try {
+        for (final path in pending) {
+          try {
+            done[path] = await _api.upload(path);
+          } on Failure catch (f) {
+            if (!_isRejection(f)) rethrow;
+            rejections.add('Foto transaksi gagal diunggah: ${f.message}');
+            done[path] = null;
+          }
+        }
+      } finally {
+        if (done.isNotEmpty) await _applyUploadedTxPhotos(row.id, done);
+      }
+    }
+  }
+
+  Future<void> _applyUploadedTxPhotos(
+    String id,
+    Map<String, String?> done,
+  ) async {
+    await _db.transaction(() async {
+      final current = await (_db.select(
+        _db.transactions,
+      )..where((t) => t.id.equals(id))).getSingleOrNull();
+      final tx = current?.toEntityOrNull();
+      if (current == null || tx == null) return;
+      final photos = <TransactionPhoto>[
+        for (final p in tx.photos)
+          if (!p.isPending || !done.containsKey(p.localPath))
+            p
+          else if (done[p.localPath] case final url?)
+            TransactionPhoto.remote(url),
+      ];
+      await (_db.update(_db.transactions)..where((t) => t.id.equals(id))).write(
+        TransactionsCompanion(photos: Value(encodePhotos(photos))),
+      );
+      final updated = tx.withPhotos(photos);
+      if (await _outbox.pendingEntry(SyncEntity.transactions, id) case final e?
+          when e.op == MutationOp.upsert.name) {
+        await _outbox.patchQueued(SyncEntity.transactions, id, {
+          'photos': wirePhotos(photos),
+        });
+      } else {
+        final wire = transactionToWire(updated);
+        await _outbox.enqueueUpsert(
+          entity: SyncEntity.transactions,
+          entityId: id,
+          data: wire,
+          clientUpdatedAt: _clock.now(),
+          isCreate: false,
+          base: wire, // same money fields: no pending balance effect
+        );
+      }
+    });
+    for (final path in done.keys) {
       await _photos.delete(path);
     }
   }
@@ -413,6 +570,40 @@ class SyncEngine implements SyncService {
         ),
       );
     });
+    if (res.changes.containsKey(SyncEntity.taskAreas)) {
+      await _applyAreaRemaps();
+      await _seedTaskAreas();
+    }
+  }
+
+  /// After the first pull from a server that knows tasks: when the user has no
+  /// area at all, create the default ones (deterministic ids, so another device or
+  /// the server seeding too can't duplicate them). Runs once per data owner.
+  Future<void> _seedTaskAreas() async {
+    final seeded = await _db.transaction(() async {
+      final meta = await _db.getMeta();
+      final userId = meta.userId;
+      if (meta.tasksSeeded || userId == null) return false;
+      await _db.updateMeta(const SyncMetaCompanion(tasksSeeded: Value(true)));
+      if (await (_db.select(_db.taskAreas)..limit(1)).getSingleOrNull() !=
+          null) {
+        return false;
+      }
+      for (final a in defaultTaskAreas(userId, _clock.now())) {
+        await _db.into(_db.taskAreas).insertOnConflictUpdate(a.toCompanion());
+        await _outbox.enqueueUpsert(
+          entity: SyncEntity.taskAreas,
+          entityId: a.id,
+          data: taskAreaToWire(a),
+          // Oldest possible version: if the server already has these rows (same
+          // deterministic ids, maybe edited on the web) LWW keeps the server's.
+          clientUpdatedAt: DateTime.fromMillisecondsSinceEpoch(0),
+          isCreate: true,
+        );
+      }
+      return true;
+    });
+    if (seeded) _outbox.notifyLocalWrite();
   }
 
   /// Applies a pull. A [full] pull is the complete server state (and carries no
@@ -424,11 +615,19 @@ class SyncEngine implements SyncService {
     };
 
     if (full) {
-      for (final entity in SyncEntity.all) {
+      // An entity missing from the response is unknown to that (older) server:
+      // leave its local rows alone.
+      for (final entity in SyncEntity.all.where(res.changes.containsKey)) {
         final keep = {
           for (final r in res.changes[entity] ?? const <Json>[])
             r['id'] as String,
           ...pending[entity]!,
+          // Tasks waiting to move out of a duplicate area (see _areaRemaps).
+          if (entity == SyncEntity.tasks && _areaRemaps.isNotEmpty)
+            for (final t in await (_db.select(
+              _db.tasks,
+            )..where((t) => t.areaId.isIn(_areaRemaps.keys))).get())
+              t.id,
         };
         for (final id in await _localIds(entity)) {
           if (!keep.contains(id)) await _deleteRow(entity, id);
@@ -446,6 +645,12 @@ class SyncEngine implements SyncService {
       if (t.entity == SyncEntity.wallets) await _cascades.walletDeleted(t.id);
       if (t.entity == SyncEntity.categories) {
         await _cascades.categoryDeleted(t.id);
+      }
+      if (t.entity == SyncEntity.transactions) {
+        await _cascades.transactionDeleted(t.id);
+      }
+      if (t.entity == SyncEntity.taskAreas) {
+        await _cascades.taskAreaDeleted(t.id);
       }
     }
 
@@ -480,9 +685,20 @@ class SyncEngine implements SyncService {
             .into(_db.categories)
             .insertOnConflictUpdate(categoryFromWire(j));
       case SyncEntity.transactions:
+        final local = await (_db.select(
+          _db.transactions,
+        )..where((t) => t.id.equals(id))).getSingleOrNull();
         await _db
             .into(_db.transactions)
-            .insertOnConflictUpdate(transactionFromWire(j));
+            .insertOnConflictUpdate(
+              transactionFromWire(
+                j,
+                keepPending: [
+                  for (final p in decodePhotos(local?.photos))
+                    if (p.isPending) p,
+                ],
+              ),
+            );
       case SyncEntity.budgets:
         final clash =
             await (_db.select(_db.budgets)..where(
@@ -522,6 +738,12 @@ class SyncEngine implements SyncService {
         await _db.into(_db.health).insertOnConflictUpdate(healthFromWire(j));
       case SyncEntity.food:
         await _db.into(_db.food).insertOnConflictUpdate(foodFromWire(j));
+      case SyncEntity.taskAreas:
+        await _db
+            .into(_db.taskAreas)
+            .insertOnConflictUpdate(taskAreaFromWire(j));
+      case SyncEntity.tasks:
+        await _db.into(_db.tasks).insertOnConflictUpdate(taskFromWire(j));
       default:
         break; // unknown entity from a newer server: ignore
     }
@@ -549,6 +771,8 @@ class SyncEngine implements SyncService {
     SyncEntity.prayers => _db.prayers,
     SyncEntity.health => _db.health,
     SyncEntity.food => _db.food,
+    SyncEntity.taskAreas => _db.taskAreas,
+    SyncEntity.tasks => _db.tasks,
     _ => null,
   };
 

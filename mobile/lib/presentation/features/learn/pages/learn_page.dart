@@ -238,6 +238,15 @@ class _TopBar extends ConsumerWidget {
       ),
       child: Row(
         children: [
+          // Pushed from Beranda/Profil (no longer a tab): offer a way back.
+          if (context.canPop()) ...[
+            ChunkyIconButton(
+              icon: Icons.arrow_back_rounded,
+              tooltip: 'Kembali',
+              onPressed: () => context.pop(),
+            ),
+            const SizedBox(width: 12),
+          ],
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

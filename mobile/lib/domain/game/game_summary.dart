@@ -58,6 +58,7 @@ class GameSummary {
     required this.mood,
     required this.message,
     required this.celebrations,
+    this.mascot,
   });
 
   final GameDate today;
@@ -70,6 +71,10 @@ class GameSummary {
   final MascotMood mood;
   final String message;
   final GameCelebrations celebrations;
+
+  /// What [mood] / [message] were chosen from; the home re-runs the mascot with
+  /// task info added (`MascotContext.withTasks`).
+  final MascotContext? mascot;
 
   int get totalXp => xp.total;
   int get xpToday => xp.xpToday;
@@ -183,6 +188,7 @@ class ComputeGameSnapshot {
       path: path,
       lessons: local.lessonCompletions,
       today: today,
+      fireClearDays: local.fireClearDays.length,
     );
     final achievements = AchievementsState.evaluate(
       stats,
@@ -220,6 +226,7 @@ class ComputeGameSnapshot {
         mood: mood,
         message: Mascot.messageFor(mood, mascotCtx),
         celebrations: celebrations,
+        mascot: mascotCtx,
       ),
       achievements: achievements,
       path: path,

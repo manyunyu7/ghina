@@ -6,8 +6,11 @@
 //
 // Creates throwaway users (mobile-test-*@example.test) and deletes them at the end.
 // Also exercises the web delete / reset helpers directly (via jiti) to confirm they
-// write tombstones and rotate the sync epoch.
+// write tombstones and rotate the sync epoch. Also covers tasks/areas and transaction photos.
 import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
+import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { PrismaClient } from "@prisma/client";
@@ -71,6 +74,7 @@ const byId = (rows, id) => rows.find((r) => r.id === id);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const createdEmails = [];
+const resetCtx = {};
 
 async function main() {
   console.log(`Testing ${BASE}`);
@@ -117,7 +121,19 @@ async function main() {
   check("epoch matches user", full.epoch === user.syncEpoch, full.epoch);
   check("starter wallet present", full.changes.wallets.length === 1 && full.changes.wallets[0].name === "Cash");
   check("default categories present", full.changes.categories.length >= 10, full.changes.categories.length);
-  check("all 9 entity keys present", Object.keys(full.changes).length === 9, Object.keys(full.changes));
+  check("all 11 entity keys present", Object.keys(full.changes).length === 11 && "taskAreas" in full.changes && "tasks" in full.changes, Object.keys(full.changes));
+  {
+    const areas = full.changes.taskAreas;
+    const kerja = byId(areas, `area-kerjaan-${user.id}`);
+    const life = byId(areas, `area-life-${user.id}`);
+    check("first sync seeds default areas with deterministic ids", areas.length === 2 && kerja && life, areas);
+    check("seeded Kerjaan: KERJA, schedule as JSON object",
+      kerja?.code === "KERJA" && kerja.color === "#1CB0F6" && JSON.stringify(kerja.schedule) === '{"days":[1,2,3,4,5],"start":"09:00","end":"17:00"}', kerja);
+    check("seeded Keseharian: LIFE, schedule null, home icon", life?.code === "LIFE" && life.schedule === null && life.icon === "home" && life.sortOrder === 1, life);
+    check("area wire shape", kerja && ["id", "name", "code", "color", "icon", "schedule", "sortOrder", "archived", "createdAt", "updatedAt"].every((f) => f in kerja) && !("userId" in kerja), kerja);
+    const again = (await api("GET", "/api/mobile/sync", { token })).json;
+    check("second pull does not seed again", again.changes.taskAreas.length === 2, again.changes.taskAreas.length);
+  }
   check("full pull has no tombstones", Array.isArray(full.deleted) && full.deleted.length === 0);
   check("serverTime ≈ now − 5s", Math.abs(Date.now() - 5000 - full.serverTime) < 3000, full.serverTime);
   const w0 = full.changes.wallets[0];
@@ -161,6 +177,7 @@ async function main() {
   check("W1 balance = 1000 − 100 + 50 − 300 = 650", byId(pull.changes.wallets, W1)?.balance === 650, byId(pull.changes.wallets, W1));
   check("W2 balance = 300 (transfer in)", byId(pull.changes.wallets, W2)?.balance === 300, byId(pull.changes.wallets, W2));
   check("transfer carries no category", byId(pull.changes.transactions, T3)?.categoryId === null);
+  check("transactions carry photos: [] by default (old clients)", Array.isArray(byId(pull.changes.transactions, T1)?.photos) && byId(pull.changes.transactions, T1).photos.length === 0, byId(pull.changes.transactions, T1));
   check("prayer pulled with updatedAt", !!byId(pull.changes.prayers, P1)?.updatedAt);
   check("food calories rounded to int", byId(pull.changes.food, F1)?.calories === 650);
   check("created rows keep client ids",
@@ -233,6 +250,7 @@ async function main() {
   console.log("ownership");
   r = await api("POST", "/api/mobile/auth/register", { body: { name: "Other", email: emailB, password: "password123" } });
   const tokenB = r.json.token;
+  const userBId = r.json.user.id;
   r = await api("POST", "/api/mobile/sync", {
     token: tokenB,
     body: {
@@ -267,6 +285,29 @@ async function main() {
   form.append("file", new Blob(["hello"], { type: "text/plain" }), "a.txt");
   r = await api("POST", "/api/mobile/upload", { token, form });
   check("upload non-image → 400", r.status === 400, r.json);
+  // The type comes from the bytes, not the client's MIME type / name.
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"/>';
+  for (const [body, type, name, label] of [
+    [svg, "image/svg+xml", "x.svg", "SVG"],
+    [svg, "image/png", "x.png", "SVG disguised as PNG"],
+    ["<html><script>alert(1)</script></html>", "image/jpeg", "x.jpg", "HTML disguised as JPEG"],
+  ]) {
+    form = new FormData();
+    form.append("file", new Blob([body], { type }), name);
+    r = await api("POST", "/api/mobile/upload", { token, form });
+    check(`upload ${label} → 400`, r.status === 400, r.json);
+  }
+  form = new FormData();
+  form.append("file", new Blob([png], { type: "image/jpeg" }), "wrong.jpg");
+  r = await api("POST", "/api/mobile/upload", { token, form });
+  check("PNG bytes sent as image/jpeg → stored as .png", r.status === 200 && /\.png$/.test(r.json?.url), r.json);
+  const sniffed = [r.json?.url];
+  form = new FormData();
+  form.append("file", new Blob([png], { type: "application/octet-stream" }), "blob");
+  r = await api("POST", "/api/mobile/upload", { token, form });
+  check("PNG bytes with a generic MIME type → accepted", r.status === 200 && /\.png$/.test(r.json?.url), r.json);
+  sniffed.push(r.json?.url);
+  for (const u of sniffed.filter(Boolean)) await rm(join(root, "public", u), { force: true });
   r = await api("POST", "/api/mobile/upload", { form: new FormData() });
   check("upload without token → 401", r.status === 401, r.json);
   r = await api("POST", "/api/mobile/sync", {
@@ -443,6 +484,377 @@ async function main() {
     check("adjustments excluded from monthly income/expense totals", JSON.stringify(before) === JSON.stringify(after), { before, after });
   }
 
+  // ---------- Task areas (docs/tasks.md) ----------
+  console.log("task areas");
+  const KERJA = `area-kerjaan-${user.id}`;
+  const AR1 = randomUUID();
+  const areaData = (o = {}) => ({ name: "Kuliah", code: "kuliah", color: "#123456", icon: "graduation-cap", schedule: { days: [6, 1, 1], start: "08:00", end: "12:00" }, sortOrder: 2, archived: false, ...o });
+  const cursorT = Date.now() - 1000;
+  r = await api("POST", "/api/mobile/sync", {
+    token,
+    body: {
+      mutations: [
+        mut("taskAreas", AR1, areaData()),
+        mut("taskAreas", randomUUID(), areaData({ name: "Other", code: "KULIAH" })),
+        mut("taskAreas", randomUUID(), areaData({ code: "TOO-LONG!" })),
+        mut("taskAreas", randomUUID(), areaData({ code: "OK1", schedule: { days: [1], start: "17:00", end: "09:00" } })),
+        mut("taskAreas", randomUUID(), areaData({ code: "OK2", icon: "rocket" })),
+        mut("taskAreas", randomUUID(), areaData({ code: "OK3", name: "" })),
+        mut("taskAreas", randomUUID(), areaData({ code: "OK4", schedule: "{\"days\":[1]}" })),
+      ],
+    },
+  });
+  let ts = statuses(r) ?? [];
+  check("area create applied", ts[0] === "applied", r.json?.results?.[0]);
+  check("area with a code another id holds → duplicate", ts[1] === "duplicate", r.json?.results?.[1]);
+  ["bad code", "schedule start ≥ end", "unknown icon", "empty name", "schedule as string"].forEach((n, i) =>
+    check(`area ${n} → rejected`, ts[i + 2] === "rejected" && r.json.results[i + 2].error, r.json?.results?.[i + 2]));
+  let arow = await prisma.taskArea.findUnique({ where: { id: AR1 } });
+  check("area code stored uppercase, schedule normalized JSON", arow?.code === "KULIAH" && arow.schedule === '{"days":[1,6],"start":"08:00","end":"12:00"}', arow);
+  r = await api("POST", "/api/mobile/sync", { token, body: { mutations: [mut("taskAreas", AR1, areaData({ name: "Kuliah S2", schedule: null, archived: true }))] } });
+  arow = await prisma.taskArea.findUnique({ where: { id: AR1 } });
+  check("area update (rename, clear schedule, archive)", statuses(r)?.[0] === "applied" && arow?.name === "Kuliah S2" && arow.schedule === null && arow.archived, arow);
+  r = await api("POST", "/api/mobile/sync", { token, body: { mutations: [mut("taskAreas", KERJA, { name: "Kerjaan", code: "KERJA", color: "#1CB0F6", icon: "briefcase", schedule: { days: [1, 2, 3, 4, 5], start: "09:00", end: "17:00" }, sortOrder: 0, archived: false }, ago(3600_000))] } });
+  check("device re-seeding the default area with an older timestamp → skipped (no duplicate)", statuses(r)?.[0] === "skipped" && (await prisma.taskArea.count({ where: { userId: user.id, code: "KERJA" } })) === 1, r.json);
+
+  // ---------- Tasks ----------
+  console.log("tasks");
+  const TW = randomUUID(), TC = randomUUID(), TCI = randomUUID(), TK1 = randomUUID(), TK2 = randomUUID(), TXE = randomUUID();
+  const taskData = (o = {}) => ({
+    areaId: KERJA, title: "Bayar listrik", note: "  token PLN  ", bucket: "fire", dueDate: "2026-01-31", dueTime: "09:00", remindBefore: 30,
+    recurrence: { freq: "monthly", interval: 1 }, seriesId: null, done: false, doneAt: null, sortOrder: 1.5, amount: 250000,
+    walletId: TW, categoryId: TC, transactionId: null, ...o,
+  });
+  r = await api("POST", "/api/mobile/sync", {
+    token,
+    body: {
+      mutations: [
+        mut("wallets", TW, wallet("Task wallet", 1_000_000)),
+        mut("categories", TC, { name: "Listrik", type: "expense", color: "#ef4444", icon: "zap" }),
+        mut("categories", TCI, { name: "Bonus", type: "income", color: "#22c55e", icon: "gift" }),
+        mut("tasks", TK1, taskData()),
+        mut("tasks", TK2, { areaId: AR1, title: "Baca jurnal" }),
+      ],
+    },
+  });
+  check("task creates applied (full + minimal)", statuses(r)?.every((x) => x === "applied"), r.json);
+  let trow = await prisma.task.findUnique({ where: { id: TK1 } });
+  check("recurring task: seriesId = own id, monthDay materialized, note trimmed",
+    trow?.seriesId === TK1 && trow.recurrence === '{"freq":"monthly","interval":1,"monthDay":31}' && trow.note === "token PLN" && trow.sortOrder === 1.5, trow);
+  trow = await prisma.task.findUnique({ where: { id: TK2 } });
+  check("minimal task defaults (want, undone, no due)", trow?.bucket === "want" && !trow.done && trow.dueDate === null && trow.recurrence === null && trow.seriesId === null, trow);
+
+  r = await api("POST", "/api/mobile/sync", {
+    token,
+    body: {
+      mutations: [
+        mut("tasks", randomUUID(), taskData({ areaId: randomUUID() })),
+        mut("tasks", randomUUID(), taskData({ categoryId: TCI })),
+        mut("tasks", randomUUID(), taskData({ dueDate: null, dueTime: "09:00", recurrence: null })),
+        mut("tasks", randomUUID(), taskData({ dueDate: null, dueTime: null })),
+        mut("tasks", randomUUID(), taskData({ bucket: "later" })),
+        mut("tasks", randomUUID(), taskData({ title: "   " })),
+        mut("tasks", randomUUID(), taskData({ dueDate: "2026-02-30" })),
+        mut("tasks", randomUUID(), taskData({ recurrence: { freq: "daily", interval: 1, monthDay: 3 } })),
+        mut("tasks", randomUUID(), taskData({ amount: -5 })),
+        mut("tasks", randomUUID(), taskData({ transactionId: randomUUID() })),
+        mut("tasks", randomUUID(), taskData({ walletId: W1 + "x" })),
+        mut("tasks", randomUUID(), taskData({ recurrence: "{\"freq\":\"daily\"}" })),
+        mut("tasks", randomUUID(), taskData({ done: true, doneAt: "2026-01-31T10:00:00" })),
+        mut("tasks", randomUUID(), taskData({ remindBefore: 99999 })),
+      ],
+    },
+  });
+  ts = statuses(r) ?? [];
+  ["unknown area", "income category", "dueTime without dueDate", "recurrence without dueDate", "unknown bucket", "blank title", "impossible date",
+    "monthDay on daily rule", "negative amount", "unknown transaction", "unknown wallet", "recurrence as string", "doneAt without offset", "remindBefore > 7 days"]
+    .forEach((n, i) => check(`task ${n} → rejected`, ts[i] === "rejected" && r.json.results[i].error, r.json?.results?.[i]));
+  check("task unknown area → 'Area not found'", /Area not found/.test(r.json?.results?.[0]?.error ?? ""), r.json?.results?.[0]);
+
+  // Complete a recurring occurrence offline with the money link: expense, done upsert, next occurrence.
+  const doneAt = "2026-01-31T10:00:00.000Z";
+  const NEXT = `${TK1}_20260228`;
+  r = await api("POST", "/api/mobile/sync", {
+    token,
+    body: {
+      mutations: [
+        mut("transactions", TXE, { walletId: TW, toWalletId: null, categoryId: TC, type: "expense", amount: 250000, note: "Bayar listrik", date: now(), photos: [] }),
+        mut("tasks", TK1, taskData({ done: true, doneAt, transactionId: TXE, seriesId: TK1 })),
+        mut("tasks", NEXT, taskData({ dueDate: "2026-02-28", seriesId: TK1, recurrence: { freq: "monthly", interval: 1, monthDay: 31 } })),
+      ],
+    },
+  });
+  check("complete: expense + done + next occurrence applied", statuses(r)?.every((x) => x === "applied"), r.json);
+  trow = await prisma.task.findUnique({ where: { id: TK1 } });
+  check("done task stores doneAt + transactionId", trow?.done && trow.doneAt?.toISOString() === doneAt && trow.transactionId === TXE, trow);
+  check("expense moved the task wallet (1,000,000 − 250,000)", (await prisma.wallet.findUnique({ where: { id: TW } }))?.balance === 750000);
+  // Device B completed the same occurrence offline, earlier → its next-occurrence upsert is skipped.
+  r = await api("POST", "/api/mobile/sync", {
+    token,
+    body: { mutations: [mut("tasks", NEXT, taskData({ dueDate: "2026-02-28", seriesId: TK1, note: "device B" }), ago(60_000))] },
+  });
+  check("same deterministic next id from another device (older) → skipped", statuses(r)?.[0] === "skipped", r.json);
+  // …or newer → applied as an update of the same row.
+  r = await api("POST", "/api/mobile/sync", {
+    token,
+    body: { mutations: [mut("tasks", NEXT, taskData({ dueDate: "2026-02-28", seriesId: TK1, recurrence: { freq: "monthly", interval: 1, monthDay: 31 } }))] },
+  });
+  check("same next id (newer) → applied, still one row per occurrence",
+    statuses(r)?.[0] === "applied" && (await prisma.task.count({ where: { seriesId: TK1 } })) === 2, r.json);
+  r = await api("GET", `/api/mobile/sync?since=${cursorT}`, { token });
+  const pt = byId(r.json.changes.tasks, TK1);
+  check("task wire shape: recurrence object, doneAt ISO, all fields",
+    pt && JSON.stringify(pt.recurrence) === '{"freq":"monthly","interval":1,"monthDay":31}' && pt.doneAt === doneAt && pt.done === true &&
+    ["id", "areaId", "title", "note", "bucket", "dueDate", "dueTime", "remindBefore", "recurrence", "seriesId", "done", "doneAt", "sortOrder", "amount", "walletId", "categoryId", "transactionId", "createdAt", "updatedAt"].every((f) => f in pt) && !("userId" in pt),
+    pt);
+  check("pulled next occurrence", byId(r.json.changes.tasks, NEXT)?.dueDate === "2026-02-28");
+  check("pulled areas include created area", byId(r.json.changes.taskAreas, AR1)?.code === "KULIAH");
+
+  // Ownership: other user can't touch tasks/areas or use A's area.
+  r = await api("POST", "/api/mobile/sync", {
+    token: tokenB,
+    body: { mutations: [mut("tasks", randomUUID(), taskData({ areaId: KERJA, walletId: null, categoryId: null })), mut("tasks", TK2, { areaId: KERJA, title: "hijack" }), del("taskAreas", AR1)] },
+  });
+  check("task in another user's area → rejected", statuses(r)?.[0] === "rejected", r.json?.results?.[0]);
+  check("upsert/delete another user's task/area → rejected", statuses(r)?.[1] === "rejected" && statuses(r)?.[2] === "rejected", r.json);
+  {
+    // The delete helpers themselves are user-scoped (defense in depth, not just the callers).
+    const jitiD = createJiti(import.meta.url, { alias: { "@": join(root, "src") } });
+    const sd = await jitiD.import(join(root, "src/lib/sync-deletes.ts"));
+    const tasksBefore = await prisma.task.count({ where: { userId: user.id } });
+    const tombsBefore = await prisma.syncTombstone.count();
+    const aWallet = await prisma.wallet.findFirst({ where: { userId: user.id } });
+    const aCat = await prisma.category.findFirst({ where: { userId: user.id } });
+    await prisma.$transaction((db) => sd.deleteTaskAreaCascade(db, userBId, AR1));
+    await prisma.$transaction((db) => sd.deleteWalletCascade(db, userBId, aWallet.id));
+    await prisma.$transaction((db) => sd.deleteCategoryCascade(db, userBId, aCat.id));
+    await sd.deleteSynced(userBId, "tasks", TK2);
+    await sd.deleteSynced(userBId, "taskAreas", AR1);
+    check("cascade helpers with a foreign user id delete nothing, write no tombstone",
+      (await prisma.taskArea.count({ where: { id: AR1 } })) === 1 && (await prisma.task.count({ where: { userId: user.id } })) === tasksBefore &&
+      (await prisma.wallet.count({ where: { id: aWallet.id } })) === 1 && (await prisma.category.count({ where: { id: aCat.id } })) === 1 &&
+      (await prisma.syncTombstone.count()) === tombsBefore);
+  }
+
+  // ---------- Task cascades ----------
+  console.log("task cascades");
+  const cursorC = Date.now() - 1000;
+  r = await api("POST", "/api/mobile/sync", { token, body: { mutations: [del("transactions", TXE)] } });
+  trow = await prisma.task.findUnique({ where: { id: TK1 } });
+  check("delete transaction → task.transactionId null", statuses(r)?.[0] === "applied" && trow?.transactionId === null, trow);
+  r = await api("POST", "/api/mobile/sync", { token, body: { mutations: [del("categories", TC), del("wallets", TW)] } });
+  trow = await prisma.task.findUnique({ where: { id: TK1 } });
+  check("delete category/wallet → task refs null", statuses(r)?.every((x) => x === "applied") && trow?.categoryId === null && trow.walletId === null, trow);
+  r = await api("GET", `/api/mobile/sync?since=${cursorC}`, { token });
+  const pc = byId(r.json.changes.tasks, TK1);
+  check("nulled task re-sent in changes", pc && pc.transactionId === null && pc.walletId === null && pc.categoryId === null, pc);
+  r = await api("POST", "/api/mobile/sync", { token, body: { mutations: [del("taskAreas", AR1)] } });
+  r = await api("GET", `/api/mobile/sync?since=${cursorC}`, { token });
+  check("delete area → area + its tasks tombstoned",
+    r.json.deleted.some((d) => d.entity === "taskAreas" && d.id === AR1) && r.json.deleted.some((d) => d.entity === "tasks" && d.id === TK2) &&
+    (await prisma.task.count({ where: { id: TK2 } })) === 0, r.json.deleted);
+  r = await api("POST", "/api/mobile/sync", { token, body: { mutations: [mut("tasks", TK2, { areaId: KERJA, title: "zombie" }, ago(60_000))] } });
+  check("stale upsert of cascaded-deleted task → skipped", statuses(r)?.[0] === "skipped", r.json);
+  r = await api("POST", "/api/mobile/sync", { token, body: { mutations: [del("tasks", NEXT)] } });
+  check("task delete applied + tombstone", statuses(r)?.[0] === "applied" && (await prisma.syncTombstone.count({ where: { entity: "tasks", entityId: NEXT } })) === 1);
+
+  // ---------- Transaction photos (docs/transaction-photos.md) ----------
+  console.log("transaction photos");
+  const upload = async () => {
+    const f = new FormData();
+    f.append("file", new Blob([png], { type: "image/png" }), "p.png");
+    return (await api("POST", "/api/mobile/upload", { token, form: f })).json?.url;
+  };
+  const exists = async (u) => (await fetch(BASE + u)).status === 200;
+  const [u1, u2, u3, u4] = [await upload(), await upload(), await upload(), await upload()];
+  const TP = randomUUID(), TP2 = randomUUID(), TP3 = randomUUID();
+  const txp = (photos, extra = {}) => ({ walletId: W1, toWalletId: null, categoryId: null, type: "expense", amount: 10, note: "struk", date: now(), ...(photos === undefined ? {} : { photos }), ...extra });
+  r = await api("POST", "/api/mobile/sync", { token, body: { mutations: [mut("transactions", TP, txp([u1, u2]))] } });
+  check("tx with 2 photos applied", statuses(r)?.[0] === "applied", r.json);
+  let prow2 = await prisma.transaction.findUnique({ where: { id: TP } });
+  check("photos stored as JSON array", prow2?.photos === JSON.stringify([u1, u2]), prow2?.photos);
+  r = await api("POST", "/api/mobile/sync", { token, body: { mutations: [mut("transactions", TP, txp(undefined, { amount: 11 }))] } });
+  prow2 = await prisma.transaction.findUnique({ where: { id: TP } });
+  check("old client update without photos keeps them", statuses(r)?.[0] === "applied" && prow2?.photos === JSON.stringify([u1, u2]) && prow2.amount === 11, prow2);
+  r = await api("POST", "/api/mobile/sync", { token, body: { mutations: [mut("transactions", TP, txp([u2, u3]))] } });
+  check("photo list change applied", statuses(r)?.[0] === "applied", r.json);
+  check("removed photo file deleted, kept/new files stay", !(await exists(u1)) && (await exists(u2)) && (await exists(u3)));
+  r = await api("POST", "/api/mobile/sync", {
+    token,
+    body: {
+      mutations: [
+        mut("transactions", randomUUID(), txp(["a1", "a2", "a3", "a4", "a5", "a6"].map((n) => `/uploads/${n}.png`))),
+        mut("transactions", randomUUID(), txp(["/uploads/../../.env"])),
+        mut("transactions", randomUUID(), txp(u4)),
+        mut("transactions", randomUUID(), txp(["https://evil.example/a.png"])),
+        mut("transactions", TP, txp([u2, u3, "/uploads/a.png", "/uploads/b.png", "/uploads/c.png", "/uploads/d.png"])),
+      ],
+    },
+  });
+  ts = statuses(r) ?? [];
+  ["more than 5 photos", "path traversal", "photos not an array", "absolute URL", "update to 6 photos"].forEach((n, i) =>
+    check(`photos ${n} → rejected`, ts[i] === "rejected" && r.json.results[i].error, r.json?.results?.[i]));
+  check("rejected photo updates deleted nothing", (await exists(u2)) && (await exists(u3)) && (await exists(u4)));
+  // A duplicated transaction sharing a photo: deleting one keeps the file.
+  r = await api("POST", "/api/mobile/sync", { token, body: { mutations: [mut("transactions", TP2, txp([u3, u4]))] } });
+  r = await api("POST", "/api/mobile/sync", { token, body: { mutations: [del("transactions", TP)] } });
+  check("delete tx → its unshared photo removed, shared one kept", statuses(r)?.[0] === "applied" && !(await exists(u2)) && (await exists(u3)));
+  r = await api("GET", `/api/mobile/sync?since=${cursorC}`, { token });
+  check("pulled photos is an array of URLs", JSON.stringify(byId(r.json.changes.transactions, TP2)?.photos) === JSON.stringify([u3, u4]), byId(r.json.changes.transactions, TP2));
+  // Wallet delete cascade removes its transactions' photos.
+  const WP = randomUUID();
+  r = await api("POST", "/api/mobile/sync", { token, body: { mutations: [mut("wallets", WP, wallet("Photo wallet", 0)), mut("transactions", TP3, txp([u4], { walletId: WP })), del("transactions", TP2)] } });
+  check("TP2 deleted but u4 still used by TP3", statuses(r)?.every((x) => x === "applied") && !(await exists(u3)) && (await exists(u4)), r.json);
+  r = await api("POST", "/api/mobile/sync", { token, body: { mutations: [del("wallets", WP)] } });
+  check("wallet cascade delete removes its transactions' photos", statuses(r)?.[0] === "applied" && !(await exists(u4)));
+
+  // ---------- Web task helpers (lib code the server actions call) ----------
+  console.log("web task helpers");
+  const jitiT = createJiti(import.meta.url, { alias: { "@": join(root, "src") } });
+  const ts2 = await jitiT.import(join(root, "src/lib/tasks-server.ts"));
+  check("ensureDefaultTaskAreas is a no-op when areas exist", (await ts2.ensureDefaultTaskAreas(prisma, user.id)) === 0);
+  const series = await prisma.task.create({ data: { userId: user.id, areaId: KERJA, title: "Standup", dueDate: "2026-09-25", recurrence: '{"freq":"weekly","interval":1,"weekdays":[1,3,5]}', seriesId: null } });
+  const n1 = await prisma.$transaction((db) => ts2.createNextOccurrence(db, user.id, series));
+  const n1b = await prisma.$transaction((db) => ts2.createNextOccurrence(db, user.id, series));
+  const nrow = await prisma.task.findUnique({ where: { id: n1 } });
+  check("createNextOccurrence: Fri → Mon, deterministic, idempotent",
+    n1 === `${series.id}_20260928` && n1b === n1 && nrow?.seriesId === series.id && !nrow.done && (await prisma.task.count({ where: { OR: [{ id: series.id }, { seriesId: series.id }] } })) === 2, nrow);
+  let threw = null;
+  try {
+    await prisma.$transaction((db) => ts2.saveTask(db, user.id, randomUUID(), { areaId: KERJA, title: "x", categoryId: TCI }, false));
+  } catch (e) {
+    threw = e;
+  }
+  check("saveTask rejects an income category with TaskError", threw instanceof ts2.TaskError, threw?.message);
+
+  // ---------- Web server actions (auth + next/cache stubbed) ----------
+  console.log("web task + transaction actions");
+  {
+    const stubDir = await mkdtemp(join(tmpdir(), "ghina-stubs-"));
+    await writeFile(join(stubDir, "auth.mjs"), "export async function requireUser() { return globalThis.__ghinaTestUser; }\n");
+    await writeFile(join(stubDir, "cache.mjs"), "export function revalidatePath() {}\n");
+    globalThis.__ghinaTestUser = await prisma.user.findUnique({ where: { id: user.id } });
+    const jitiW = createJiti(import.meta.url, {
+      alias: { "@/lib/auth-helpers": join(stubDir, "auth.mjs"), "next/cache": join(stubDir, "cache.mjs"), "@": join(root, "src") },
+      moduleCache: false,
+    });
+    const ta = await jitiW.import(join(root, "src/app/(dashboard)/tasks/actions.ts"));
+    const txa = await jitiW.import(join(root, "src/app/(dashboard)/transactions/actions.ts"));
+    const wW = await prisma.wallet.create({ data: { userId: user.id, name: "Action wallet", balance: 500 } });
+    const expCat = await prisma.category.findFirst({ where: { userId: user.id, type: "expense" } });
+
+    let a = await ta.createTaskArea({ name: "Bisnis", code: "biz", schedule: { days: [6], start: "10:00", end: "14:00" } });
+    check("action createTaskArea", a.ok && (await prisma.taskArea.findUnique({ where: { id: a.id } }))?.code === "BIZ", a);
+    const areaId = a.id;
+    a = await ta.createTaskArea({ name: "Dup", code: "BIZ" });
+    check("action createTaskArea duplicate code → error", !a.ok && /already used/.test(a.error), a);
+    a = await ta.updateTaskArea(areaId, { schedule: { days: [6], start: "14:00", end: "10:00" } });
+    check("action updateTaskArea invalid schedule → error", !a.ok, a);
+    a = await ta.updateTaskArea(areaId, { name: "Bisnis 2", archived: true });
+    const ar = await prisma.taskArea.findUnique({ where: { id: areaId } });
+    check("action updateTaskArea patch keeps other fields", a.ok && ar.name === "Bisnis 2" && ar.archived && ar.code === "BIZ" && ar.schedule !== null, ar);
+
+    let c = await ta.createTask({ areaId, title: "Bayar hosting", bucket: "fire", dueDate: "2026-09-30", recurrence: { freq: "monthly", interval: 1 }, amount: 120, walletId: wW.id, categoryId: expCat.id });
+    check("action createTask (recurring, money link)", c.ok, c);
+    const tId = c.id;
+    let tr = await prisma.task.findUnique({ where: { id: tId } });
+    check("created task: seriesId = id, monthDay 30, sortOrder after last", tr?.seriesId === tId && tr.recurrence === '{"freq":"monthly","interval":1,"monthDay":30}' && tr.sortOrder === 0, tr);
+    c = await ta.createTask({ areaId, title: "Second", bucket: "fire" });
+    check("second task sorted after first", c.ok && (await prisma.task.findUnique({ where: { id: c.id } }))?.sortOrder === 1);
+    const t2 = c.id;
+    c = await ta.createTask({ areaId, title: "" });
+    check("action createTask blank title → error", !c.ok && c.error, c);
+    c = await ta.updateTask(tId, { dueTime: "08:00", remindBefore: 10 });
+    tr = await prisma.task.findUnique({ where: { id: tId } });
+    check("action updateTask patch", c.ok && tr.dueTime === "08:00" && tr.remindBefore === 10 && tr.title === "Bayar hosting" && tr.amount === 120, tr);
+
+    c = await ta.completeTask(tId, { recordExpense: true });
+    tr = await prisma.task.findUnique({ where: { id: tId } });
+    check("action completeTask: done + next occurrence + expense", c.ok && tr.done && tr.doneAt && c.nextId === `${tId}_20261030` && c.transactionId && tr.transactionId === c.transactionId, c);
+    const nx = await prisma.task.findUnique({ where: { id: `${tId}_20261030` } });
+    check("next occurrence copies fields, undone, unlinked", nx && !nx.done && nx.dueTime === "08:00" && nx.amount === 120 && nx.transactionId === null && nx.seriesId === tId, nx);
+    const etx = await prisma.transaction.findUnique({ where: { id: c.transactionId } });
+    check("expense: amount/wallet/category/note from task, balance 500 → 380",
+      etx?.type === "expense" && etx.amount === 120 && etx.categoryId === expCat.id && etx.note === "Bayar hosting" && (await prisma.wallet.findUnique({ where: { id: wW.id } })).balance === 380, etx);
+    c = await ta.completeTask(tId, { recordExpense: true });
+    check("completing again: no second expense / occurrence", c.ok && c.nextId === null && (await prisma.transaction.count({ where: { walletId: wW.id } })) === 1 && (await prisma.task.count({ where: { seriesId: tId } })) === 2, c);
+    c = await ta.uncompleteTask(tId, { deleteExpense: true });
+    tr = await prisma.task.findUnique({ where: { id: tId } });
+    check("uncompleteTask + deleteExpense: undone, expense reversed, next kept",
+      c.ok && !tr.done && tr.doneAt === null && tr.transactionId === null && (await prisma.wallet.findUnique({ where: { id: wW.id } })).balance === 500 && (await prisma.task.count({ where: { seriesId: tId } })) === 2, tr);
+    c = await ta.completeTask(tId);
+    check("re-complete without expense reuses the existing next occurrence", c.ok && c.nextId === `${tId}_20261030` && c.transactionId === null && (await prisma.task.count({ where: { seriesId: tId } })) === 2, c);
+    c = await ta.completeTask(t2, { recordExpense: {} });
+    check("completeTask with expense but no amount/wallet → error, task untouched", !c.ok && !(await prisma.task.findUnique({ where: { id: t2 } })).done, c);
+
+    c = await ta.reorderTasks({ areaId: KERJA, bucket: "should" }, [t2, tId]);
+    const [r1, r2] = [await prisma.task.findUnique({ where: { id: t2 } }), await prisma.task.findUnique({ where: { id: tId } })];
+    check("reorderTasks moves into cell with index order", c.ok && r1.areaId === KERJA && r1.bucket === "should" && r1.sortOrder === 0 && r2.sortOrder === 1, [r1, r2]);
+    c = await ta.reorderTasks({ areaId: KERJA, bucket: "should" }, [t2, randomUUID()]);
+    check("reorderTasks with a foreign id → error", !c.ok);
+    c = await ta.moveTask(t2, { bucket: "fire", sortOrder: 0.5 });
+    check("moveTask", c.ok && (await prisma.task.findUnique({ where: { id: t2 } })).bucket === "fire");
+    c = await ta.reorderTaskAreas([areaId, KERJA]);
+    check("reorderTaskAreas", c.ok && (await prisma.taskArea.findUnique({ where: { id: areaId } })).sortOrder === 0 && (await prisma.taskArea.findUnique({ where: { id: KERJA } })).sortOrder === 1);
+    c = await ta.deleteTask(t2);
+    check("deleteTask tombstones", c.ok && (await prisma.syncTombstone.count({ where: { entity: "tasks", entityId: t2 } })) === 1);
+    const t3 = (await ta.createTask({ areaId, title: "in area" })).id;
+    c = await ta.deleteTaskArea(areaId);
+    check("deleteTaskArea cascades tasks with tombstones", c.ok && (await prisma.task.count({ where: { id: t3 } })) === 0 && (await prisma.syncTombstone.count({ where: { entity: "tasks", entityId: t3 } })) === 1);
+    c = await ta.ensureDefaultAreas();
+    check("ensureDefaultAreas no-op when areas exist", c.ok && c.created === 0, c);
+
+    // Transaction photos through the web form actions.
+    const pngFile = (n) => new File([png], `${n}.png`, { type: "image/png" });
+    const uploadsDir = join(root, "public");
+    const onDisk = async (u) => existsSync(join(uploadsDir, u));
+    const fd = (o, files = [], keep = null) => {
+      const f = new FormData();
+      for (const [k, v] of Object.entries(o)) f.append(k, v);
+      for (const file of files) f.append("photos", file);
+      if (keep) {
+        f.append("photosManaged", "1");
+        for (const u of keep) f.append("keepPhotos", u);
+      }
+      return f;
+    };
+    const base = { type: "expense", amount: "25", walletId: wW.id, date: "2026-09-24", note: "struk" };
+    await txa.createTransaction(fd(base, [pngFile("a"), pngFile("b")]));
+    let wtx = await prisma.transaction.findFirst({ where: { walletId: wW.id, note: "struk" } });
+    const wp = JSON.parse(wtx.photos);
+    check("web createTransaction saves 2 photos", wp.length === 2 && (await onDisk(wp[0])) && (await onDisk(wp[1])), wtx.photos);
+    await txa.updateTransaction(fd({ ...base, id: wtx.id, amount: "30" }));
+    wtx = await prisma.transaction.findUnique({ where: { id: wtx.id } });
+    check("web update without photo UI keeps photos", wtx.amount === 30 && JSON.parse(wtx.photos).length === 2);
+    await txa.updateTransaction(fd({ ...base, id: wtx.id }, [pngFile("c")], [wp[1], "/uploads/not-mine.png"]));
+    wtx = await prisma.transaction.findUnique({ where: { id: wtx.id } });
+    const wp2 = JSON.parse(wtx.photos);
+    check("web update keep+add: [kept, new], foreign keep ignored, removed file deleted",
+      wp2.length === 2 && wp2[0] === wp[1] && !(await onDisk(wp[0])) && (await onDisk(wp2[1])), wp2);
+    let err = null;
+    try {
+      await txa.updateTransaction(fd({ ...base, id: wtx.id }, [1, 2, 3, 4].map((i) => pngFile(`x${i}`)), wp2));
+    } catch (e) {
+      err = e;
+    }
+    const filesNow = (await readdir(join(uploadsDir, "uploads"))).length;
+    check("web update over 5 photos → throws, nothing changed", err && /At most 5/.test(err.message) && JSON.parse((await prisma.transaction.findUnique({ where: { id: wtx.id } })).photos).length === 2, err?.message);
+    await txa.deleteTransaction(fd({ id: wtx.id }));
+    check("web deleteTransaction removes photo files", !(await onDisk(wp2[0])) && !(await onDisk(wp2[1])) && (await readdir(join(uploadsDir, "uploads"))).length === filesNow - 2);
+    await rm(stubDir, { recursive: true, force: true });
+  }
+
+  // Leave a wallet + photo transaction + linked task for the reset check below.
+  const WR = randomUUID(), TR = randomUUID(), TKR = randomUUID();
+  const uR = await upload();
+  r = await api("POST", "/api/mobile/sync", {
+    token,
+    body: { mutations: [mut("wallets", WR, wallet("Reset me", 0)), mut("transactions", TR, txp([uR], { walletId: WR })), mut("tasks", TKR, { areaId: KERJA, title: "linked", walletId: WR, transactionId: TR, amount: 10 })] },
+  });
+  check("reset fixture applied", statuses(r)?.every((x) => x === "applied"), r.json);
+  resetCtx.taskId = TKR;
+  resetCtx.photo = uR;
+
   // ---------- Web helpers (same code the server actions call) ----------
   console.log("web deletes / reset");
   const jiti = createJiti(import.meta.url, { alias: { "@": join(root, "src") } });
@@ -465,6 +877,12 @@ async function main() {
   const after = await prisma.user.findUnique({ where: { id: user.id } });
   check("reset rotates syncEpoch", after.syncEpoch !== user.syncEpoch);
   check("reset wiped wallets", (await prisma.wallet.count({ where: { userId: user.id } })) === 0);
+  {
+    const tr = await prisma.task.findUnique({ where: { id: resetCtx.taskId } });
+    check("reset keeps tasks + areas, nulls wallet/category/transaction links",
+      tr && tr.walletId === null && tr.categoryId === null && tr.transactionId === null && (await prisma.taskArea.count({ where: { userId: user.id } })) >= 2, tr);
+    check("reset removed transaction photo files", (await fetch(BASE + resetCtx.photo)).status === 404);
+  }
   r = await api("POST", "/api/mobile/sync", { token, body: { epoch: user.syncEpoch, mutations: [mut("wallets", randomUUID(), wallet("zombie", 0))] } });
   check("push with old epoch → 409 + new epoch, nothing applied", r.status === 409 && r.json.epoch === after.syncEpoch, r.json);
   check("zombie wallet not created", (await prisma.wallet.count({ where: { userId: user.id } })) === 0);

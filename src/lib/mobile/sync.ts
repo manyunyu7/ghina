@@ -3,7 +3,8 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { deleteSyncedRow } from "@/lib/sync-deletes";
 import { SYNC_ENTITIES, type SyncEntity } from "@/lib/tombstones";
-import { deleteUpload } from "@/lib/uploads";
+import { deleteUnreferencedUploads } from "@/lib/uploads";
+import { ensureDefaultTaskAreas } from "@/lib/tasks-server";
 import { ENTITY_DEFS, SyncRejection } from "@/lib/mobile/entities";
 import { serializeRow } from "@/lib/mobile/serialize";
 
@@ -18,6 +19,9 @@ const cursorFor = (start: number) => start - 5000;
 export async function pull(user: User, sinceMs: number) {
   const start = Date.now();
   const since = new Date(sinceMs);
+
+  // Default task areas on first sync (deterministic ids → idempotent; docs/tasks.md).
+  await ensureDefaultTaskAreas(prisma, user.id);
 
   const changes = {} as Record<SyncEntity, Record<string, unknown>[]>;
   for (const entity of SYNC_ENTITIES) {
@@ -75,7 +79,8 @@ async function applyMutation(userId: string, raw: unknown): Promise<MutationResu
   }
   const m = parsed.data;
   const def = ENTITY_DEFS[m.entity];
-  let removedPhoto: string | null = null;
+  // Upload files to delete once the mutation is committed (never on rollback).
+  const cleanup: string[] = [];
 
   try {
     const status = await prisma.$transaction(async (db): Promise<MutationStatus> => {
@@ -87,8 +92,7 @@ async function applyMutation(userId: string, raw: unknown): Promise<MutationResu
 
       if (m.op === "delete") {
         if (!existing) return "applied"; // idempotent
-        if (m.entity === "food") removedPhoto = (existing as { photoUrl?: string | null }).photoUrl ?? null;
-        await deleteSyncedRow(db, userId, m.entity, m.entityId);
+        cleanup.push(...(await deleteSyncedRow(db, userId, m.entity, m.entityId)));
         return "applied";
       }
 
@@ -105,18 +109,16 @@ async function applyMutation(userId: string, raw: unknown): Promise<MutationResu
         if (tomb) await db.syncTombstone.deleteMany({ where: { userId, entity: m.entity, entityId: m.entityId } });
       }
 
-      const oldPhoto = m.entity === "food" ? ((existing as { photoUrl?: string | null } | null)?.photoUrl ?? null) : null;
-      const outcome = await def.upsert(db, userId, m.entityId, m.data, existing);
+      const outcome = await def.upsert(db, userId, m.entityId, m.data, existing, cleanup);
       if (outcome === "duplicate") {
         // Undo the tombstone removal above along with everything else.
         throw new DuplicateSignal();
       }
-      if (oldPhoto && oldPhoto !== (m.data.photoUrl ?? null)) removedPhoto = oldPhoto;
       return outcome;
     });
 
-    // File cleanup only after the DB change is committed (mirrors the web's food actions).
-    if (removedPhoto) await deleteUpload(removedPhoto);
+    // File cleanup only after the DB change is committed (skipping files still referenced).
+    if (status === "applied") await deleteUnreferencedUploads(cleanup);
     return { id: m.id, status };
   } catch (err) {
     if (err instanceof DuplicateSignal) return { id: m.id, status: "duplicate" };

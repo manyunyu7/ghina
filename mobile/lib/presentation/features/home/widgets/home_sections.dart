@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/formatters.dart';
 import '../../../../domain/entities/entities.dart';
 import '../../../../domain/game/game.dart' hide MascotMood;
+import '../../../../domain/game/game.dart' as game show MascotMood;
 import '../../../design_system/design_system.dart';
 import '../../../shared/game_visuals.dart';
 import '../../shell/sync_indicator.dart';
@@ -364,7 +365,7 @@ class ContinueLearningCard extends StatelessWidget {
     if (next == null) {
       return ChunkyCard(
         tinted: GhinaColors.purple,
-        onTap: () => context.go('/learn'),
+        onTap: () => context.push('/learn'),
         child: Row(
           children: [
             CategoryAvatar(
@@ -456,6 +457,8 @@ class _QuickAction {
 }
 
 const _actions = [
+  // Belajar left the tab bar (Tugas took its place): keep it one tap away.
+  _QuickAction('Belajar', Icons.school_rounded, GhinaColors.purple, '/learn'),
   _QuickAction(
     'Dompet',
     Icons.account_balance_wallet_rounded,
@@ -471,7 +474,7 @@ const _actions = [
   _QuickAction(
     'Langganan',
     Icons.autorenew_rounded,
-    GhinaColors.purple,
+    GhinaColors.pink,
     '/subscriptions',
   ),
   _QuickAction(
@@ -498,12 +501,6 @@ const _actions = [
     Icons.restaurant_rounded,
     GhinaColors.yellow,
     '/food',
-  ),
-  _QuickAction(
-    'Kategori',
-    Icons.category_rounded,
-    GhinaColors.pink,
-    '/categories',
   ),
 ];
 
@@ -960,14 +957,13 @@ class TransactionRow extends StatelessWidget {
 // ---------------------------------------------------------------- mascot
 
 class HomeMascot extends StatelessWidget {
-  const HomeMascot({super.key, required this.summary});
+  const HomeMascot({super.key, required this.mood, required this.message});
 
-  final GameSummary summary;
+  /// The engine's mood (task-aware line from `homeMascotProvider`).
+  final game.MascotMood mood;
+  final String message;
 
   @override
-  Widget build(BuildContext context) => MascotSpeech(
-    mood: mascotMoodOf(summary.mood),
-    mascotSize: 84,
-    message: summary.message,
-  );
+  Widget build(BuildContext context) =>
+      MascotSpeech(mood: mascotMoodOf(mood), mascotSize: 84, message: message);
 }

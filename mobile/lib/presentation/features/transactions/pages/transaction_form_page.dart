@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -43,6 +44,13 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
   late DateTime _date;
   String _note = '';
 
+  /// Attached photos (receipts, proofs). On edit, [_initialPhotos] is what the
+  /// transaction had; untouched lists follow the live data (sync may swap a
+  /// pending file for its uploaded URL while the form is open).
+  List<ViewerPhoto> _photos = const [];
+  List<TransactionPhoto> _initialPhotos = const [];
+  bool _photosTouched = false;
+
   /// Adjustments only: +1 adds to the balance, −1 subtracts.
   int _adjSign = 1;
   bool get _isAdjustment => _type == TxType.adjustment;
@@ -86,6 +94,8 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
     _categoryId = t.categoryId;
     _date = t.date;
     _note = t.note ?? '';
+    _initialPhotos = t.photos;
+    _photos = viewerPhotos(t.photos);
     _adjSign = t.amount < 0 ? -1 : 1;
     _setCurrency(
       v.wallet?.currency ?? _amount.currency,
@@ -232,6 +242,64 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
     if (r != null && mounted) setState(() => _note = r.trim());
   }
 
+  void _setPhotos(List<ViewerPhoto> photos) => setState(() {
+    _photos = photos;
+    _photosTouched = true;
+  });
+
+  Future<void> _openPhotos() => showPhotoAttachSheet(
+    context,
+    photos: _photos,
+    max: maxTransactionPhotos,
+    onChanged: (l) {
+      if (mounted) _setPhotos(l);
+    },
+  );
+
+  Future<void> _addPhotos() async {
+    final paths = await pickPhotos(
+      context,
+      ref,
+      remaining: maxTransactionPhotos - _photos.length,
+      max: maxTransactionPhotos,
+    );
+    if (paths.isEmpty || !mounted) return;
+    _setPhotos([
+      ..._photos,
+      for (final p in paths)
+        if (!_photos.contains(ViewerPhoto.file(p))) ViewerPhoto.file(p),
+    ]);
+  }
+
+  /// Photos for the input: null = unchanged (edit) / none (new). An edit applies
+  /// the user's removals/additions to the *live* list so an upload that finished
+  /// meanwhile isn't undone.
+  List<TransactionPhoto>? _photosForSave() {
+    final chosen = [for (final p in _photos) txPhoto(p)];
+    if (!_isEdit) return chosen.isEmpty ? null : chosen;
+    if (!_photosTouched || listEquals(chosen, _initialPhotos)) return null;
+    final live =
+        ref
+            .read(watchTransactionProvider(widget.id!))
+            .value
+            ?.transaction
+            .photos ??
+        _initialPhotos;
+    final removed = {
+      for (final p in _initialPhotos)
+        if (!chosen.contains(p)) p,
+    };
+    final out = [
+      for (final p in live)
+        if (!removed.contains(p)) p,
+      for (final p in chosen)
+        if (!_initialPhotos.contains(p) && !live.contains(p)) p,
+    ];
+    return out.length > maxTransactionPhotos
+        ? out.sublist(0, maxTransactionPhotos)
+        : out;
+  }
+
   Future<void> _save(String? walletId) async {
     if (_saving) return;
     if (walletId == null) {
@@ -263,6 +331,7 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
           : _categoryId,
       note: _note,
       date: _date,
+      photos: _photosForSave(),
     );
     setState(() => _saving = true);
     final rewards = RewardTracker.start(ref);
@@ -345,6 +414,17 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
       }
     }
     if (_isEdit && _deleted) return _scaffold(const _FormSkeleton());
+    if (_isEdit && !_photosTouched) {
+      final live = ref
+          .watch(watchTransactionProvider(widget.id!))
+          .value
+          ?.transaction
+          .photos;
+      if (live != null && !listEquals(live, _initialPhotos)) {
+        _initialPhotos = live;
+        _photos = viewerPhotos(live);
+      }
+    }
 
     final walletsAsync = ref.watch(watchAllWalletsProvider);
     final catsAsync = ref.watch(watchCategoriesProvider(null));
@@ -492,6 +572,20 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
                           onTap: _pickDate,
                         ),
                         _InfoChip(
+                          key: const ValueKey('tx-photo-chip'),
+                          leading: Icon(
+                            _photos.isEmpty
+                                ? Icons.add_a_photo_rounded
+                                : Icons.photo_camera_rounded,
+                            size: 20,
+                          ),
+                          label: _photos.isEmpty
+                              ? 'Foto'
+                              : 'Foto · ${_photos.length}',
+                          muted: _photos.isEmpty,
+                          onTap: _openPhotos,
+                        ),
+                        _InfoChip(
                           key: const ValueKey('tx-note-chip'),
                           leading: const Icon(
                             Icons.edit_note_rounded,
@@ -504,6 +598,18 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
                       ],
                     ),
                   ),
+                  if (_photos.isNotEmpty) ...[
+                    const SizedBox(height: GhinaSpace.md),
+                    PhotoStrip(
+                      key: const ValueKey('tx-photo-strip'),
+                      photos: _photos,
+                      size: small ? 52 : 60,
+                      max: maxTransactionPhotos,
+                      heroScope: 'tx-form',
+                      onRemove: (i) => _setPhotos([..._photos]..removeAt(i)),
+                      onAdd: _addPhotos,
+                    ),
+                  ],
                   SizedBox(height: small ? GhinaSpace.md : GhinaSpace.lg),
                   if (_isAdjustment)
                     ChunkyCard(

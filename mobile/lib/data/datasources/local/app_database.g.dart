@@ -1139,6 +1139,16 @@ class $TransactionsTable extends Transactions
         type: DriftSqlType.int,
         requiredDuringInsert: true,
       ).withConverter<DateTime>($TransactionsTable.$converterdate);
+  static const VerificationMeta _photosMeta = const VerificationMeta('photos');
+  @override
+  late final GeneratedColumn<String> photos = GeneratedColumn<String>(
+    'photos',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     createdAt,
@@ -1151,6 +1161,7 @@ class $TransactionsTable extends Transactions
     amount,
     note,
     date,
+    photos,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1212,6 +1223,12 @@ class $TransactionsTable extends Transactions
         note.isAcceptableOrUnknown(data['note']!, _noteMeta),
       );
     }
+    if (data.containsKey('photos')) {
+      context.handle(
+        _photosMeta,
+        photos.isAcceptableOrUnknown(data['photos']!, _photosMeta),
+      );
+    }
     return context;
   }
 
@@ -1267,6 +1284,10 @@ class $TransactionsTable extends Transactions
           data['${effectivePrefix}date'],
         )!,
       ),
+      photos: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}photos'],
+      )!,
     );
   }
 
@@ -1291,6 +1312,11 @@ class TransactionRow extends DataClass implements Insertable<TransactionRow> {
   final double amount;
   final String? note;
   final DateTime date;
+
+  /// JSON array of strings, display order: uploaded paths (`/uploads/x.jpg`) and
+  /// photos waiting for upload as `local:<absolute file path>` (device-only marker,
+  /// never sent on the wire). v2 rows migrate to `[]`.
+  final String photos;
   const TransactionRow({
     required this.createdAt,
     required this.updatedAt,
@@ -1302,6 +1328,7 @@ class TransactionRow extends DataClass implements Insertable<TransactionRow> {
     required this.amount,
     this.note,
     required this.date,
+    required this.photos,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1334,6 +1361,7 @@ class TransactionRow extends DataClass implements Insertable<TransactionRow> {
         $TransactionsTable.$converterdate.toSql(date),
       );
     }
+    map['photos'] = Variable<String>(photos);
     return map;
   }
 
@@ -1353,6 +1381,7 @@ class TransactionRow extends DataClass implements Insertable<TransactionRow> {
       amount: Value(amount),
       note: note == null && nullToAbsent ? const Value.absent() : Value(note),
       date: Value(date),
+      photos: Value(photos),
     );
   }
 
@@ -1372,6 +1401,7 @@ class TransactionRow extends DataClass implements Insertable<TransactionRow> {
       amount: serializer.fromJson<double>(json['amount']),
       note: serializer.fromJson<String?>(json['note']),
       date: serializer.fromJson<DateTime>(json['date']),
+      photos: serializer.fromJson<String>(json['photos']),
     );
   }
   @override
@@ -1388,6 +1418,7 @@ class TransactionRow extends DataClass implements Insertable<TransactionRow> {
       'amount': serializer.toJson<double>(amount),
       'note': serializer.toJson<String?>(note),
       'date': serializer.toJson<DateTime>(date),
+      'photos': serializer.toJson<String>(photos),
     };
   }
 
@@ -1402,6 +1433,7 @@ class TransactionRow extends DataClass implements Insertable<TransactionRow> {
     double? amount,
     Value<String?> note = const Value.absent(),
     DateTime? date,
+    String? photos,
   }) => TransactionRow(
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
@@ -1413,6 +1445,7 @@ class TransactionRow extends DataClass implements Insertable<TransactionRow> {
     amount: amount ?? this.amount,
     note: note.present ? note.value : this.note,
     date: date ?? this.date,
+    photos: photos ?? this.photos,
   );
   TransactionRow copyWithCompanion(TransactionsCompanion data) {
     return TransactionRow(
@@ -1430,6 +1463,7 @@ class TransactionRow extends DataClass implements Insertable<TransactionRow> {
       amount: data.amount.present ? data.amount.value : this.amount,
       note: data.note.present ? data.note.value : this.note,
       date: data.date.present ? data.date.value : this.date,
+      photos: data.photos.present ? data.photos.value : this.photos,
     );
   }
 
@@ -1445,7 +1479,8 @@ class TransactionRow extends DataClass implements Insertable<TransactionRow> {
           ..write('type: $type, ')
           ..write('amount: $amount, ')
           ..write('note: $note, ')
-          ..write('date: $date')
+          ..write('date: $date, ')
+          ..write('photos: $photos')
           ..write(')'))
         .toString();
   }
@@ -1462,6 +1497,7 @@ class TransactionRow extends DataClass implements Insertable<TransactionRow> {
     amount,
     note,
     date,
+    photos,
   );
   @override
   bool operator ==(Object other) =>
@@ -1476,7 +1512,8 @@ class TransactionRow extends DataClass implements Insertable<TransactionRow> {
           other.type == this.type &&
           other.amount == this.amount &&
           other.note == this.note &&
-          other.date == this.date);
+          other.date == this.date &&
+          other.photos == this.photos);
 }
 
 class TransactionsCompanion extends UpdateCompanion<TransactionRow> {
@@ -1490,6 +1527,7 @@ class TransactionsCompanion extends UpdateCompanion<TransactionRow> {
   final Value<double> amount;
   final Value<String?> note;
   final Value<DateTime> date;
+  final Value<String> photos;
   final Value<int> rowid;
   const TransactionsCompanion({
     this.createdAt = const Value.absent(),
@@ -1502,6 +1540,7 @@ class TransactionsCompanion extends UpdateCompanion<TransactionRow> {
     this.amount = const Value.absent(),
     this.note = const Value.absent(),
     this.date = const Value.absent(),
+    this.photos = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   TransactionsCompanion.insert({
@@ -1515,6 +1554,7 @@ class TransactionsCompanion extends UpdateCompanion<TransactionRow> {
     required double amount,
     this.note = const Value.absent(),
     required DateTime date,
+    this.photos = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : createdAt = Value(createdAt),
        updatedAt = Value(updatedAt),
@@ -1533,6 +1573,7 @@ class TransactionsCompanion extends UpdateCompanion<TransactionRow> {
     Expression<double>? amount,
     Expression<String>? note,
     Expression<int>? date,
+    Expression<String>? photos,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1546,6 +1587,7 @@ class TransactionsCompanion extends UpdateCompanion<TransactionRow> {
       if (amount != null) 'amount': amount,
       if (note != null) 'note': note,
       if (date != null) 'date': date,
+      if (photos != null) 'photos': photos,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1561,6 +1603,7 @@ class TransactionsCompanion extends UpdateCompanion<TransactionRow> {
     Value<double>? amount,
     Value<String?>? note,
     Value<DateTime>? date,
+    Value<String>? photos,
     Value<int>? rowid,
   }) {
     return TransactionsCompanion(
@@ -1574,6 +1617,7 @@ class TransactionsCompanion extends UpdateCompanion<TransactionRow> {
       amount: amount ?? this.amount,
       note: note ?? this.note,
       date: date ?? this.date,
+      photos: photos ?? this.photos,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1617,6 +1661,9 @@ class TransactionsCompanion extends UpdateCompanion<TransactionRow> {
         $TransactionsTable.$converterdate.toSql(date.value),
       );
     }
+    if (photos.present) {
+      map['photos'] = Variable<String>(photos.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1636,6 +1683,7 @@ class TransactionsCompanion extends UpdateCompanion<TransactionRow> {
           ..write('amount: $amount, ')
           ..write('note: $note, ')
           ..write('date: $date, ')
+          ..write('photos: $photos, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -5292,6 +5340,1662 @@ class FoodCompanion extends UpdateCompanion<FoodRow> {
   }
 }
 
+class $TaskAreasTable extends TaskAreas
+    with TableInfo<$TaskAreasTable, TaskAreaRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TaskAreasTable(this.attachedDatabase, [this._alias]);
+  @override
+  late final GeneratedColumnWithTypeConverter<DateTime, int> createdAt =
+      GeneratedColumn<int>(
+        'created_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: true,
+      ).withConverter<DateTime>($TaskAreasTable.$convertercreatedAt);
+  @override
+  late final GeneratedColumnWithTypeConverter<DateTime, int> updatedAt =
+      GeneratedColumn<int>(
+        'updated_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: true,
+      ).withConverter<DateTime>($TaskAreasTable.$converterupdatedAt);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _codeMeta = const VerificationMeta('code');
+  @override
+  late final GeneratedColumn<String> code = GeneratedColumn<String>(
+    'code',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _colorMeta = const VerificationMeta('color');
+  @override
+  late final GeneratedColumn<String> color = GeneratedColumn<String>(
+    'color',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('#58CC02'),
+  );
+  static const VerificationMeta _iconMeta = const VerificationMeta('icon');
+  @override
+  late final GeneratedColumn<String> icon = GeneratedColumn<String>(
+    'icon',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('briefcase'),
+  );
+  static const VerificationMeta _scheduleMeta = const VerificationMeta(
+    'schedule',
+  );
+  @override
+  late final GeneratedColumn<String> schedule = GeneratedColumn<String>(
+    'schedule',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sortOrderMeta = const VerificationMeta(
+    'sortOrder',
+  );
+  @override
+  late final GeneratedColumn<int> sortOrder = GeneratedColumn<int>(
+    'sort_order',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _archivedMeta = const VerificationMeta(
+    'archived',
+  );
+  @override
+  late final GeneratedColumn<bool> archived = GeneratedColumn<bool>(
+    'archived',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("archived" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    createdAt,
+    updatedAt,
+    id,
+    name,
+    code,
+    color,
+    icon,
+    schedule,
+    sortOrder,
+    archived,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'task_areas';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<TaskAreaRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('code')) {
+      context.handle(
+        _codeMeta,
+        code.isAcceptableOrUnknown(data['code']!, _codeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_codeMeta);
+    }
+    if (data.containsKey('color')) {
+      context.handle(
+        _colorMeta,
+        color.isAcceptableOrUnknown(data['color']!, _colorMeta),
+      );
+    }
+    if (data.containsKey('icon')) {
+      context.handle(
+        _iconMeta,
+        icon.isAcceptableOrUnknown(data['icon']!, _iconMeta),
+      );
+    }
+    if (data.containsKey('schedule')) {
+      context.handle(
+        _scheduleMeta,
+        schedule.isAcceptableOrUnknown(data['schedule']!, _scheduleMeta),
+      );
+    }
+    if (data.containsKey('sort_order')) {
+      context.handle(
+        _sortOrderMeta,
+        sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta),
+      );
+    }
+    if (data.containsKey('archived')) {
+      context.handle(
+        _archivedMeta,
+        archived.isAcceptableOrUnknown(data['archived']!, _archivedMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  TaskAreaRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TaskAreaRow(
+      createdAt: $TaskAreasTable.$convertercreatedAt.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}created_at'],
+        )!,
+      ),
+      updatedAt: $TaskAreasTable.$converterupdatedAt.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}updated_at'],
+        )!,
+      ),
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      code: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}code'],
+      )!,
+      color: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}color'],
+      )!,
+      icon: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}icon'],
+      )!,
+      schedule: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}schedule'],
+      ),
+      sortOrder: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sort_order'],
+      )!,
+      archived: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}archived'],
+      )!,
+    );
+  }
+
+  @override
+  $TaskAreasTable createAlias(String alias) {
+    return $TaskAreasTable(attachedDatabase, alias);
+  }
+
+  static TypeConverter<DateTime, int> $convertercreatedAt = epochMs;
+  static TypeConverter<DateTime, int> $converterupdatedAt = epochMs;
+}
+
+class TaskAreaRow extends DataClass implements Insertable<TaskAreaRow> {
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final String id;
+  final String name;
+
+  /// 1–8 chars `A–Z0–9`, unique per user.
+  final String code;
+  final String color;
+  final String icon;
+
+  /// JSON `{"days":[1..7],"start":"HH:mm","end":"HH:mm"}`; null = anytime.
+  final String? schedule;
+  final int sortOrder;
+  final bool archived;
+  const TaskAreaRow({
+    required this.createdAt,
+    required this.updatedAt,
+    required this.id,
+    required this.name,
+    required this.code,
+    required this.color,
+    required this.icon,
+    this.schedule,
+    required this.sortOrder,
+    required this.archived,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    {
+      map['created_at'] = Variable<int>(
+        $TaskAreasTable.$convertercreatedAt.toSql(createdAt),
+      );
+    }
+    {
+      map['updated_at'] = Variable<int>(
+        $TaskAreasTable.$converterupdatedAt.toSql(updatedAt),
+      );
+    }
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['code'] = Variable<String>(code);
+    map['color'] = Variable<String>(color);
+    map['icon'] = Variable<String>(icon);
+    if (!nullToAbsent || schedule != null) {
+      map['schedule'] = Variable<String>(schedule);
+    }
+    map['sort_order'] = Variable<int>(sortOrder);
+    map['archived'] = Variable<bool>(archived);
+    return map;
+  }
+
+  TaskAreasCompanion toCompanion(bool nullToAbsent) {
+    return TaskAreasCompanion(
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      id: Value(id),
+      name: Value(name),
+      code: Value(code),
+      color: Value(color),
+      icon: Value(icon),
+      schedule: schedule == null && nullToAbsent
+          ? const Value.absent()
+          : Value(schedule),
+      sortOrder: Value(sortOrder),
+      archived: Value(archived),
+    );
+  }
+
+  factory TaskAreaRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TaskAreaRow(
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      code: serializer.fromJson<String>(json['code']),
+      color: serializer.fromJson<String>(json['color']),
+      icon: serializer.fromJson<String>(json['icon']),
+      schedule: serializer.fromJson<String?>(json['schedule']),
+      sortOrder: serializer.fromJson<int>(json['sortOrder']),
+      archived: serializer.fromJson<bool>(json['archived']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'code': serializer.toJson<String>(code),
+      'color': serializer.toJson<String>(color),
+      'icon': serializer.toJson<String>(icon),
+      'schedule': serializer.toJson<String?>(schedule),
+      'sortOrder': serializer.toJson<int>(sortOrder),
+      'archived': serializer.toJson<bool>(archived),
+    };
+  }
+
+  TaskAreaRow copyWith({
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    String? id,
+    String? name,
+    String? code,
+    String? color,
+    String? icon,
+    Value<String?> schedule = const Value.absent(),
+    int? sortOrder,
+    bool? archived,
+  }) => TaskAreaRow(
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    id: id ?? this.id,
+    name: name ?? this.name,
+    code: code ?? this.code,
+    color: color ?? this.color,
+    icon: icon ?? this.icon,
+    schedule: schedule.present ? schedule.value : this.schedule,
+    sortOrder: sortOrder ?? this.sortOrder,
+    archived: archived ?? this.archived,
+  );
+  TaskAreaRow copyWithCompanion(TaskAreasCompanion data) {
+    return TaskAreaRow(
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      code: data.code.present ? data.code.value : this.code,
+      color: data.color.present ? data.color.value : this.color,
+      icon: data.icon.present ? data.icon.value : this.icon,
+      schedule: data.schedule.present ? data.schedule.value : this.schedule,
+      sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
+      archived: data.archived.present ? data.archived.value : this.archived,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TaskAreaRow(')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('code: $code, ')
+          ..write('color: $color, ')
+          ..write('icon: $icon, ')
+          ..write('schedule: $schedule, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('archived: $archived')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    createdAt,
+    updatedAt,
+    id,
+    name,
+    code,
+    color,
+    icon,
+    schedule,
+    sortOrder,
+    archived,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TaskAreaRow &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.code == this.code &&
+          other.color == this.color &&
+          other.icon == this.icon &&
+          other.schedule == this.schedule &&
+          other.sortOrder == this.sortOrder &&
+          other.archived == this.archived);
+}
+
+class TaskAreasCompanion extends UpdateCompanion<TaskAreaRow> {
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<String> id;
+  final Value<String> name;
+  final Value<String> code;
+  final Value<String> color;
+  final Value<String> icon;
+  final Value<String?> schedule;
+  final Value<int> sortOrder;
+  final Value<bool> archived;
+  final Value<int> rowid;
+  const TaskAreasCompanion({
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.code = const Value.absent(),
+    this.color = const Value.absent(),
+    this.icon = const Value.absent(),
+    this.schedule = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.archived = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  TaskAreasCompanion.insert({
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    required String id,
+    required String name,
+    required String code,
+    this.color = const Value.absent(),
+    this.icon = const Value.absent(),
+    this.schedule = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.archived = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt),
+       id = Value(id),
+       name = Value(name),
+       code = Value(code);
+  static Insertable<TaskAreaRow> custom({
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<String>? code,
+    Expression<String>? color,
+    Expression<String>? icon,
+    Expression<String>? schedule,
+    Expression<int>? sortOrder,
+    Expression<bool>? archived,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (code != null) 'code': code,
+      if (color != null) 'color': color,
+      if (icon != null) 'icon': icon,
+      if (schedule != null) 'schedule': schedule,
+      if (sortOrder != null) 'sort_order': sortOrder,
+      if (archived != null) 'archived': archived,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  TaskAreasCompanion copyWith({
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<String>? id,
+    Value<String>? name,
+    Value<String>? code,
+    Value<String>? color,
+    Value<String>? icon,
+    Value<String?>? schedule,
+    Value<int>? sortOrder,
+    Value<bool>? archived,
+    Value<int>? rowid,
+  }) {
+    return TaskAreasCompanion(
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      id: id ?? this.id,
+      name: name ?? this.name,
+      code: code ?? this.code,
+      color: color ?? this.color,
+      icon: icon ?? this.icon,
+      schedule: schedule ?? this.schedule,
+      sortOrder: sortOrder ?? this.sortOrder,
+      archived: archived ?? this.archived,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(
+        $TaskAreasTable.$convertercreatedAt.toSql(createdAt.value),
+      );
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(
+        $TaskAreasTable.$converterupdatedAt.toSql(updatedAt.value),
+      );
+    }
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (code.present) {
+      map['code'] = Variable<String>(code.value);
+    }
+    if (color.present) {
+      map['color'] = Variable<String>(color.value);
+    }
+    if (icon.present) {
+      map['icon'] = Variable<String>(icon.value);
+    }
+    if (schedule.present) {
+      map['schedule'] = Variable<String>(schedule.value);
+    }
+    if (sortOrder.present) {
+      map['sort_order'] = Variable<int>(sortOrder.value);
+    }
+    if (archived.present) {
+      map['archived'] = Variable<bool>(archived.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TaskAreasCompanion(')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('code: $code, ')
+          ..write('color: $color, ')
+          ..write('icon: $icon, ')
+          ..write('schedule: $schedule, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('archived: $archived, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $TasksTable extends Tasks with TableInfo<$TasksTable, TaskRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TasksTable(this.attachedDatabase, [this._alias]);
+  @override
+  late final GeneratedColumnWithTypeConverter<DateTime, int> createdAt =
+      GeneratedColumn<int>(
+        'created_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: true,
+      ).withConverter<DateTime>($TasksTable.$convertercreatedAt);
+  @override
+  late final GeneratedColumnWithTypeConverter<DateTime, int> updatedAt =
+      GeneratedColumn<int>(
+        'updated_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: true,
+      ).withConverter<DateTime>($TasksTable.$converterupdatedAt);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _areaIdMeta = const VerificationMeta('areaId');
+  @override
+  late final GeneratedColumn<String> areaId = GeneratedColumn<String>(
+    'area_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _noteMeta = const VerificationMeta('note');
+  @override
+  late final GeneratedColumn<String> note = GeneratedColumn<String>(
+    'note',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _bucketMeta = const VerificationMeta('bucket');
+  @override
+  late final GeneratedColumn<String> bucket = GeneratedColumn<String>(
+    'bucket',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('want'),
+  );
+  static const VerificationMeta _dueDateMeta = const VerificationMeta(
+    'dueDate',
+  );
+  @override
+  late final GeneratedColumn<String> dueDate = GeneratedColumn<String>(
+    'due_date',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _dueTimeMeta = const VerificationMeta(
+    'dueTime',
+  );
+  @override
+  late final GeneratedColumn<String> dueTime = GeneratedColumn<String>(
+    'due_time',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _remindBeforeMeta = const VerificationMeta(
+    'remindBefore',
+  );
+  @override
+  late final GeneratedColumn<int> remindBefore = GeneratedColumn<int>(
+    'remind_before',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _recurrenceMeta = const VerificationMeta(
+    'recurrence',
+  );
+  @override
+  late final GeneratedColumn<String> recurrence = GeneratedColumn<String>(
+    'recurrence',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _seriesIdMeta = const VerificationMeta(
+    'seriesId',
+  );
+  @override
+  late final GeneratedColumn<String> seriesId = GeneratedColumn<String>(
+    'series_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _doneMeta = const VerificationMeta('done');
+  @override
+  late final GeneratedColumn<bool> done = GeneratedColumn<bool>(
+    'done',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("done" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  @override
+  late final GeneratedColumnWithTypeConverter<DateTime?, int> doneAt =
+      GeneratedColumn<int>(
+        'done_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+      ).withConverter<DateTime?>($TasksTable.$converterdoneAtn);
+  static const VerificationMeta _sortOrderMeta = const VerificationMeta(
+    'sortOrder',
+  );
+  @override
+  late final GeneratedColumn<double> sortOrder = GeneratedColumn<double>(
+    'sort_order',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _amountMeta = const VerificationMeta('amount');
+  @override
+  late final GeneratedColumn<double> amount = GeneratedColumn<double>(
+    'amount',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _walletIdMeta = const VerificationMeta(
+    'walletId',
+  );
+  @override
+  late final GeneratedColumn<String> walletId = GeneratedColumn<String>(
+    'wallet_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _categoryIdMeta = const VerificationMeta(
+    'categoryId',
+  );
+  @override
+  late final GeneratedColumn<String> categoryId = GeneratedColumn<String>(
+    'category_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _transactionIdMeta = const VerificationMeta(
+    'transactionId',
+  );
+  @override
+  late final GeneratedColumn<String> transactionId = GeneratedColumn<String>(
+    'transaction_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    createdAt,
+    updatedAt,
+    id,
+    areaId,
+    title,
+    note,
+    bucket,
+    dueDate,
+    dueTime,
+    remindBefore,
+    recurrence,
+    seriesId,
+    done,
+    doneAt,
+    sortOrder,
+    amount,
+    walletId,
+    categoryId,
+    transactionId,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'tasks';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<TaskRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('area_id')) {
+      context.handle(
+        _areaIdMeta,
+        areaId.isAcceptableOrUnknown(data['area_id']!, _areaIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_areaIdMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('note')) {
+      context.handle(
+        _noteMeta,
+        note.isAcceptableOrUnknown(data['note']!, _noteMeta),
+      );
+    }
+    if (data.containsKey('bucket')) {
+      context.handle(
+        _bucketMeta,
+        bucket.isAcceptableOrUnknown(data['bucket']!, _bucketMeta),
+      );
+    }
+    if (data.containsKey('due_date')) {
+      context.handle(
+        _dueDateMeta,
+        dueDate.isAcceptableOrUnknown(data['due_date']!, _dueDateMeta),
+      );
+    }
+    if (data.containsKey('due_time')) {
+      context.handle(
+        _dueTimeMeta,
+        dueTime.isAcceptableOrUnknown(data['due_time']!, _dueTimeMeta),
+      );
+    }
+    if (data.containsKey('remind_before')) {
+      context.handle(
+        _remindBeforeMeta,
+        remindBefore.isAcceptableOrUnknown(
+          data['remind_before']!,
+          _remindBeforeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('recurrence')) {
+      context.handle(
+        _recurrenceMeta,
+        recurrence.isAcceptableOrUnknown(data['recurrence']!, _recurrenceMeta),
+      );
+    }
+    if (data.containsKey('series_id')) {
+      context.handle(
+        _seriesIdMeta,
+        seriesId.isAcceptableOrUnknown(data['series_id']!, _seriesIdMeta),
+      );
+    }
+    if (data.containsKey('done')) {
+      context.handle(
+        _doneMeta,
+        done.isAcceptableOrUnknown(data['done']!, _doneMeta),
+      );
+    }
+    if (data.containsKey('sort_order')) {
+      context.handle(
+        _sortOrderMeta,
+        sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta),
+      );
+    }
+    if (data.containsKey('amount')) {
+      context.handle(
+        _amountMeta,
+        amount.isAcceptableOrUnknown(data['amount']!, _amountMeta),
+      );
+    }
+    if (data.containsKey('wallet_id')) {
+      context.handle(
+        _walletIdMeta,
+        walletId.isAcceptableOrUnknown(data['wallet_id']!, _walletIdMeta),
+      );
+    }
+    if (data.containsKey('category_id')) {
+      context.handle(
+        _categoryIdMeta,
+        categoryId.isAcceptableOrUnknown(data['category_id']!, _categoryIdMeta),
+      );
+    }
+    if (data.containsKey('transaction_id')) {
+      context.handle(
+        _transactionIdMeta,
+        transactionId.isAcceptableOrUnknown(
+          data['transaction_id']!,
+          _transactionIdMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  TaskRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TaskRow(
+      createdAt: $TasksTable.$convertercreatedAt.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}created_at'],
+        )!,
+      ),
+      updatedAt: $TasksTable.$converterupdatedAt.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}updated_at'],
+        )!,
+      ),
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      areaId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}area_id'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      note: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note'],
+      ),
+      bucket: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}bucket'],
+      )!,
+      dueDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}due_date'],
+      ),
+      dueTime: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}due_time'],
+      ),
+      remindBefore: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}remind_before'],
+      ),
+      recurrence: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}recurrence'],
+      ),
+      seriesId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}series_id'],
+      ),
+      done: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}done'],
+      )!,
+      doneAt: $TasksTable.$converterdoneAtn.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}done_at'],
+        ),
+      ),
+      sortOrder: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}sort_order'],
+      )!,
+      amount: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}amount'],
+      ),
+      walletId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}wallet_id'],
+      ),
+      categoryId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}category_id'],
+      ),
+      transactionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}transaction_id'],
+      ),
+    );
+  }
+
+  @override
+  $TasksTable createAlias(String alias) {
+    return $TasksTable(attachedDatabase, alias);
+  }
+
+  static TypeConverter<DateTime, int> $convertercreatedAt = epochMs;
+  static TypeConverter<DateTime, int> $converterupdatedAt = epochMs;
+  static TypeConverter<DateTime, int> $converterdoneAt = epochMs;
+  static TypeConverter<DateTime?, int?> $converterdoneAtn =
+      NullAwareTypeConverter.wrap($converterdoneAt);
+}
+
+class TaskRow extends DataClass implements Insertable<TaskRow> {
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final String id;
+  final String areaId;
+  final String title;
+  final String? note;
+
+  /// `fire | want | should`
+  final String bucket;
+
+  /// Local date `YYYY-MM-DD`.
+  final String? dueDate;
+
+  /// Local `HH:mm`, only with [dueDate].
+  final String? dueTime;
+  final int? remindBefore;
+
+  /// JSON `{"freq","interval","weekdays"?,"monthDay"?}`; null = one-off.
+  final String? recurrence;
+  final String? seriesId;
+  final bool done;
+  final DateTime? doneAt;
+  final double sortOrder;
+  final double? amount;
+  final String? walletId;
+  final String? categoryId;
+  final String? transactionId;
+  const TaskRow({
+    required this.createdAt,
+    required this.updatedAt,
+    required this.id,
+    required this.areaId,
+    required this.title,
+    this.note,
+    required this.bucket,
+    this.dueDate,
+    this.dueTime,
+    this.remindBefore,
+    this.recurrence,
+    this.seriesId,
+    required this.done,
+    this.doneAt,
+    required this.sortOrder,
+    this.amount,
+    this.walletId,
+    this.categoryId,
+    this.transactionId,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    {
+      map['created_at'] = Variable<int>(
+        $TasksTable.$convertercreatedAt.toSql(createdAt),
+      );
+    }
+    {
+      map['updated_at'] = Variable<int>(
+        $TasksTable.$converterupdatedAt.toSql(updatedAt),
+      );
+    }
+    map['id'] = Variable<String>(id);
+    map['area_id'] = Variable<String>(areaId);
+    map['title'] = Variable<String>(title);
+    if (!nullToAbsent || note != null) {
+      map['note'] = Variable<String>(note);
+    }
+    map['bucket'] = Variable<String>(bucket);
+    if (!nullToAbsent || dueDate != null) {
+      map['due_date'] = Variable<String>(dueDate);
+    }
+    if (!nullToAbsent || dueTime != null) {
+      map['due_time'] = Variable<String>(dueTime);
+    }
+    if (!nullToAbsent || remindBefore != null) {
+      map['remind_before'] = Variable<int>(remindBefore);
+    }
+    if (!nullToAbsent || recurrence != null) {
+      map['recurrence'] = Variable<String>(recurrence);
+    }
+    if (!nullToAbsent || seriesId != null) {
+      map['series_id'] = Variable<String>(seriesId);
+    }
+    map['done'] = Variable<bool>(done);
+    if (!nullToAbsent || doneAt != null) {
+      map['done_at'] = Variable<int>(
+        $TasksTable.$converterdoneAtn.toSql(doneAt),
+      );
+    }
+    map['sort_order'] = Variable<double>(sortOrder);
+    if (!nullToAbsent || amount != null) {
+      map['amount'] = Variable<double>(amount);
+    }
+    if (!nullToAbsent || walletId != null) {
+      map['wallet_id'] = Variable<String>(walletId);
+    }
+    if (!nullToAbsent || categoryId != null) {
+      map['category_id'] = Variable<String>(categoryId);
+    }
+    if (!nullToAbsent || transactionId != null) {
+      map['transaction_id'] = Variable<String>(transactionId);
+    }
+    return map;
+  }
+
+  TasksCompanion toCompanion(bool nullToAbsent) {
+    return TasksCompanion(
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      id: Value(id),
+      areaId: Value(areaId),
+      title: Value(title),
+      note: note == null && nullToAbsent ? const Value.absent() : Value(note),
+      bucket: Value(bucket),
+      dueDate: dueDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(dueDate),
+      dueTime: dueTime == null && nullToAbsent
+          ? const Value.absent()
+          : Value(dueTime),
+      remindBefore: remindBefore == null && nullToAbsent
+          ? const Value.absent()
+          : Value(remindBefore),
+      recurrence: recurrence == null && nullToAbsent
+          ? const Value.absent()
+          : Value(recurrence),
+      seriesId: seriesId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(seriesId),
+      done: Value(done),
+      doneAt: doneAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(doneAt),
+      sortOrder: Value(sortOrder),
+      amount: amount == null && nullToAbsent
+          ? const Value.absent()
+          : Value(amount),
+      walletId: walletId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(walletId),
+      categoryId: categoryId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(categoryId),
+      transactionId: transactionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(transactionId),
+    );
+  }
+
+  factory TaskRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TaskRow(
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      id: serializer.fromJson<String>(json['id']),
+      areaId: serializer.fromJson<String>(json['areaId']),
+      title: serializer.fromJson<String>(json['title']),
+      note: serializer.fromJson<String?>(json['note']),
+      bucket: serializer.fromJson<String>(json['bucket']),
+      dueDate: serializer.fromJson<String?>(json['dueDate']),
+      dueTime: serializer.fromJson<String?>(json['dueTime']),
+      remindBefore: serializer.fromJson<int?>(json['remindBefore']),
+      recurrence: serializer.fromJson<String?>(json['recurrence']),
+      seriesId: serializer.fromJson<String?>(json['seriesId']),
+      done: serializer.fromJson<bool>(json['done']),
+      doneAt: serializer.fromJson<DateTime?>(json['doneAt']),
+      sortOrder: serializer.fromJson<double>(json['sortOrder']),
+      amount: serializer.fromJson<double?>(json['amount']),
+      walletId: serializer.fromJson<String?>(json['walletId']),
+      categoryId: serializer.fromJson<String?>(json['categoryId']),
+      transactionId: serializer.fromJson<String?>(json['transactionId']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'id': serializer.toJson<String>(id),
+      'areaId': serializer.toJson<String>(areaId),
+      'title': serializer.toJson<String>(title),
+      'note': serializer.toJson<String?>(note),
+      'bucket': serializer.toJson<String>(bucket),
+      'dueDate': serializer.toJson<String?>(dueDate),
+      'dueTime': serializer.toJson<String?>(dueTime),
+      'remindBefore': serializer.toJson<int?>(remindBefore),
+      'recurrence': serializer.toJson<String?>(recurrence),
+      'seriesId': serializer.toJson<String?>(seriesId),
+      'done': serializer.toJson<bool>(done),
+      'doneAt': serializer.toJson<DateTime?>(doneAt),
+      'sortOrder': serializer.toJson<double>(sortOrder),
+      'amount': serializer.toJson<double?>(amount),
+      'walletId': serializer.toJson<String?>(walletId),
+      'categoryId': serializer.toJson<String?>(categoryId),
+      'transactionId': serializer.toJson<String?>(transactionId),
+    };
+  }
+
+  TaskRow copyWith({
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    String? id,
+    String? areaId,
+    String? title,
+    Value<String?> note = const Value.absent(),
+    String? bucket,
+    Value<String?> dueDate = const Value.absent(),
+    Value<String?> dueTime = const Value.absent(),
+    Value<int?> remindBefore = const Value.absent(),
+    Value<String?> recurrence = const Value.absent(),
+    Value<String?> seriesId = const Value.absent(),
+    bool? done,
+    Value<DateTime?> doneAt = const Value.absent(),
+    double? sortOrder,
+    Value<double?> amount = const Value.absent(),
+    Value<String?> walletId = const Value.absent(),
+    Value<String?> categoryId = const Value.absent(),
+    Value<String?> transactionId = const Value.absent(),
+  }) => TaskRow(
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    id: id ?? this.id,
+    areaId: areaId ?? this.areaId,
+    title: title ?? this.title,
+    note: note.present ? note.value : this.note,
+    bucket: bucket ?? this.bucket,
+    dueDate: dueDate.present ? dueDate.value : this.dueDate,
+    dueTime: dueTime.present ? dueTime.value : this.dueTime,
+    remindBefore: remindBefore.present ? remindBefore.value : this.remindBefore,
+    recurrence: recurrence.present ? recurrence.value : this.recurrence,
+    seriesId: seriesId.present ? seriesId.value : this.seriesId,
+    done: done ?? this.done,
+    doneAt: doneAt.present ? doneAt.value : this.doneAt,
+    sortOrder: sortOrder ?? this.sortOrder,
+    amount: amount.present ? amount.value : this.amount,
+    walletId: walletId.present ? walletId.value : this.walletId,
+    categoryId: categoryId.present ? categoryId.value : this.categoryId,
+    transactionId: transactionId.present
+        ? transactionId.value
+        : this.transactionId,
+  );
+  TaskRow copyWithCompanion(TasksCompanion data) {
+    return TaskRow(
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      id: data.id.present ? data.id.value : this.id,
+      areaId: data.areaId.present ? data.areaId.value : this.areaId,
+      title: data.title.present ? data.title.value : this.title,
+      note: data.note.present ? data.note.value : this.note,
+      bucket: data.bucket.present ? data.bucket.value : this.bucket,
+      dueDate: data.dueDate.present ? data.dueDate.value : this.dueDate,
+      dueTime: data.dueTime.present ? data.dueTime.value : this.dueTime,
+      remindBefore: data.remindBefore.present
+          ? data.remindBefore.value
+          : this.remindBefore,
+      recurrence: data.recurrence.present
+          ? data.recurrence.value
+          : this.recurrence,
+      seriesId: data.seriesId.present ? data.seriesId.value : this.seriesId,
+      done: data.done.present ? data.done.value : this.done,
+      doneAt: data.doneAt.present ? data.doneAt.value : this.doneAt,
+      sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
+      amount: data.amount.present ? data.amount.value : this.amount,
+      walletId: data.walletId.present ? data.walletId.value : this.walletId,
+      categoryId: data.categoryId.present
+          ? data.categoryId.value
+          : this.categoryId,
+      transactionId: data.transactionId.present
+          ? data.transactionId.value
+          : this.transactionId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TaskRow(')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('id: $id, ')
+          ..write('areaId: $areaId, ')
+          ..write('title: $title, ')
+          ..write('note: $note, ')
+          ..write('bucket: $bucket, ')
+          ..write('dueDate: $dueDate, ')
+          ..write('dueTime: $dueTime, ')
+          ..write('remindBefore: $remindBefore, ')
+          ..write('recurrence: $recurrence, ')
+          ..write('seriesId: $seriesId, ')
+          ..write('done: $done, ')
+          ..write('doneAt: $doneAt, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('amount: $amount, ')
+          ..write('walletId: $walletId, ')
+          ..write('categoryId: $categoryId, ')
+          ..write('transactionId: $transactionId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    createdAt,
+    updatedAt,
+    id,
+    areaId,
+    title,
+    note,
+    bucket,
+    dueDate,
+    dueTime,
+    remindBefore,
+    recurrence,
+    seriesId,
+    done,
+    doneAt,
+    sortOrder,
+    amount,
+    walletId,
+    categoryId,
+    transactionId,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TaskRow &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.id == this.id &&
+          other.areaId == this.areaId &&
+          other.title == this.title &&
+          other.note == this.note &&
+          other.bucket == this.bucket &&
+          other.dueDate == this.dueDate &&
+          other.dueTime == this.dueTime &&
+          other.remindBefore == this.remindBefore &&
+          other.recurrence == this.recurrence &&
+          other.seriesId == this.seriesId &&
+          other.done == this.done &&
+          other.doneAt == this.doneAt &&
+          other.sortOrder == this.sortOrder &&
+          other.amount == this.amount &&
+          other.walletId == this.walletId &&
+          other.categoryId == this.categoryId &&
+          other.transactionId == this.transactionId);
+}
+
+class TasksCompanion extends UpdateCompanion<TaskRow> {
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<String> id;
+  final Value<String> areaId;
+  final Value<String> title;
+  final Value<String?> note;
+  final Value<String> bucket;
+  final Value<String?> dueDate;
+  final Value<String?> dueTime;
+  final Value<int?> remindBefore;
+  final Value<String?> recurrence;
+  final Value<String?> seriesId;
+  final Value<bool> done;
+  final Value<DateTime?> doneAt;
+  final Value<double> sortOrder;
+  final Value<double?> amount;
+  final Value<String?> walletId;
+  final Value<String?> categoryId;
+  final Value<String?> transactionId;
+  final Value<int> rowid;
+  const TasksCompanion({
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.id = const Value.absent(),
+    this.areaId = const Value.absent(),
+    this.title = const Value.absent(),
+    this.note = const Value.absent(),
+    this.bucket = const Value.absent(),
+    this.dueDate = const Value.absent(),
+    this.dueTime = const Value.absent(),
+    this.remindBefore = const Value.absent(),
+    this.recurrence = const Value.absent(),
+    this.seriesId = const Value.absent(),
+    this.done = const Value.absent(),
+    this.doneAt = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.amount = const Value.absent(),
+    this.walletId = const Value.absent(),
+    this.categoryId = const Value.absent(),
+    this.transactionId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  TasksCompanion.insert({
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    required String id,
+    required String areaId,
+    required String title,
+    this.note = const Value.absent(),
+    this.bucket = const Value.absent(),
+    this.dueDate = const Value.absent(),
+    this.dueTime = const Value.absent(),
+    this.remindBefore = const Value.absent(),
+    this.recurrence = const Value.absent(),
+    this.seriesId = const Value.absent(),
+    this.done = const Value.absent(),
+    this.doneAt = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.amount = const Value.absent(),
+    this.walletId = const Value.absent(),
+    this.categoryId = const Value.absent(),
+    this.transactionId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt),
+       id = Value(id),
+       areaId = Value(areaId),
+       title = Value(title);
+  static Insertable<TaskRow> custom({
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<String>? id,
+    Expression<String>? areaId,
+    Expression<String>? title,
+    Expression<String>? note,
+    Expression<String>? bucket,
+    Expression<String>? dueDate,
+    Expression<String>? dueTime,
+    Expression<int>? remindBefore,
+    Expression<String>? recurrence,
+    Expression<String>? seriesId,
+    Expression<bool>? done,
+    Expression<int>? doneAt,
+    Expression<double>? sortOrder,
+    Expression<double>? amount,
+    Expression<String>? walletId,
+    Expression<String>? categoryId,
+    Expression<String>? transactionId,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (id != null) 'id': id,
+      if (areaId != null) 'area_id': areaId,
+      if (title != null) 'title': title,
+      if (note != null) 'note': note,
+      if (bucket != null) 'bucket': bucket,
+      if (dueDate != null) 'due_date': dueDate,
+      if (dueTime != null) 'due_time': dueTime,
+      if (remindBefore != null) 'remind_before': remindBefore,
+      if (recurrence != null) 'recurrence': recurrence,
+      if (seriesId != null) 'series_id': seriesId,
+      if (done != null) 'done': done,
+      if (doneAt != null) 'done_at': doneAt,
+      if (sortOrder != null) 'sort_order': sortOrder,
+      if (amount != null) 'amount': amount,
+      if (walletId != null) 'wallet_id': walletId,
+      if (categoryId != null) 'category_id': categoryId,
+      if (transactionId != null) 'transaction_id': transactionId,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  TasksCompanion copyWith({
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<String>? id,
+    Value<String>? areaId,
+    Value<String>? title,
+    Value<String?>? note,
+    Value<String>? bucket,
+    Value<String?>? dueDate,
+    Value<String?>? dueTime,
+    Value<int?>? remindBefore,
+    Value<String?>? recurrence,
+    Value<String?>? seriesId,
+    Value<bool>? done,
+    Value<DateTime?>? doneAt,
+    Value<double>? sortOrder,
+    Value<double?>? amount,
+    Value<String?>? walletId,
+    Value<String?>? categoryId,
+    Value<String?>? transactionId,
+    Value<int>? rowid,
+  }) {
+    return TasksCompanion(
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      id: id ?? this.id,
+      areaId: areaId ?? this.areaId,
+      title: title ?? this.title,
+      note: note ?? this.note,
+      bucket: bucket ?? this.bucket,
+      dueDate: dueDate ?? this.dueDate,
+      dueTime: dueTime ?? this.dueTime,
+      remindBefore: remindBefore ?? this.remindBefore,
+      recurrence: recurrence ?? this.recurrence,
+      seriesId: seriesId ?? this.seriesId,
+      done: done ?? this.done,
+      doneAt: doneAt ?? this.doneAt,
+      sortOrder: sortOrder ?? this.sortOrder,
+      amount: amount ?? this.amount,
+      walletId: walletId ?? this.walletId,
+      categoryId: categoryId ?? this.categoryId,
+      transactionId: transactionId ?? this.transactionId,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(
+        $TasksTable.$convertercreatedAt.toSql(createdAt.value),
+      );
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(
+        $TasksTable.$converterupdatedAt.toSql(updatedAt.value),
+      );
+    }
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (areaId.present) {
+      map['area_id'] = Variable<String>(areaId.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (note.present) {
+      map['note'] = Variable<String>(note.value);
+    }
+    if (bucket.present) {
+      map['bucket'] = Variable<String>(bucket.value);
+    }
+    if (dueDate.present) {
+      map['due_date'] = Variable<String>(dueDate.value);
+    }
+    if (dueTime.present) {
+      map['due_time'] = Variable<String>(dueTime.value);
+    }
+    if (remindBefore.present) {
+      map['remind_before'] = Variable<int>(remindBefore.value);
+    }
+    if (recurrence.present) {
+      map['recurrence'] = Variable<String>(recurrence.value);
+    }
+    if (seriesId.present) {
+      map['series_id'] = Variable<String>(seriesId.value);
+    }
+    if (done.present) {
+      map['done'] = Variable<bool>(done.value);
+    }
+    if (doneAt.present) {
+      map['done_at'] = Variable<int>(
+        $TasksTable.$converterdoneAtn.toSql(doneAt.value),
+      );
+    }
+    if (sortOrder.present) {
+      map['sort_order'] = Variable<double>(sortOrder.value);
+    }
+    if (amount.present) {
+      map['amount'] = Variable<double>(amount.value);
+    }
+    if (walletId.present) {
+      map['wallet_id'] = Variable<String>(walletId.value);
+    }
+    if (categoryId.present) {
+      map['category_id'] = Variable<String>(categoryId.value);
+    }
+    if (transactionId.present) {
+      map['transaction_id'] = Variable<String>(transactionId.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TasksCompanion(')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('id: $id, ')
+          ..write('areaId: $areaId, ')
+          ..write('title: $title, ')
+          ..write('note: $note, ')
+          ..write('bucket: $bucket, ')
+          ..write('dueDate: $dueDate, ')
+          ..write('dueTime: $dueTime, ')
+          ..write('remindBefore: $remindBefore, ')
+          ..write('recurrence: $recurrence, ')
+          ..write('seriesId: $seriesId, ')
+          ..write('done: $done, ')
+          ..write('doneAt: $doneAt, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('amount: $amount, ')
+          ..write('walletId: $walletId, ')
+          ..write('categoryId: $categoryId, ')
+          ..write('transactionId: $transactionId, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $OutboxTable extends Outbox with TableInfo<$OutboxTable, OutboxRow> {
   @override
   final GeneratedDatabase attachedDatabase;
@@ -5987,6 +7691,21 @@ class $SyncMetaTable extends SyncMeta
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _tasksSeededMeta = const VerificationMeta(
+    'tasksSeeded',
+  );
+  @override
+  late final GeneratedColumn<bool> tasksSeeded = GeneratedColumn<bool>(
+    'tasks_seeded',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("tasks_seeded" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -5996,6 +7715,7 @@ class $SyncMetaTable extends SyncMeta
     lastSyncAt,
     lastError,
     fullPullRequired,
+    tasksSeeded,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -6054,6 +7774,15 @@ class $SyncMetaTable extends SyncMeta
         ),
       );
     }
+    if (data.containsKey('tasks_seeded')) {
+      context.handle(
+        _tasksSeededMeta,
+        tasksSeeded.isAcceptableOrUnknown(
+          data['tasks_seeded']!,
+          _tasksSeededMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -6091,6 +7820,10 @@ class $SyncMetaTable extends SyncMeta
         DriftSqlType.bool,
         data['${effectivePrefix}full_pull_required'],
       )!,
+      tasksSeeded: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}tasks_seeded'],
+      )!,
     );
   }
 
@@ -6114,6 +7847,10 @@ class SyncMetaRow extends DataClass implements Insertable<SyncMetaRow> {
 
   /// Set after a rejected/skipped mutation so the next pull re-downloads everything.
   final bool fullPullRequired;
+
+  /// v3: the default task areas were checked/seeded after the first pull from a
+  /// server that knows tasks (`docs/tasks.md`), so they're never re-created.
+  final bool tasksSeeded;
   const SyncMetaRow({
     required this.id,
     required this.cursor,
@@ -6122,6 +7859,7 @@ class SyncMetaRow extends DataClass implements Insertable<SyncMetaRow> {
     this.lastSyncAt,
     this.lastError,
     required this.fullPullRequired,
+    required this.tasksSeeded,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -6141,6 +7879,7 @@ class SyncMetaRow extends DataClass implements Insertable<SyncMetaRow> {
       map['last_error'] = Variable<String>(lastError);
     }
     map['full_pull_required'] = Variable<bool>(fullPullRequired);
+    map['tasks_seeded'] = Variable<bool>(tasksSeeded);
     return map;
   }
 
@@ -6161,6 +7900,7 @@ class SyncMetaRow extends DataClass implements Insertable<SyncMetaRow> {
           ? const Value.absent()
           : Value(lastError),
       fullPullRequired: Value(fullPullRequired),
+      tasksSeeded: Value(tasksSeeded),
     );
   }
 
@@ -6177,6 +7917,7 @@ class SyncMetaRow extends DataClass implements Insertable<SyncMetaRow> {
       lastSyncAt: serializer.fromJson<int?>(json['lastSyncAt']),
       lastError: serializer.fromJson<String?>(json['lastError']),
       fullPullRequired: serializer.fromJson<bool>(json['fullPullRequired']),
+      tasksSeeded: serializer.fromJson<bool>(json['tasksSeeded']),
     );
   }
   @override
@@ -6190,6 +7931,7 @@ class SyncMetaRow extends DataClass implements Insertable<SyncMetaRow> {
       'lastSyncAt': serializer.toJson<int?>(lastSyncAt),
       'lastError': serializer.toJson<String?>(lastError),
       'fullPullRequired': serializer.toJson<bool>(fullPullRequired),
+      'tasksSeeded': serializer.toJson<bool>(tasksSeeded),
     };
   }
 
@@ -6201,6 +7943,7 @@ class SyncMetaRow extends DataClass implements Insertable<SyncMetaRow> {
     Value<int?> lastSyncAt = const Value.absent(),
     Value<String?> lastError = const Value.absent(),
     bool? fullPullRequired,
+    bool? tasksSeeded,
   }) => SyncMetaRow(
     id: id ?? this.id,
     cursor: cursor ?? this.cursor,
@@ -6209,6 +7952,7 @@ class SyncMetaRow extends DataClass implements Insertable<SyncMetaRow> {
     lastSyncAt: lastSyncAt.present ? lastSyncAt.value : this.lastSyncAt,
     lastError: lastError.present ? lastError.value : this.lastError,
     fullPullRequired: fullPullRequired ?? this.fullPullRequired,
+    tasksSeeded: tasksSeeded ?? this.tasksSeeded,
   );
   SyncMetaRow copyWithCompanion(SyncMetaCompanion data) {
     return SyncMetaRow(
@@ -6223,6 +7967,9 @@ class SyncMetaRow extends DataClass implements Insertable<SyncMetaRow> {
       fullPullRequired: data.fullPullRequired.present
           ? data.fullPullRequired.value
           : this.fullPullRequired,
+      tasksSeeded: data.tasksSeeded.present
+          ? data.tasksSeeded.value
+          : this.tasksSeeded,
     );
   }
 
@@ -6235,7 +7982,8 @@ class SyncMetaRow extends DataClass implements Insertable<SyncMetaRow> {
           ..write('userId: $userId, ')
           ..write('lastSyncAt: $lastSyncAt, ')
           ..write('lastError: $lastError, ')
-          ..write('fullPullRequired: $fullPullRequired')
+          ..write('fullPullRequired: $fullPullRequired, ')
+          ..write('tasksSeeded: $tasksSeeded')
           ..write(')'))
         .toString();
   }
@@ -6249,6 +7997,7 @@ class SyncMetaRow extends DataClass implements Insertable<SyncMetaRow> {
     lastSyncAt,
     lastError,
     fullPullRequired,
+    tasksSeeded,
   );
   @override
   bool operator ==(Object other) =>
@@ -6260,7 +8009,8 @@ class SyncMetaRow extends DataClass implements Insertable<SyncMetaRow> {
           other.userId == this.userId &&
           other.lastSyncAt == this.lastSyncAt &&
           other.lastError == this.lastError &&
-          other.fullPullRequired == this.fullPullRequired);
+          other.fullPullRequired == this.fullPullRequired &&
+          other.tasksSeeded == this.tasksSeeded);
 }
 
 class SyncMetaCompanion extends UpdateCompanion<SyncMetaRow> {
@@ -6271,6 +8021,7 @@ class SyncMetaCompanion extends UpdateCompanion<SyncMetaRow> {
   final Value<int?> lastSyncAt;
   final Value<String?> lastError;
   final Value<bool> fullPullRequired;
+  final Value<bool> tasksSeeded;
   const SyncMetaCompanion({
     this.id = const Value.absent(),
     this.cursor = const Value.absent(),
@@ -6279,6 +8030,7 @@ class SyncMetaCompanion extends UpdateCompanion<SyncMetaRow> {
     this.lastSyncAt = const Value.absent(),
     this.lastError = const Value.absent(),
     this.fullPullRequired = const Value.absent(),
+    this.tasksSeeded = const Value.absent(),
   });
   SyncMetaCompanion.insert({
     this.id = const Value.absent(),
@@ -6288,6 +8040,7 @@ class SyncMetaCompanion extends UpdateCompanion<SyncMetaRow> {
     this.lastSyncAt = const Value.absent(),
     this.lastError = const Value.absent(),
     this.fullPullRequired = const Value.absent(),
+    this.tasksSeeded = const Value.absent(),
   });
   static Insertable<SyncMetaRow> custom({
     Expression<int>? id,
@@ -6297,6 +8050,7 @@ class SyncMetaCompanion extends UpdateCompanion<SyncMetaRow> {
     Expression<int>? lastSyncAt,
     Expression<String>? lastError,
     Expression<bool>? fullPullRequired,
+    Expression<bool>? tasksSeeded,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -6306,6 +8060,7 @@ class SyncMetaCompanion extends UpdateCompanion<SyncMetaRow> {
       if (lastSyncAt != null) 'last_sync_at': lastSyncAt,
       if (lastError != null) 'last_error': lastError,
       if (fullPullRequired != null) 'full_pull_required': fullPullRequired,
+      if (tasksSeeded != null) 'tasks_seeded': tasksSeeded,
     });
   }
 
@@ -6317,6 +8072,7 @@ class SyncMetaCompanion extends UpdateCompanion<SyncMetaRow> {
     Value<int?>? lastSyncAt,
     Value<String?>? lastError,
     Value<bool>? fullPullRequired,
+    Value<bool>? tasksSeeded,
   }) {
     return SyncMetaCompanion(
       id: id ?? this.id,
@@ -6326,6 +8082,7 @@ class SyncMetaCompanion extends UpdateCompanion<SyncMetaRow> {
       lastSyncAt: lastSyncAt ?? this.lastSyncAt,
       lastError: lastError ?? this.lastError,
       fullPullRequired: fullPullRequired ?? this.fullPullRequired,
+      tasksSeeded: tasksSeeded ?? this.tasksSeeded,
     );
   }
 
@@ -6353,6 +8110,9 @@ class SyncMetaCompanion extends UpdateCompanion<SyncMetaRow> {
     if (fullPullRequired.present) {
       map['full_pull_required'] = Variable<bool>(fullPullRequired.value);
     }
+    if (tasksSeeded.present) {
+      map['tasks_seeded'] = Variable<bool>(tasksSeeded.value);
+    }
     return map;
   }
 
@@ -6365,7 +8125,8 @@ class SyncMetaCompanion extends UpdateCompanion<SyncMetaRow> {
           ..write('userId: $userId, ')
           ..write('lastSyncAt: $lastSyncAt, ')
           ..write('lastError: $lastError, ')
-          ..write('fullPullRequired: $fullPullRequired')
+          ..write('fullPullRequired: $fullPullRequired, ')
+          ..write('tasksSeeded: $tasksSeeded')
           ..write(')'))
         .toString();
   }
@@ -6383,6 +8144,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $PrayersTable prayers = $PrayersTable(this);
   late final $HealthTable health = $HealthTable(this);
   late final $FoodTable food = $FoodTable(this);
+  late final $TaskAreasTable taskAreas = $TaskAreasTable(this);
+  late final $TasksTable tasks = $TasksTable(this);
   late final $OutboxTable outbox = $OutboxTable(this);
   late final $SyncMetaTable syncMeta = $SyncMetaTable(this);
   late final Index idxTxDate = Index(
@@ -6417,6 +8180,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'idx_food_date',
     'CREATE INDEX idx_food_date ON food (date)',
   );
+  late final Index idxTaskArea = Index(
+    'idx_task_area',
+    'CREATE INDEX idx_task_area ON tasks (area_id)',
+  );
+  late final Index idxTaskDue = Index(
+    'idx_task_due',
+    'CREATE INDEX idx_task_due ON tasks (due_date)',
+  );
   late final Index idxOutboxEntity = Index(
     'idx_outbox_entity',
     'CREATE INDEX idx_outbox_entity ON outbox (entity, entity_id)',
@@ -6435,6 +8206,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     prayers,
     health,
     food,
+    taskAreas,
+    tasks,
     outbox,
     syncMeta,
     idxTxDate,
@@ -6445,6 +8218,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     idxPlannedDate,
     idxHealthDate,
     idxFoodDate,
+    idxTaskArea,
+    idxTaskDue,
     idxOutboxEntity,
   ];
 }
@@ -7010,6 +8785,7 @@ typedef $$TransactionsTableCreateCompanionBuilder =
       required double amount,
       Value<String?> note,
       required DateTime date,
+      Value<String> photos,
       Value<int> rowid,
     });
 typedef $$TransactionsTableUpdateCompanionBuilder =
@@ -7024,6 +8800,7 @@ typedef $$TransactionsTableUpdateCompanionBuilder =
       Value<double> amount,
       Value<String?> note,
       Value<DateTime> date,
+      Value<String> photos,
       Value<int> rowid,
     });
 
@@ -7088,6 +8865,11 @@ class $$TransactionsTableFilterComposer
         column: $table.date,
         builder: (column) => ColumnWithTypeConverterFilters(column),
       );
+
+  ColumnFilters<String> get photos => $composableBuilder(
+    column: $table.photos,
+    builder: (column) => ColumnFilters(column),
+  );
 }
 
 class $$TransactionsTableOrderingComposer
@@ -7148,6 +8930,11 @@ class $$TransactionsTableOrderingComposer
     column: $table.date,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get photos => $composableBuilder(
+    column: $table.photos,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$TransactionsTableAnnotationComposer
@@ -7192,6 +8979,9 @@ class $$TransactionsTableAnnotationComposer
 
   GeneratedColumnWithTypeConverter<DateTime, int> get date =>
       $composableBuilder(column: $table.date, builder: (column) => column);
+
+  GeneratedColumn<String> get photos =>
+      $composableBuilder(column: $table.photos, builder: (column) => column);
 }
 
 class $$TransactionsTableTableManager
@@ -7235,6 +9025,7 @@ class $$TransactionsTableTableManager
                 Value<double> amount = const Value.absent(),
                 Value<String?> note = const Value.absent(),
                 Value<DateTime> date = const Value.absent(),
+                Value<String> photos = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TransactionsCompanion(
                 createdAt: createdAt,
@@ -7247,6 +9038,7 @@ class $$TransactionsTableTableManager
                 amount: amount,
                 note: note,
                 date: date,
+                photos: photos,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -7261,6 +9053,7 @@ class $$TransactionsTableTableManager
                 required double amount,
                 Value<String?> note = const Value.absent(),
                 required DateTime date,
+                Value<String> photos = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TransactionsCompanion.insert(
                 createdAt: createdAt,
@@ -7273,6 +9066,7 @@ class $$TransactionsTableTableManager
                 amount: amount,
                 note: note,
                 date: date,
+                photos: photos,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -9151,6 +10945,791 @@ typedef $$FoodTableProcessedTableManager =
       FoodRow,
       PrefetchHooks Function()
     >;
+typedef $$TaskAreasTableCreateCompanionBuilder =
+    TaskAreasCompanion Function({
+      required DateTime createdAt,
+      required DateTime updatedAt,
+      required String id,
+      required String name,
+      required String code,
+      Value<String> color,
+      Value<String> icon,
+      Value<String?> schedule,
+      Value<int> sortOrder,
+      Value<bool> archived,
+      Value<int> rowid,
+    });
+typedef $$TaskAreasTableUpdateCompanionBuilder =
+    TaskAreasCompanion Function({
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<String> id,
+      Value<String> name,
+      Value<String> code,
+      Value<String> color,
+      Value<String> icon,
+      Value<String?> schedule,
+      Value<int> sortOrder,
+      Value<bool> archived,
+      Value<int> rowid,
+    });
+
+class $$TaskAreasTableFilterComposer
+    extends Composer<_$AppDatabase, $TaskAreasTable> {
+  $$TaskAreasTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnWithTypeConverterFilters<DateTime, DateTime, int> get createdAt =>
+      $composableBuilder(
+        column: $table.createdAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
+
+  ColumnWithTypeConverterFilters<DateTime, DateTime, int> get updatedAt =>
+      $composableBuilder(
+        column: $table.updatedAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
+
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get code => $composableBuilder(
+    column: $table.code,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get color => $composableBuilder(
+    column: $table.color,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get icon => $composableBuilder(
+    column: $table.icon,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get schedule => $composableBuilder(
+    column: $table.schedule,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get archived => $composableBuilder(
+    column: $table.archived,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$TaskAreasTableOrderingComposer
+    extends Composer<_$AppDatabase, $TaskAreasTable> {
+  $$TaskAreasTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get code => $composableBuilder(
+    column: $table.code,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get color => $composableBuilder(
+    column: $table.color,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get icon => $composableBuilder(
+    column: $table.icon,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get schedule => $composableBuilder(
+    column: $table.schedule,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get archived => $composableBuilder(
+    column: $table.archived,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$TaskAreasTableAnnotationComposer
+    extends Composer<_$AppDatabase, $TaskAreasTable> {
+  $$TaskAreasTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumnWithTypeConverter<DateTime, int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<DateTime, int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get code =>
+      $composableBuilder(column: $table.code, builder: (column) => column);
+
+  GeneratedColumn<String> get color =>
+      $composableBuilder(column: $table.color, builder: (column) => column);
+
+  GeneratedColumn<String> get icon =>
+      $composableBuilder(column: $table.icon, builder: (column) => column);
+
+  GeneratedColumn<String> get schedule =>
+      $composableBuilder(column: $table.schedule, builder: (column) => column);
+
+  GeneratedColumn<int> get sortOrder =>
+      $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+
+  GeneratedColumn<bool> get archived =>
+      $composableBuilder(column: $table.archived, builder: (column) => column);
+}
+
+class $$TaskAreasTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $TaskAreasTable,
+          TaskAreaRow,
+          $$TaskAreasTableFilterComposer,
+          $$TaskAreasTableOrderingComposer,
+          $$TaskAreasTableAnnotationComposer,
+          $$TaskAreasTableCreateCompanionBuilder,
+          $$TaskAreasTableUpdateCompanionBuilder,
+          (
+            TaskAreaRow,
+            BaseReferences<_$AppDatabase, $TaskAreasTable, TaskAreaRow>,
+          ),
+          TaskAreaRow,
+          PrefetchHooks Function()
+        > {
+  $$TaskAreasTableTableManager(_$AppDatabase db, $TaskAreasTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TaskAreasTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$TaskAreasTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$TaskAreasTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> code = const Value.absent(),
+                Value<String> color = const Value.absent(),
+                Value<String> icon = const Value.absent(),
+                Value<String?> schedule = const Value.absent(),
+                Value<int> sortOrder = const Value.absent(),
+                Value<bool> archived = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TaskAreasCompanion(
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                id: id,
+                name: name,
+                code: code,
+                color: color,
+                icon: icon,
+                schedule: schedule,
+                sortOrder: sortOrder,
+                archived: archived,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                required String id,
+                required String name,
+                required String code,
+                Value<String> color = const Value.absent(),
+                Value<String> icon = const Value.absent(),
+                Value<String?> schedule = const Value.absent(),
+                Value<int> sortOrder = const Value.absent(),
+                Value<bool> archived = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TaskAreasCompanion.insert(
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                id: id,
+                name: name,
+                code: code,
+                color: color,
+                icon: icon,
+                schedule: schedule,
+                sortOrder: sortOrder,
+                archived: archived,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$TaskAreasTable, TaskAreaRow>(table),
+                  BaseReferences<_$AppDatabase, $TaskAreasTable, TaskAreaRow>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$TaskAreasTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $TaskAreasTable,
+      TaskAreaRow,
+      $$TaskAreasTableFilterComposer,
+      $$TaskAreasTableOrderingComposer,
+      $$TaskAreasTableAnnotationComposer,
+      $$TaskAreasTableCreateCompanionBuilder,
+      $$TaskAreasTableUpdateCompanionBuilder,
+      (
+        TaskAreaRow,
+        BaseReferences<_$AppDatabase, $TaskAreasTable, TaskAreaRow>,
+      ),
+      TaskAreaRow,
+      PrefetchHooks Function()
+    >;
+typedef $$TasksTableCreateCompanionBuilder =
+    TasksCompanion Function({
+      required DateTime createdAt,
+      required DateTime updatedAt,
+      required String id,
+      required String areaId,
+      required String title,
+      Value<String?> note,
+      Value<String> bucket,
+      Value<String?> dueDate,
+      Value<String?> dueTime,
+      Value<int?> remindBefore,
+      Value<String?> recurrence,
+      Value<String?> seriesId,
+      Value<bool> done,
+      Value<DateTime?> doneAt,
+      Value<double> sortOrder,
+      Value<double?> amount,
+      Value<String?> walletId,
+      Value<String?> categoryId,
+      Value<String?> transactionId,
+      Value<int> rowid,
+    });
+typedef $$TasksTableUpdateCompanionBuilder =
+    TasksCompanion Function({
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<String> id,
+      Value<String> areaId,
+      Value<String> title,
+      Value<String?> note,
+      Value<String> bucket,
+      Value<String?> dueDate,
+      Value<String?> dueTime,
+      Value<int?> remindBefore,
+      Value<String?> recurrence,
+      Value<String?> seriesId,
+      Value<bool> done,
+      Value<DateTime?> doneAt,
+      Value<double> sortOrder,
+      Value<double?> amount,
+      Value<String?> walletId,
+      Value<String?> categoryId,
+      Value<String?> transactionId,
+      Value<int> rowid,
+    });
+
+class $$TasksTableFilterComposer extends Composer<_$AppDatabase, $TasksTable> {
+  $$TasksTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnWithTypeConverterFilters<DateTime, DateTime, int> get createdAt =>
+      $composableBuilder(
+        column: $table.createdAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
+
+  ColumnWithTypeConverterFilters<DateTime, DateTime, int> get updatedAt =>
+      $composableBuilder(
+        column: $table.updatedAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
+
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get areaId => $composableBuilder(
+    column: $table.areaId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get bucket => $composableBuilder(
+    column: $table.bucket,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get dueDate => $composableBuilder(
+    column: $table.dueDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get dueTime => $composableBuilder(
+    column: $table.dueTime,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get remindBefore => $composableBuilder(
+    column: $table.remindBefore,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get recurrence => $composableBuilder(
+    column: $table.recurrence,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get seriesId => $composableBuilder(
+    column: $table.seriesId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get done => $composableBuilder(
+    column: $table.done,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<DateTime?, DateTime, int> get doneAt =>
+      $composableBuilder(
+        column: $table.doneAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
+
+  ColumnFilters<double> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get amount => $composableBuilder(
+    column: $table.amount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get walletId => $composableBuilder(
+    column: $table.walletId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get categoryId => $composableBuilder(
+    column: $table.categoryId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get transactionId => $composableBuilder(
+    column: $table.transactionId,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$TasksTableOrderingComposer
+    extends Composer<_$AppDatabase, $TasksTable> {
+  $$TasksTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get areaId => $composableBuilder(
+    column: $table.areaId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get bucket => $composableBuilder(
+    column: $table.bucket,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get dueDate => $composableBuilder(
+    column: $table.dueDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get dueTime => $composableBuilder(
+    column: $table.dueTime,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get remindBefore => $composableBuilder(
+    column: $table.remindBefore,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get recurrence => $composableBuilder(
+    column: $table.recurrence,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get seriesId => $composableBuilder(
+    column: $table.seriesId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get done => $composableBuilder(
+    column: $table.done,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get doneAt => $composableBuilder(
+    column: $table.doneAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get amount => $composableBuilder(
+    column: $table.amount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get walletId => $composableBuilder(
+    column: $table.walletId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get categoryId => $composableBuilder(
+    column: $table.categoryId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get transactionId => $composableBuilder(
+    column: $table.transactionId,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$TasksTableAnnotationComposer
+    extends Composer<_$AppDatabase, $TasksTable> {
+  $$TasksTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumnWithTypeConverter<DateTime, int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<DateTime, int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get areaId =>
+      $composableBuilder(column: $table.areaId, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get note =>
+      $composableBuilder(column: $table.note, builder: (column) => column);
+
+  GeneratedColumn<String> get bucket =>
+      $composableBuilder(column: $table.bucket, builder: (column) => column);
+
+  GeneratedColumn<String> get dueDate =>
+      $composableBuilder(column: $table.dueDate, builder: (column) => column);
+
+  GeneratedColumn<String> get dueTime =>
+      $composableBuilder(column: $table.dueTime, builder: (column) => column);
+
+  GeneratedColumn<int> get remindBefore => $composableBuilder(
+    column: $table.remindBefore,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get recurrence => $composableBuilder(
+    column: $table.recurrence,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get seriesId =>
+      $composableBuilder(column: $table.seriesId, builder: (column) => column);
+
+  GeneratedColumn<bool> get done =>
+      $composableBuilder(column: $table.done, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<DateTime?, int> get doneAt =>
+      $composableBuilder(column: $table.doneAt, builder: (column) => column);
+
+  GeneratedColumn<double> get sortOrder =>
+      $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+
+  GeneratedColumn<double> get amount =>
+      $composableBuilder(column: $table.amount, builder: (column) => column);
+
+  GeneratedColumn<String> get walletId =>
+      $composableBuilder(column: $table.walletId, builder: (column) => column);
+
+  GeneratedColumn<String> get categoryId => $composableBuilder(
+    column: $table.categoryId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get transactionId => $composableBuilder(
+    column: $table.transactionId,
+    builder: (column) => column,
+  );
+}
+
+class $$TasksTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $TasksTable,
+          TaskRow,
+          $$TasksTableFilterComposer,
+          $$TasksTableOrderingComposer,
+          $$TasksTableAnnotationComposer,
+          $$TasksTableCreateCompanionBuilder,
+          $$TasksTableUpdateCompanionBuilder,
+          (TaskRow, BaseReferences<_$AppDatabase, $TasksTable, TaskRow>),
+          TaskRow,
+          PrefetchHooks Function()
+        > {
+  $$TasksTableTableManager(_$AppDatabase db, $TasksTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TasksTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$TasksTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$TasksTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<String> id = const Value.absent(),
+                Value<String> areaId = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+                Value<String> bucket = const Value.absent(),
+                Value<String?> dueDate = const Value.absent(),
+                Value<String?> dueTime = const Value.absent(),
+                Value<int?> remindBefore = const Value.absent(),
+                Value<String?> recurrence = const Value.absent(),
+                Value<String?> seriesId = const Value.absent(),
+                Value<bool> done = const Value.absent(),
+                Value<DateTime?> doneAt = const Value.absent(),
+                Value<double> sortOrder = const Value.absent(),
+                Value<double?> amount = const Value.absent(),
+                Value<String?> walletId = const Value.absent(),
+                Value<String?> categoryId = const Value.absent(),
+                Value<String?> transactionId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TasksCompanion(
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                id: id,
+                areaId: areaId,
+                title: title,
+                note: note,
+                bucket: bucket,
+                dueDate: dueDate,
+                dueTime: dueTime,
+                remindBefore: remindBefore,
+                recurrence: recurrence,
+                seriesId: seriesId,
+                done: done,
+                doneAt: doneAt,
+                sortOrder: sortOrder,
+                amount: amount,
+                walletId: walletId,
+                categoryId: categoryId,
+                transactionId: transactionId,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                required String id,
+                required String areaId,
+                required String title,
+                Value<String?> note = const Value.absent(),
+                Value<String> bucket = const Value.absent(),
+                Value<String?> dueDate = const Value.absent(),
+                Value<String?> dueTime = const Value.absent(),
+                Value<int?> remindBefore = const Value.absent(),
+                Value<String?> recurrence = const Value.absent(),
+                Value<String?> seriesId = const Value.absent(),
+                Value<bool> done = const Value.absent(),
+                Value<DateTime?> doneAt = const Value.absent(),
+                Value<double> sortOrder = const Value.absent(),
+                Value<double?> amount = const Value.absent(),
+                Value<String?> walletId = const Value.absent(),
+                Value<String?> categoryId = const Value.absent(),
+                Value<String?> transactionId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TasksCompanion.insert(
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                id: id,
+                areaId: areaId,
+                title: title,
+                note: note,
+                bucket: bucket,
+                dueDate: dueDate,
+                dueTime: dueTime,
+                remindBefore: remindBefore,
+                recurrence: recurrence,
+                seriesId: seriesId,
+                done: done,
+                doneAt: doneAt,
+                sortOrder: sortOrder,
+                amount: amount,
+                walletId: walletId,
+                categoryId: categoryId,
+                transactionId: transactionId,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$TasksTable, TaskRow>(table),
+                  BaseReferences<_$AppDatabase, $TasksTable, TaskRow>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$TasksTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $TasksTable,
+      TaskRow,
+      $$TasksTableFilterComposer,
+      $$TasksTableOrderingComposer,
+      $$TasksTableAnnotationComposer,
+      $$TasksTableCreateCompanionBuilder,
+      $$TasksTableUpdateCompanionBuilder,
+      (TaskRow, BaseReferences<_$AppDatabase, $TasksTable, TaskRow>),
+      TaskRow,
+      PrefetchHooks Function()
+    >;
 typedef $$OutboxTableCreateCompanionBuilder =
     OutboxCompanion Function({
       Value<int> seq,
@@ -9456,6 +12035,7 @@ typedef $$SyncMetaTableCreateCompanionBuilder =
       Value<int?> lastSyncAt,
       Value<String?> lastError,
       Value<bool> fullPullRequired,
+      Value<bool> tasksSeeded,
     });
 typedef $$SyncMetaTableUpdateCompanionBuilder =
     SyncMetaCompanion Function({
@@ -9466,6 +12046,7 @@ typedef $$SyncMetaTableUpdateCompanionBuilder =
       Value<int?> lastSyncAt,
       Value<String?> lastError,
       Value<bool> fullPullRequired,
+      Value<bool> tasksSeeded,
     });
 
 class $$SyncMetaTableFilterComposer
@@ -9509,6 +12090,11 @@ class $$SyncMetaTableFilterComposer
 
   ColumnFilters<bool> get fullPullRequired => $composableBuilder(
     column: $table.fullPullRequired,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get tasksSeeded => $composableBuilder(
+    column: $table.tasksSeeded,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -9556,6 +12142,11 @@ class $$SyncMetaTableOrderingComposer
     column: $table.fullPullRequired,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<bool> get tasksSeeded => $composableBuilder(
+    column: $table.tasksSeeded,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$SyncMetaTableAnnotationComposer
@@ -9589,6 +12180,11 @@ class $$SyncMetaTableAnnotationComposer
 
   GeneratedColumn<bool> get fullPullRequired => $composableBuilder(
     column: $table.fullPullRequired,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get tasksSeeded => $composableBuilder(
+    column: $table.tasksSeeded,
     builder: (column) => column,
   );
 }
@@ -9631,6 +12227,7 @@ class $$SyncMetaTableTableManager
                 Value<int?> lastSyncAt = const Value.absent(),
                 Value<String?> lastError = const Value.absent(),
                 Value<bool> fullPullRequired = const Value.absent(),
+                Value<bool> tasksSeeded = const Value.absent(),
               }) => SyncMetaCompanion(
                 id: id,
                 cursor: cursor,
@@ -9639,6 +12236,7 @@ class $$SyncMetaTableTableManager
                 lastSyncAt: lastSyncAt,
                 lastError: lastError,
                 fullPullRequired: fullPullRequired,
+                tasksSeeded: tasksSeeded,
               ),
           createCompanionCallback:
               ({
@@ -9649,6 +12247,7 @@ class $$SyncMetaTableTableManager
                 Value<int?> lastSyncAt = const Value.absent(),
                 Value<String?> lastError = const Value.absent(),
                 Value<bool> fullPullRequired = const Value.absent(),
+                Value<bool> tasksSeeded = const Value.absent(),
               }) => SyncMetaCompanion.insert(
                 id: id,
                 cursor: cursor,
@@ -9657,6 +12256,7 @@ class $$SyncMetaTableTableManager
                 lastSyncAt: lastSyncAt,
                 lastError: lastError,
                 fullPullRequired: fullPullRequired,
+                tasksSeeded: tasksSeeded,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -9710,6 +12310,10 @@ class $AppDatabaseManager {
   $$HealthTableTableManager get health =>
       $$HealthTableTableManager(_db, _db.health);
   $$FoodTableTableManager get food => $$FoodTableTableManager(_db, _db.food);
+  $$TaskAreasTableTableManager get taskAreas =>
+      $$TaskAreasTableTableManager(_db, _db.taskAreas);
+  $$TasksTableTableManager get tasks =>
+      $$TasksTableTableManager(_db, _db.tasks);
   $$OutboxTableTableManager get outbox =>
       $$OutboxTableTableManager(_db, _db.outbox);
   $$SyncMetaTableTableManager get syncMeta =>

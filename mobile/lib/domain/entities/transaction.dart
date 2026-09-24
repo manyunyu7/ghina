@@ -1,4 +1,5 @@
 import 'enums.dart';
+import 'transaction_photo.dart';
 
 /// A money movement. Transfers move [amount] from [walletId] to [toWalletId].
 final class Transaction {
@@ -13,6 +14,7 @@ final class Transaction {
     required this.date,
     required this.createdAt,
     required this.updatedAt,
+    this.photos = const [],
   });
 
   final String id;
@@ -28,6 +30,30 @@ final class Transaction {
   final DateTime date;
   final DateTime createdAt;
   final DateTime updatedAt;
+
+  /// Receipts/proofs, display order, at most [maxTransactionPhotos]. Pending
+  /// (offline) photos have `isPending` and upload on the next sync.
+  final List<TransactionPhoto> photos;
+
+  bool get hasPhotos => photos.isNotEmpty;
+
+  /// Copy with other [photos] (and [updatedAt]).
+  Transaction withPhotos(
+    List<TransactionPhoto> photos, {
+    DateTime? updatedAt,
+  }) => Transaction(
+    id: id,
+    walletId: walletId,
+    toWalletId: toWalletId,
+    categoryId: categoryId,
+    type: type,
+    amount: amount,
+    note: note,
+    date: date,
+    createdAt: createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    photos: List.unmodifiable(photos),
+  );
 
   bool get isTransfer => type == TxType.transfer;
   bool get isAdjustment => type == TxType.adjustment;
@@ -57,7 +83,16 @@ final class Transaction {
       other.note == note &&
       other.date == date &&
       other.createdAt == createdAt &&
-      other.updatedAt == updatedAt;
+      other.updatedAt == updatedAt &&
+      _photosEq(other.photos, photos);
+
+  static bool _photosEq(List<TransactionPhoto> a, List<TransactionPhoto> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
 
   @override
   int get hashCode => Object.hash(
@@ -71,6 +106,7 @@ final class Transaction {
     date,
     createdAt,
     updatedAt,
+    Object.hashAll(photos),
   );
 
   @override

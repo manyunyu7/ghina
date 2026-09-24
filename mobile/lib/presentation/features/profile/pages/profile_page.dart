@@ -252,10 +252,22 @@ class _StatsGrid extends StatelessWidget {
         label: 'Transaksi',
         color: GhinaColors.blue,
       ),
+      StatTile(
+        icon: Icons.task_alt_rounded,
+        value: Fmt.number(st[AchievementMetric.tasksDone]),
+        label: 'Tugas selesai',
+        color: GhinaColors.red,
+      ),
+      StatTile(
+        icon: Icons.auto_awesome_rounded,
+        value: '${Fmt.number(st[AchievementMetric.fireClearDays])} hari',
+        label: 'FIRE kosong',
+        color: GhinaColors.purple,
+      ),
     ];
     return Column(
       children: [
-        for (var r = 0; r < 2; r++) ...[
+        for (var r = 0; r < tiles.length ~/ 2; r++) ...[
           if (r > 0) const SizedBox(height: 12),
           IntrinsicHeight(
             child: Row(
@@ -530,6 +542,13 @@ class _Menu extends StatelessWidget {
   const _Menu();
 
   static const _items = <(IconData, Color, String, String, String)>[
+    (
+      Icons.school_rounded,
+      Color(0xFF8E5BE8),
+      'Belajar',
+      'Jalur belajar keuangan',
+      '/learn',
+    ),
     (
       Icons.account_balance_wallet_rounded,
       Color(0xFF1CB0F6),

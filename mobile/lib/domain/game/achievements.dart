@@ -41,6 +41,18 @@ enum AchievementMetric {
   level,
   totalXp,
   goalDays,
+
+  /// Tasks currently done (un-completing removes one).
+  tasksDone,
+
+  /// FIRE tasks currently done.
+  fireTasksDone,
+
+  /// Most completed occurrences of one recurring task (series).
+  bestSeriesCompletions,
+
+  /// Days recorded as "FIRE kosong" (local snapshot, see `fire_clear.dart`).
+  fireClearDays,
 }
 
 class AchievementDef {
@@ -332,6 +344,51 @@ const List<AchievementDef> achievementDefs = [
     target: 100,
   ),
   AchievementDef(
+    id: 'first_task',
+    title: 'Tugas Pertama Beres',
+    description: 'Selesaikan tugas pertamamu.',
+    icon: 'verified',
+    tier: AchievementTier.bronze,
+    metric: AchievementMetric.tasksDone,
+    target: 1,
+  ),
+  AchievementDef(
+    id: 'fire_tasks_10',
+    title: 'Pemadam Kebakaran',
+    description: 'Selesaikan 10 tugas FIRE.',
+    icon: 'local_fire_department',
+    tier: AchievementTier.silver,
+    metric: AchievementMetric.fireTasksDone,
+    target: 10,
+  ),
+  AchievementDef(
+    id: 'fire_clear_7',
+    title: 'FIRE Kosong',
+    description: 'Tutup hari tanpa sisa tugas FIRE di area fokus, 7 kali.',
+    icon: 'auto_awesome',
+    tier: AchievementTier.gold,
+    metric: AchievementMetric.fireClearDays,
+    target: 7,
+  ),
+  AchievementDef(
+    id: 'series_10',
+    title: 'Rutinitas Juara',
+    description: 'Selesaikan satu tugas berulang sebanyak 10 kali.',
+    icon: 'repeat',
+    tier: AchievementTier.silver,
+    metric: AchievementMetric.bestSeriesCompletions,
+    target: 10,
+  ),
+  AchievementDef(
+    id: 'tasks_100',
+    title: 'Mesin Produktif',
+    description: 'Selesaikan 100 tugas.',
+    icon: 'military_tech',
+    tier: AchievementTier.gold,
+    metric: AchievementMetric.tasksDone,
+    target: 100,
+  ),
+  AchievementDef(
     id: 'goal_7_days',
     title: 'Pemburu Target',
     description: 'Capai target harian di 7 hari berbeda.',
@@ -384,8 +441,12 @@ class AchievementStats {
     required LearnPathProgress path,
     required Iterable<LessonCompletion> lessons,
     required GameDate today,
+    int fireClearDays = 0,
   }) {
     var transactions = 0, transfers = 0, health = 0, food = 0;
+    var tasks = 0, fireTasks = 0;
+    final seriesCounts = <String, int>{};
+    final unseriedIds = <String>[];
     final weightDays = <GameDate>{};
     // Prayer rows per day: name → event (deduped by id above).
     final prayersByDay = <GameDate, Map<String, ActivityEvent>>{};
@@ -417,10 +478,25 @@ class AchievementStats {
           if (e.hasWeight) weightDays.add(e.occurredDay);
         case ActivityKind.food:
           food++;
+        case ActivityKind.task:
+          tasks++;
+          if (e.taskBucket == 'fire') fireTasks++;
+          final series = e.taskSeriesId;
+          if (series != null) {
+            seriesCounts[series] = (seriesCounts[series] ?? 0) + 1;
+          } else if (e.id != null) {
+            unseriedIds.add(e.id!);
+          }
         case ActivityKind.lesson:
           break;
       }
     }
+    // The first occurrence may predate its seriesId (series id = its own id).
+    for (final id in unseriedIds) {
+      final n = seriesCounts[id];
+      if (n != null) seriesCounts[id] = n + 1;
+    }
+    final bestSeries = seriesCounts.values.fold(0, (a, b) => a > b ? a : b);
 
     // Savings rate: only completed months (the current month is still moving).
     final currentMonth = GameMonth.of(today);
@@ -474,6 +550,10 @@ class AchievementStats {
       AchievementMetric.level: level,
       AchievementMetric.totalXp: xp.total,
       AchievementMetric.goalDays: xp.goalDays,
+      AchievementMetric.tasksDone: tasks,
+      AchievementMetric.fireTasksDone: fireTasks,
+      AchievementMetric.bestSeriesCompletions: bestSeries,
+      AchievementMetric.fireClearDays: fireClearDays,
     });
   }
 }

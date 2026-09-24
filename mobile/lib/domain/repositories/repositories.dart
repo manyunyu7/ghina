@@ -53,7 +53,14 @@ abstract interface class TransactionRepository {
   Future<List<Transaction>> list({DateTime? from, DateTime? to, TxType? type});
   Stream<Transaction?> watchById(String id);
   Future<Transaction?> getById(String id);
+
+  /// Insert or update. Pending photos (`TransactionPhoto.local`) whose file isn't
+  /// in app storage yet are copied there first; local files dropped from the list
+  /// are deleted. They are uploaded by the sync engine before the row is pushed.
   Future<void> save(Transaction transaction);
+
+  /// Deletes the row (and its pending local photo files). Tasks referencing it get
+  /// `transactionId = null`.
   Future<void> delete(String id);
 }
 
@@ -113,6 +120,28 @@ abstract interface class FoodRepository {
   /// Saves the log. When [newPhotoPath] is given, the file is copied into app
   /// storage, stored as `localPhotoPath`, and uploaded before the row is synced.
   Future<void> save(FoodLog log, {String? newPhotoPath});
+  Future<void> delete(String id);
+}
+
+abstract interface class TaskAreaRepository {
+  /// Every area incl. archived, sorted by `sortOrder` then name.
+  Stream<List<TaskArea>> watchAll();
+  Future<List<TaskArea>> getAll();
+  Stream<TaskArea?> watchById(String id);
+  Future<TaskArea?> getById(String id);
+  Future<void> save(TaskArea area);
+
+  /// Deletes the area and (cascade, like the server) its tasks.
+  Future<void> delete(String id);
+}
+
+abstract interface class TaskRepository {
+  /// Every task (done or not), unsorted.
+  Stream<List<Task>> watchAll();
+  Future<List<Task>> getAll({String? areaId});
+  Stream<Task?> watchById(String id);
+  Future<Task?> getById(String id);
+  Future<void> save(Task task);
   Future<void> delete(String id);
 }
 

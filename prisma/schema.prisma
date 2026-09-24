@@ -35,6 +35,8 @@ model User {
   health        HealthEntry[]
   foodLogs      FoodLog[]
   tombstones    SyncTombstone[]
+  taskAreas     TaskArea[]
+  tasks         Task[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -97,6 +99,7 @@ model Wallet {
   transfersIn   Transaction[]        @relation("WalletTransfersIn")
   subscriptions Subscription[]
   planned       PlannedTransaction[]
+  tasks         Task[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -117,6 +120,7 @@ model Category {
   budgets       Budget[]
   subscriptions Subscription[]
   planned       PlannedTransaction[]
+  tasks         Task[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -139,9 +143,14 @@ model Transaction {
   wallet   Wallet    @relation("WalletTransactions", fields: [walletId], references: [id], onDelete: Cascade)
   toWallet Wallet?   @relation("WalletTransfersIn", fields: [toWalletId], references: [id], onDelete: SetNull)
   category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  tasks    Task[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // JSON array of relative upload URLs (/uploads/<name>.<ext>), max 5, display order
+  // (docs/transaction-photos.md). Last column so the migration is a plain ADD COLUMN.
+  photos String @default("[]")
 
   @@index([userId])
   @@index([walletId])
@@ -277,6 +286,65 @@ model FoodLog {
   updatedAt DateTime @updatedAt
 
   @@index([userId, date])
+}
+
+// ---------- Tasks (docs/tasks.md) ----------
+
+// A life context for tasks (Kerjaan, Keseharian, …) with an optional active schedule.
+model TaskArea {
+  id        String  @id @default(cuid())
+  userId    String
+  name      String // 1–40 chars
+  code      String // 1–8 chars, A–Z 0–9, unique per user (notification prefix)
+  color     String  @default("#58CC02")
+  icon      String  @default("briefcase") // same icon set as categories
+  schedule  String? // JSON {"days":[1..7],"start":"HH:mm","end":"HH:mm"}; null = anytime
+  sortOrder Int     @default(0)
+  archived  Boolean @default(false)
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tasks Task[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, code])
+  @@index([userId])
+}
+
+// A to-do item in an area and a FIRE/WANT/SHOULD bucket.
+model Task {
+  id            String    @id @default(cuid())
+  userId        String
+  areaId        String
+  title         String // 1–200 chars
+  note          String? // ≤ 2000
+  bucket        String    @default("want") // fire | want | should
+  dueDate       String? // local date YYYY-MM-DD
+  dueTime       String? // local HH:mm, only with dueDate
+  remindBefore  Int? // minutes before due (0 = at due time); null = no reminder
+  recurrence    String? // JSON {"freq","interval","weekdays"?,"monthDay"?}; null = one-off
+  seriesId      String? // same for every occurrence of a recurring task (= first occurrence's id)
+  done          Boolean   @default(false)
+  doneAt        DateTime?
+  sortOrder     Float     @default(0) // manual order within (area, bucket)
+  amount        Float? // optional money link (> 0)
+  walletId      String?
+  categoryId    String?
+  transactionId String? // the expense recorded when completing
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  area        TaskArea     @relation(fields: [areaId], references: [id], onDelete: Cascade)
+  wallet      Wallet?      @relation(fields: [walletId], references: [id], onDelete: SetNull)
+  category    Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  transaction Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, done])
+  @@index([userId, dueDate])
+  @@index([areaId])
 }
 
 // ---------- Mobile sync ----------

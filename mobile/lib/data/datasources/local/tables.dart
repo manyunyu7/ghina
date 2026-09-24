@@ -62,6 +62,13 @@ class Transactions extends Table with Timestamps {
   TextColumn get note => text().nullable()();
   IntColumn get date => integer().map(epochMs)();
 
+  // --- schema v3 (`docs/transaction-photos.md`) ---
+
+  /// JSON array of strings, display order: uploaded paths (`/uploads/x.jpg`) and
+  /// photos waiting for upload as `local:<absolute file path>` (device-only marker,
+  /// never sent on the wire). v2 rows migrate to `[]`.
+  TextColumn get photos => text().withDefault(const Constant('[]'))();
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -184,6 +191,61 @@ class Food extends Table with Timestamps {
   Set<Column> get primaryKey => {id};
 }
 
+// --- schema v3: tasks (`docs/tasks.md`) ---
+
+@DataClassName('TaskAreaRow')
+class TaskAreas extends Table with Timestamps {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+
+  /// 1–8 chars `A–Z0–9`, unique per user.
+  TextColumn get code => text()();
+  TextColumn get color => text().withDefault(const Constant('#58CC02'))();
+  TextColumn get icon => text().withDefault(const Constant('briefcase'))();
+
+  /// JSON `{"days":[1..7],"start":"HH:mm","end":"HH:mm"}`; null = anytime.
+  TextColumn get schedule => text().nullable()();
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+  BoolColumn get archived => boolean().withDefault(const Constant(false))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+@DataClassName('TaskRow')
+@TableIndex(name: 'idx_task_area', columns: {#areaId})
+@TableIndex(name: 'idx_task_due', columns: {#dueDate})
+class Tasks extends Table with Timestamps {
+  TextColumn get id => text()();
+  TextColumn get areaId => text()();
+  TextColumn get title => text()();
+  TextColumn get note => text().nullable()();
+
+  /// `fire | want | should`
+  TextColumn get bucket => text().withDefault(const Constant('want'))();
+
+  /// Local date `YYYY-MM-DD`.
+  TextColumn get dueDate => text().nullable()();
+
+  /// Local `HH:mm`, only with [dueDate].
+  TextColumn get dueTime => text().nullable()();
+  IntColumn get remindBefore => integer().nullable()();
+
+  /// JSON `{"freq","interval","weekdays"?,"monthDay"?}`; null = one-off.
+  TextColumn get recurrence => text().nullable()();
+  TextColumn get seriesId => text().nullable()();
+  BoolColumn get done => boolean().withDefault(const Constant(false))();
+  IntColumn get doneAt => integer().map(epochMs).nullable()();
+  RealColumn get sortOrder => real().withDefault(const Constant(0))();
+  RealColumn get amount => real().nullable()();
+  TextColumn get walletId => text().nullable()();
+  TextColumn get categoryId => text().nullable()();
+  TextColumn get transactionId => text().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 /// Pending local mutations, pushed in [seq] order.
 @DataClassName('OutboxRow')
 @TableIndex(name: 'idx_outbox_entity', columns: {#entity, #entityId})
@@ -234,6 +296,10 @@ class SyncMeta extends Table {
   /// Set after a rejected/skipped mutation so the next pull re-downloads everything.
   BoolColumn get fullPullRequired =>
       boolean().withDefault(const Constant(false))();
+
+  /// v3: the default task areas were checked/seeded after the first pull from a
+  /// server that knows tasks (`docs/tasks.md`), so they're never re-created.
+  BoolColumn get tasksSeeded => boolean().withDefault(const Constant(false))();
 
   @override
   Set<Column> get primaryKey => {id};

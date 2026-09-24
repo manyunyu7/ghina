@@ -11,6 +11,8 @@ export const SYNC_ENTITIES = [
   "prayers",
   "health",
   "food",
+  "taskAreas",
+  "tasks",
 ] as const;
 
 export type SyncEntity = (typeof SYNC_ENTITIES)[number];

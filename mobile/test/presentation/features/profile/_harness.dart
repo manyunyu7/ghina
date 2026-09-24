@@ -184,6 +184,7 @@ class Harness {
   final prayers = FakePrayerRepository();
   final health = FakeHealthRepository();
   final food = FakeFoodRepository();
+  final tasks = FakeTaskRepository();
   final sync = FakeSyncService();
 
   /// Seeds a local game state (lesson completions, seen badges, …).
@@ -209,6 +210,7 @@ class Harness {
     prayerRepositoryProvider.overrideWithValue(prayers),
     healthRepositoryProvider.overrideWithValue(health),
     foodRepositoryProvider.overrideWithValue(food),
+    taskRepositoryProvider.overrideWithValue(tasks),
     syncServiceProvider.overrideWithValue(sync),
     currentUserProvider.overrideWithValue(harnessUser),
   ];

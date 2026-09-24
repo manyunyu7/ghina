@@ -13,6 +13,8 @@ import { TransactionActions } from "./transaction-actions";
 import type { TransactionFormData } from "./transaction-form";
 import { ADJUSTMENT_LABEL } from "@/lib/adjustment";
 import { TRANSACTION_TYPES } from "@/lib/schemas";
+import { parsePhotos } from "@/lib/photos";
+import { PhotoBadge } from "@/components/photo-viewer";
 
 const ADJUSTMENT_COLOR = "#0284c7";
 
@@ -153,6 +155,7 @@ export default async function TransactionsPage({
                     const isTransfer = t.type === "transfer";
                     const isAdjustment = t.type === "adjustment";
                     const tint = isAdjustment ? ADJUSTMENT_COLOR : isTransfer ? "#6366f1" : t.category?.color ?? "#6366f1";
+                    const photos = parsePhotos(t.photos);
                     const formData: TransactionFormData = {
                       id: t.id,
                       type: t.type,
@@ -162,6 +165,7 @@ export default async function TransactionsPage({
                       categoryId: t.categoryId,
                       note: t.note,
                       date: t.date,
+                      photos,
                     };
                     const title = isAdjustment
                       ? ADJUSTMENT_LABEL
@@ -198,6 +202,7 @@ export default async function TransactionsPage({
                               <Badge>{t.wallet.name}</Badge>
                             )}
                             <span className="text-xs text-muted-soft">{formatDate(t.date)}</span>
+                            <PhotoBadge photos={photos} />
                           </div>
                         </div>
 

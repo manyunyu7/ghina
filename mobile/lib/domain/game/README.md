@@ -21,6 +21,7 @@ single JSON blob `ghina.game.state.v1` (`GameLocalState`). That covers:
 - last seen level
 - celebrated keys
 - the onboarding flag
+- "FIRE kosong" days (local snapshot, see below)
 
 ## Wiring (composition root `lib/di/`)
 
@@ -65,6 +66,31 @@ final gameOverrides = [
 ];
 // ProviderScope(overrides: [...gameOverrides], child: App())
 ```
+
+**Task completions** (`docs/tasks.md` → Gamification) come in through
+`activityEventsSourceProvider`: one `ActivityEvent.task` per task that is currently done
+(un-completing removes it, so everything below is derived). Shape: `kind == ActivityKind.task`,
+`id` = task id, `at` = `doneAt` (so `day` = local day of `doneAt`), `occurredAt` = task
+`createdAt`, `taskBucket` = `fire|want|should`, `taskSeriesId`, `taskAreaId`.
+
+- XP fire 10 / want 8 / should 5 (`XpRules.taskXp`, `XpSource.task`), at most 20 tasks per
+  day (`XpRules.taskDailyCap`, earliest `doneAt` first). Counted tasks count toward the
+  daily goal. They never touch the transaction streak.
+- Achievements: `first_task`, `fire_tasks_10`, `tasks_100`, `series_10` (one recurring
+  series done 10 times), `fire_clear_7` ("FIRE kosong" 7 times).
+- **FIRE kosong** can't be derived from done events, so it's a local daily snapshot
+  (`fire_clear.dart`, `GameLocalState.fireClearDays`, `RecordFireClearDay`).
+  `fireClearRecorderProvider` (`presentation/state/game/task_game_providers.dart`, kept
+  alive by Beranda) evaluates *yesterday* on the first open of a day and whenever the hour
+  tick crosses midnight. A day counts when every FIRE task of that day's focus areas
+  (unscheduled areas plus those scheduled on that weekday) that existed and was due by the
+  end of the day was done by then, and at least one of them was completed that day.
+  Records are add-only. Limitations: only days followed by a day the app ran are
+  recorded. Deleted or re-bucketed tasks and schedule changes are not seen. The snapshot
+  is per device and not synced.
+- Mascot: `homeMascotProvider` re-runs the mascot with task info
+  (`MascotContext.withTasks`). With 3 or more overdue tasks it shows a worried nudge, and it
+  adds lines for open FIRE tasks and for FIRE kosong.
 
 The source streams should emit their current value on subscribe (drift `watch()` streams
 do this). Exclude soft-deleted rows. XP, the streak and the daily goal are counted on the
@@ -123,6 +149,7 @@ can't be failed: mistakes only reduce XP.
 - Balance adjustments are not activity (no XP, streak or daily goal).
 - Health: +5 XP, at most 3 per day.
 - Food: +5 XP, at most 6 per day.
+- Task: fire 10 / want 8 / should 5 XP by `doneAt` day, at most 20 per day.
 - Lesson: 15 XP minus 2 per mistake, with a minimum of 5, plus a +5 bonus for a perfect lesson.
 - Practice replay: 5 XP, plus 5 for a perfect replay.
 - Daily goal met: +20 XP.
@@ -154,6 +181,7 @@ below 0). `nearLimit` lists categories at 90% or more of their budget.
 | Daily goal met | `celebrating` |
 | No hearts left, or streak just lost | `sad` |
 | 1 heart or fewer | `worried` |
+| 3+ overdue tasks (home, `homeMascotProvider`) | `worried` |
 | Nothing logged yet today | `encouraging` |
 | Otherwise | `happy` |
 

@@ -21,7 +21,7 @@ valid 90 days. Missing/invalid/expired token → `401 {"error":"unauthorized"}`.
 | POST | `/api/mobile/auth/google` | `{idToken}` | `{token, user}` |
 | GET | `/api/mobile/me` | – | `{user}` |
 | PATCH | `/api/mobile/me` | `{name?, currency?}` | `{user}` |
-| POST | `/api/mobile/upload` | multipart, field `file` (image/*, ≤ 5 MB) | `{url}` e.g. `"/uploads/abc.jpg"` |
+| POST | `/api/mobile/upload` | multipart, field `file` (JPEG/PNG/WebP/GIF/HEIC by file signature — the sent MIME type is ignored; SVG etc. → 400; ≤ 5 MB) | `{url}` e.g. `"/uploads/abc.jpg"` (extension from the detected type) |
 
 `user` = `{id, name, email, image, currency, syncEpoch}`.
 
@@ -48,13 +48,20 @@ with UUID v4 ids, the server keeps its existing cuid ids — both are valid.
 |---|---|---|
 | `wallets` | Wallet | id, name, type, balance, currency, color, icon, archived, createdAt, updatedAt |
 | `categories` | Category | id, name, type, color, icon, createdAt, updatedAt |
-| `transactions` | Transaction | id, walletId, toWalletId, categoryId, type, amount, note, date, createdAt, updatedAt |
+| `transactions` | Transaction | id, walletId, toWalletId, categoryId, type, amount, note, date, photos, createdAt, updatedAt |
 | `budgets` | Budget | id, categoryId, amount, month, year, createdAt, updatedAt |
 | `subscriptions` | Subscription | id, name, amount, currency, cycle, nextBilling, categoryId, walletId, color, icon, note, active, createdAt, updatedAt |
 | `planned` | PlannedTransaction | id, type, amount, note, categoryId, walletId, date, done, createdAt, updatedAt |
 | `prayers` | PrayerEntry | id, date (`YYYY-MM-DD` string), prayer, status, qobliyah, badiyah, rakaat, prayedAt, note, createdAt, updatedAt |
 | `health` | HealthEntry | id, date, weight, systolic, diastolic, pulse, note, createdAt, updatedAt |
 | `food` | FoodLog | id, date, name, meal, calories, photoUrl, note, createdAt, updatedAt |
+| `taskAreas` | TaskArea | id, name, code, color, icon, schedule, sortOrder, archived, createdAt, updatedAt |
+| `tasks` | Task | id, areaId, title, note, bucket, dueDate, dueTime, remindBefore, recurrence, seriesId, done, doneAt, sortOrder, amount, walletId, categoryId, transactionId, createdAt, updatedAt |
+
+`transactions.photos` is a JSON array of strings (docs/transaction-photos.md);
+`taskAreas.schedule` and `tasks.recurrence` are JSON objects or `null` (docs/tasks.md) —
+never JSON-encoded strings. Old app versions ignore the `taskAreas`/`tasks` keys and
+tombstones of entities they don't know.
 
 Schema changes the server makes for sync:
 - `PrayerEntry` gains `updatedAt DateTime @default(now()) @updatedAt`.
@@ -65,6 +72,9 @@ Schema changes the server makes for sync:
   `badiyah Boolean @default(false)`, `rakaat Int?`, `prayedAt DateTime?`, `note String?`
   (docs/prayer-quality.md). Existing rows read as `status = "ontime"`.
 - `Transaction.type` may be `adjustment` (docs/balance-adjustment.md) — no column change.
+- `Transaction` gains `photos String @default("[]")` (JSON array text; wire: array).
+- New models `TaskArea` and `Task` (docs/tasks.md). Task → TaskArea cascade; Task →
+  Wallet/Category/Transaction `SetNull`. `@@unique([userId, code])` on TaskArea.
 - `Wallet` gains `editedAt DateTime` — server-only, **not** on the wire. It is the
   last-write-wins timestamp for wallets (see Push), because a wallet's `updatedAt`
   also moves every time a transaction changes its balance.
@@ -95,16 +105,25 @@ Relations, mirrored on both sides:
   subscriptions/planned with that `walletId` get `walletId = null`. These cascaded
   transaction deletes do **not** reverse balances on the surviving wallet (a transfer
   from A into a deleted B leaves A's balance as it was) — same as the web always did.
-- Delete a category → transactions/subscriptions/planned get `categoryId = null`;
+  Tasks with that `walletId` get `walletId = null`; tasks linked to one of the deleted
+  transactions get `transactionId = null`.
+- Delete a category → transactions/subscriptions/planned/tasks get `categoryId = null`;
   budgets for it are deleted (tombstoned).
+- Delete a transaction → tasks with that `transactionId` get `transactionId = null`.
+- Delete a task area → its tasks are deleted (tombstoned).
+- Deleting a transaction by any path (sync, web, wallet cascade, reset) deletes its photo
+  files after the DB change commits — unless another transaction/food row still
+  references the same file (best effort).
 
 The server does the nulling with `updateMany` before the delete so those rows get a fresh
 `updatedAt` and reach other devices through the normal pull. The mobile app applies the
 same rules locally when it deletes (and when it receives a tombstone).
 
 "Reset all data" on the web deletes the user's wallets, categories, transactions and
-budgets (subscriptions/planned stay, with `walletId`/`categoryId` nulled; prayers, health
-and food stay), drops their tombstones and assigns a new `syncEpoch`. Clients see the new
+budgets (subscriptions/planned stay, with `walletId`/`categoryId` nulled; task areas and
+tasks stay, with `walletId`/`categoryId`/`transactionId` nulled; prayers, health and food
+stay), removes the deleted transactions' photo files, drops all tombstones and assigns a
+new `syncEpoch`. Clients see the new
 epoch and do a full re-pull, so no tombstones are needed.
 
 Server implementation: `src/lib/sync-deletes.ts` (+ `deleteLedgerTransaction` in
@@ -121,14 +140,21 @@ models anywhere else.
   "epoch": "ckx…",
   "changes": {
     "wallets": [ … ], "categories": [ … ], "transactions": [ … ], "budgets": [ … ],
-    "subscriptions": [ … ], "planned": [ … ], "prayers": [ … ], "health": [ … ], "food": [ … ]
+    "subscriptions": [ … ], "planned": [ … ], "prayers": [ … ], "health": [ … ], "food": [ … ],
+    "taskAreas": [ … ], "tasks": [ … ]
   },
   "deleted": [ { "entity": "transactions", "id": "…", "deletedAt": "…" } ]
 }
 ```
 
 - `changes.X` = rows with `updatedAt >= since`; `deleted` = tombstones with `deletedAt >= since`.
-  All 9 keys are always present (possibly `[]`). Archived wallets are included.
+  All 11 keys are always present (possibly `[]`). Archived wallets and areas are included.
+- Default task areas: before building the response, if the user has **no** `TaskArea`
+  rows at all, the server creates Kerjaan (`area-kerjaan-<userId>`, code `KERJA`, Mon–Fri
+  09:00–17:00) and Keseharian (`area-life-<userId>`, code `LIFE`, no schedule) and drops
+  any old tombstones for those ids — so the first pull (full or incremental) carries them.
+  The mobile app may seed the same rows locally (same ids and fields) if it has none;
+  pushing them later is a normal upsert of the same id (LWW), never a duplicate.
 - A full pull (`since` 0/absent) always returns `deleted: []` — the client starts empty.
 - An id never appears in both `changes` and `deleted` of one response.
 - `serverTime` = the request start time minus 5 seconds; the client stores it as its next
@@ -204,6 +230,13 @@ Rules:
 - `status` is one of `applied | skipped | duplicate | rejected`. The client removes the
   mutation from the outbox for every status (a `rejected` one is logged and surfaced to
   the user as a sync error, then its local row is reverted on the next pull).
+- `transactions.photos`: array of 0–5 strings, each matching `^/uploads/[A-Za-z0-9-]+\.[a-z]+$`
+  (what `/api/mobile/upload` returns), duplicates dropped, order kept. **Optional**: a
+  missing `photos` keeps the stored list on update (`[]` on create), so old app versions
+  never wipe photos; `null` means `[]`. Anything else (not an array, > 5, other URL) →
+  `rejected`. Upload pending local files first, then push the upsert with the returned
+  URLs. When an update drops URLs from the list, those files are deleted after the
+  change commits (unless still referenced elsewhere).
 - A `food` row whose photo was taken offline: the client first uploads the file via
   `/api/mobile/upload`, then sends the upsert with the returned `photoUrl`. `photoUrl`
   must be `null` or a path returned by the upload endpoint (`/uploads/<name>.<ext>`),
@@ -226,6 +259,9 @@ from a pull.
 | prayers | date, prayer, status?, qobliyah?, badiyah?, rakaat?, prayedAt?, note? | see "Prayers" below |
 | health | date, weight, systolic, diastolic, pulse, note | weight 1–500; systolic 50–300, diastolic 30–200, pulse 20–250 (integers); systolic and diastolic both or neither; at least one of weight/BP/pulse |
 | food | date, name, meal, calories, photoUrl, note | name 1–120; unknown `meal` → null; calories 0–20000, rounded to an integer |
+| transactions (photos) | photos? | see `transactions.photos` above |
+| taskAreas | name, code, color?, icon?, schedule?, sortOrder?, archived? | see "Task areas" below |
+| tasks | areaId, title, note?, bucket?, dueDate?, dueTime?, remindBefore?, recurrence?, seriesId?, done?, doneAt?, sortOrder?, amount?, walletId?, categoryId?, transactionId? | see "Tasks" below |
 
 Empty/whitespace `note` becomes `null`; `""` ids become `null`.
 
@@ -249,17 +285,62 @@ Empty/whitespace `note` becomes `null`; `""` ids become `null`.
   New clients should always send all fields.
 - Pulled rows always carry all fields (`rakaat`, `prayedAt`, `note` may be null).
 
+#### Task areas (docs/tasks.md)
+
+- `name` 1–40 (trimmed). `code` trimmed, **uppercased by the server**, then must match
+  `^[A-Z0-9]{1,8}$`. `color` `#rrggbb` (default `#58CC02`). `icon` one of `CATEGORY_ICONS`
+  (default `briefcase`). `sortOrder` integer (default 0). `archived` bool (default false).
+- `schedule`: `null` (anytime) or `{"days":[1..7],"start":"HH:mm","end":"HH:mm"}` — ISO
+  weekdays (1 = Mon … 7 = Sun), ≥ 1 day, stored deduplicated + sorted; 24 h `HH:mm`;
+  `start < end` (no overnight). A JSON **string** is rejected.
+- `code` is unique per user: if another area id already holds it → `duplicate` (the
+  client deletes its local area; the server's arrives on the pull). Clients should check
+  code uniqueness locally before saving.
+
+#### Tasks (docs/tasks.md)
+
+- `areaId`: the user's area (archived is fine), else `rejected` ("Area not found").
+- `title` 1–200 (trimmed). `note` ≤ 2000, trimmed, empty → null.
+- `bucket` ∈ fire/want/should (default `want`).
+- `dueDate` real `YYYY-MM-DD` or null; `dueTime` `HH:mm` or null — needs `dueDate`.
+- `remindBefore` integer minutes 0–10080 or null (only meaningful with dueDate+dueTime).
+- `recurrence` null or `{"freq":"daily"|"weekly"|"monthly","interval":1..365,"weekdays":[1..7]?,"monthDay":1..31?}`
+  (`interval` default 1). `weekdays` only with weekly, `monthDay` only with monthly, else
+  `rejected`. Needs `dueDate`. The server **materializes the defaults** from `dueDate`
+  (weekly without `weekdays` → `[weekday of dueDate]`; monthly without `monthDay` → day of
+  dueDate) so a clamped month (31 → 28) never drifts; clients should store the same.
+- `seriesId` null or `^[A-Za-z0-9_-]{1,55}$`. A recurring task without one gets
+  `seriesId = id` (so a recurring task's own id must be ≤ 55 chars — UUIDs/cuids are).
+- `done` bool (default false). `doneAt` ISO-8601 with `Z`/offset or null; forced to
+  null when `done` is false; a done task without `doneAt` is stamped with server time
+  (clients should always send it — XP/streaks use it).
+- `sortOrder` finite number (fractional OK, default 0) — manual order within (area, bucket).
+- `amount` > 0 or null. `walletId` the user's wallet or null. `categoryId` the user's
+  **expense** category or null. `transactionId` the user's transaction or null — push
+  the expense before the task that links it (same push, earlier position is fine).
+- Completing a recurring task (client side, `nextOccurrence` in `src/lib/tasks.ts`):
+  push the done upsert of the current occurrence **and** an upsert of the next one with
+  id `<seriesId>_<YYYYMMDD>` (next due date), same fields, `done=false`, `doneAt=null`,
+  `transactionId=null`. The server validates both as plain upserts, so two devices that
+  completed the same occurrence offline land on the same row: the later
+  `clientUpdatedAt` wins, the other is `skipped`. Un-completing never deletes the next
+  occurrence.
+
 ### JSON conventions
 
 - Numbers are JSON numbers, never strings (`amount`, `balance`, `weight` may be
   fractional; `amount` is negative only for `adjustment`; `month`, `year`, `calories`,
   `systolic`, `diastolic`, `pulse`, `rakaat` are integers). Booleans are JSON booleans
-  (`archived`, `active`, `done`, `qobliyah`, `badiyah`).
+  (`archived`, `active`, `done`, `qobliyah`, `badiyah`). Task `sortOrder`/`amount` may be
+  fractional; area `sortOrder` and task `remindBefore` are integers.
+- JSON-typed fields are JSON values: `transactions.photos` (array, `[]` when none),
+  `taskAreas.schedule` and `tasks.recurrence` (object or null).
 - Every wire field is always present in pulled rows; missing values are `null`.
 - Server dates are ISO-8601 UTC with milliseconds (`2026-09-23T10:00:00.000Z`). Send
   `DateTime` fields (`date`, `nextBilling`) as UTC ISO strings with `Z` too — a string
   without an offset would be read in the server's local timezone.
-- `prayers.date` is a plain `YYYY-MM-DD` string (the user's local day), not a timestamp.
+- `prayers.date` and `tasks.dueDate` are plain `YYYY-MM-DD` strings (the user's local
+  day), `tasks.dueTime` a local `HH:mm` — not timestamps. `tasks.doneAt` is a timestamp.
 
 ## Client sync loop
 
@@ -277,5 +358,9 @@ The API base URL defaults to production `https://ghina.tentrem.space`; override 
 `node scripts/test-mobile-sync.mjs [baseUrl]` (default `http://localhost:3100`, e.g. after
 `npx next dev -p 3100`) runs the whole protocol end to end against a throwaway user and
 deletes it afterwards. It covers prayer statuses/rawatib/sunnah validation and balance
-adjustments too. `node scripts/test-prayer-quality.mjs` unit-tests the scoring module,
+adjustments, task areas/tasks (validation, recurrence idempotency, cascades), transaction
+photos (validation + file cleanup) and the web task/transaction actions too.
+Flutter end-to-end (real data layer, two devices, v2→v3 upgrade): `GHINA_E2E_BASE_URL=http://localhost:3100 flutter test test/data/e2e_sync_test.dart test/data/e2e_tasks_photos_test.dart test/data/e2e_upgrade_test.dart` (uses `scripts/e2e-helper.mjs` for the web reset and cleanup). `node scripts/perf-sync.mjs` times pull/push at ~1500 transactions + 300 tasks.
+`node scripts/test-tasks.mjs` unit-tests src/lib/tasks.ts and src/lib/photos.ts (no server).
+`node scripts/test-prayer-quality.mjs` unit-tests the scoring module,
 report ranges and the ledger's adjustment effect (no server needed).

@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/dates.dart';
 import '../domain/entities/entities.dart';
 import '../domain/usecases/usecases.dart';
+import '../presentation/state/session_controller.dart' show currencyProvider;
 import 'core_providers.dart';
 
 // ---------------------------------------------------------------- Wallets
@@ -94,6 +95,30 @@ final deleteTransactionProvider = Provider<DeleteTransaction>(
 );
 final transferBetweenWalletsProvider = Provider<TransferBetweenWallets>(
   (ref) => TransferBetweenWallets(ref.watch(createTransactionProvider)),
+);
+
+/// `(txId, [pickedFile.path, …])` → appends pending photos (≤ 5 total).
+final addTransactionPhotosProvider = Provider<AddTransactionPhotos>(
+  (ref) => AddTransactionPhotos(
+    ref.watch(transactionRepositoryProvider),
+    ref.watch(clockProvider),
+  ),
+);
+
+/// `(txId, photo)` → removes one photo (uploaded or pending).
+final removeTransactionPhotoProvider = Provider<RemoveTransactionPhoto>(
+  (ref) => RemoveTransactionPhoto(
+    ref.watch(transactionRepositoryProvider),
+    ref.watch(clockProvider),
+  ),
+);
+
+/// `(txId, photos)` → replaces the list (reorder).
+final setTransactionPhotosProvider = Provider<SetTransactionPhotos>(
+  (ref) => SetTransactionPhotos(
+    ref.watch(transactionRepositoryProvider),
+    ref.watch(clockProvider),
+  ),
 );
 
 // ---------------------------------------------------------------- Budgets
@@ -253,6 +278,104 @@ final deleteFoodLogProvider = Provider<DeleteFoodLog>(
   (ref) => DeleteFoodLog(ref.watch(foodRepositoryProvider)),
 );
 
+// ---------------------------------------------------------------- Tasks (docs/tasks.md)
+
+final createTaskAreaProvider = Provider<CreateTaskArea>(
+  (ref) => CreateTaskArea(
+    ref.watch(taskAreaRepositoryProvider),
+    ref.watch(clockProvider),
+  ),
+);
+final updateTaskAreaProvider = Provider<UpdateTaskArea>(
+  (ref) => UpdateTaskArea(
+    ref.watch(taskAreaRepositoryProvider),
+    ref.watch(clockProvider),
+  ),
+);
+final reorderTaskAreasProvider = Provider<ReorderTaskAreas>(
+  (ref) => ReorderTaskAreas(
+    ref.watch(taskAreaRepositoryProvider),
+    ref.watch(unitOfWorkProvider),
+    ref.watch(clockProvider),
+  ),
+);
+final setTaskAreaArchivedProvider = Provider<SetTaskAreaArchived>(
+  (ref) => SetTaskAreaArchived(
+    ref.watch(taskAreaRepositoryProvider),
+    ref.watch(clockProvider),
+  ),
+);
+
+/// Deletes the area **and all its tasks**.
+final deleteTaskAreaProvider = Provider<DeleteTaskArea>(
+  (ref) => DeleteTaskArea(ref.watch(taskAreaRepositoryProvider)),
+);
+
+/// `(userId)` → creates Kerjaan + Keseharian when there is no area (0 or 2).
+final seedDefaultTaskAreasProvider = Provider<SeedDefaultTaskAreas>(
+  (ref) => SeedDefaultTaskAreas(
+    ref.watch(taskAreaRepositoryProvider),
+    ref.watch(unitOfWorkProvider),
+    ref.watch(clockProvider),
+  ),
+);
+final createTaskProvider = Provider<CreateTask>(
+  (ref) => CreateTask(
+    ref.watch(taskRepositoryProvider),
+    ref.watch(taskAreaRepositoryProvider),
+    ref.watch(walletRepositoryProvider),
+    ref.watch(categoryRepositoryProvider),
+    ref.watch(clockProvider),
+  ),
+);
+final updateTaskProvider = Provider<UpdateTask>(
+  (ref) => UpdateTask(
+    ref.watch(taskRepositoryProvider),
+    ref.watch(taskAreaRepositoryProvider),
+    ref.watch(walletRepositoryProvider),
+    ref.watch(categoryRepositoryProvider),
+    ref.watch(clockProvider),
+  ),
+);
+final deleteTaskProvider = Provider<DeleteTask>(
+  (ref) => DeleteTask(ref.watch(taskRepositoryProvider)),
+);
+
+/// `(id, expense: TaskExpense?)` → [TaskCompletion] (done task, next occurrence,
+/// recorded expense).
+final completeTaskProvider = Provider<CompleteTask>(
+  (ref) => CompleteTask(
+    ref.watch(taskRepositoryProvider),
+    ref.watch(createTransactionProvider),
+    ref.watch(unitOfWorkProvider),
+    ref.watch(clockProvider),
+  ),
+);
+final uncompleteTaskProvider = Provider<UncompleteTask>(
+  (ref) => UncompleteTask(
+    ref.watch(taskRepositoryProvider),
+    ref.watch(clockProvider),
+  ),
+);
+
+/// `(id, bucket:, areaId:, sortOrder:)`
+final moveTaskProvider = Provider<MoveTask>(
+  (ref) => MoveTask(
+    ref.watch(taskRepositoryProvider),
+    ref.watch(taskAreaRepositoryProvider),
+    ref.watch(clockProvider),
+  ),
+);
+
+/// `([ids in new order])` → sortOrder = index.
+final reorderTasksProvider = Provider<ReorderTasks>(
+  (ref) => ReorderTasks(
+    ref.watch(taskRepositoryProvider),
+    ref.watch(unitOfWorkProvider),
+    ref.watch(clockProvider),
+  ),
+);
+
 // ---------------------------------------------------------------- Account & sync
 
 final restoreSessionProvider = Provider<RestoreSession>(
@@ -347,6 +470,27 @@ final watchReportUseCaseProvider = Provider(
     ref.watch(categoryRepositoryProvider),
     ref.watch(walletRepositoryProvider),
     ref.watch(clockProvider),
+  ),
+);
+final watchTasksUseCaseProvider = Provider(
+  (ref) => WatchTasks(
+    ref.watch(taskRepositoryProvider),
+    ref.watch(taskAreaRepositoryProvider),
+    ref.watch(tickSourceProvider),
+  ),
+);
+final watchTaskBoardUseCaseProvider = Provider(
+  (ref) => WatchTaskBoard(
+    ref.watch(taskRepositoryProvider),
+    ref.watch(taskAreaRepositoryProvider),
+    ref.watch(tickSourceProvider),
+  ),
+);
+final watchRemindersUseCaseProvider = Provider(
+  (ref) => WatchReminders(
+    ref.watch(taskRepositoryProvider),
+    ref.watch(taskAreaRepositoryProvider),
+    ref.watch(tickSourceProvider),
   ),
 );
 final watchSyncStatusUseCaseProvider = Provider(
@@ -479,3 +623,68 @@ final watchFoodLogProvider = StreamProvider.autoDispose
     .family<FoodLog?, String>(
       (ref, id) => WatchFoodLog(ref.watch(foodRepositoryProvider))(id),
     );
+
+// ---------------------------------------------------------------- tasks (reactive)
+
+/// Non-archived areas, in area order.
+final watchTaskAreasProvider = StreamProvider.autoDispose<List<TaskArea>>(
+  (ref) => WatchTaskAreas(ref.watch(taskAreaRepositoryProvider))(),
+);
+
+/// Every area incl. archived (area manager).
+final watchAllTaskAreasProvider = StreamProvider.autoDispose<List<TaskArea>>(
+  (ref) => WatchTaskAreas(ref.watch(taskAreaRepositoryProvider))(
+    includeArchived: true,
+  ),
+);
+
+final watchTaskAreaProvider = StreamProvider.autoDispose
+    .family<TaskArea?, String>(
+      (ref, id) => WatchTaskArea(ref.watch(taskAreaRepositoryProvider))(id),
+    );
+
+/// Filtered tasks as a flat list (board order; `done` filter: latest first).
+final watchTasksProvider = StreamProvider.autoDispose
+    .family<List<TaskView>, TaskFilter>(
+      (ref, filter) => ref.watch(watchTasksUseCaseProvider)(filter),
+    );
+
+/// The Tugas tab: three bucket sections for a filter (`TaskFilter.focus`,
+/// `TaskFilter.everything`, `TaskFilter.area(id)`, …).
+final watchTaskBoardProvider = StreamProvider.autoDispose
+    .family<TaskBoard, TaskFilter>(
+      (ref, filter) => ref.watch(watchTaskBoardUseCaseProvider)(filter),
+    );
+
+final watchTaskProvider = StreamProvider.autoDispose.family<TaskView?, String>(
+  (ref, id) => WatchTask(
+    ref.watch(taskRepositoryProvider),
+    ref.watch(taskAreaRepositoryProvider),
+    ref.watch(tickSourceProvider),
+  )(id),
+);
+
+/// Focus areas now (changes when a schedule starts or ends).
+final watchFocusAreasProvider = StreamProvider.autoDispose<FocusAreas>(
+  (ref) => WatchFocusAreas(
+    ref.watch(taskAreaRepositoryProvider),
+    ref.watch(tickSourceProvider),
+  )(),
+);
+
+/// Home: focus-area FIRE tasks + Sunday-morning "Sapu bersih SHOULD 🧹".
+final watchTaskHomeProvider = StreamProvider.autoDispose<TaskHome>(
+  (ref) => WatchTaskHome(
+    ref.watch(taskRepositoryProvider),
+    ref.watch(taskAreaRepositoryProvider),
+    ref.watch(tickSourceProvider),
+  )(),
+);
+
+/// The task reminders to schedule (≤ 60, soonest first); emits only on change.
+/// Feed to `ReminderScheduler.replaceAll`.
+final watchRemindersProvider = StreamProvider.autoDispose<List<Reminder>>(
+  (ref) => ref.watch(watchRemindersUseCaseProvider)(
+    currency: ref.watch(currencyProvider),
+  ),
+);

@@ -1,6 +1,8 @@
 /// Drift row ⇄ domain entity mappers.
 library;
 
+import 'dart:convert';
+
 import 'package:drift/drift.dart';
 
 import '../../domain/entities/entities.dart';
@@ -81,6 +83,7 @@ extension TransactionRowX on TransactionRow {
       date: date,
       createdAt: createdAt,
       updatedAt: updatedAt,
+      photos: decodePhotos(photos),
     );
   }
 }
@@ -102,6 +105,7 @@ extension TransactionX on Transaction {
     date: date,
     createdAt: createdAt,
     updatedAt: updatedAt,
+    photos: Value(encodePhotos(photos)),
   );
 }
 
@@ -287,6 +291,127 @@ extension FoodX on FoodLog {
     photoUrl: Value(photoUrl),
     localPhotoPath: Value(localPhotoPath),
     note: Value(note),
+    createdAt: createdAt,
+    updatedAt: updatedAt,
+  );
+}
+
+// ---------------------------------------------------------------- transaction photos
+
+/// Stored marker of a photo waiting for upload: `local:<absolute path>`.
+const localPhotoPrefix = 'local:';
+
+/// `transactions.photos` column → list. Lenient: bad JSON / non-strings dropped.
+List<TransactionPhoto> decodePhotos(String? stored) {
+  if (stored == null || stored.isEmpty) return const [];
+  try {
+    final v = jsonDecode(stored);
+    if (v is! List) return const [];
+    return List.unmodifiable([
+      for (final x in v)
+        if (x is String && x.isNotEmpty)
+          x.startsWith(localPhotoPrefix)
+              ? TransactionPhoto.local(x.substring(localPhotoPrefix.length))
+              : TransactionPhoto.remote(x),
+    ]);
+  } catch (_) {
+    return const [];
+  }
+}
+
+/// List → `transactions.photos` column (pending ones keep their local marker).
+String encodePhotos(List<TransactionPhoto> photos) => jsonEncode([
+  for (final p in photos)
+    p.isPending ? '$localPhotoPrefix${p.localPath}' : p.url,
+]);
+
+// ---------------------------------------------------------------- tasks
+
+Object? _decodeJson(String? s) {
+  if (s == null || s.isEmpty) return null;
+  try {
+    return jsonDecode(s);
+  } catch (_) {
+    return null;
+  }
+}
+
+String? _encodeJson(Map<String, Object?>? m) =>
+    m == null ? null : jsonEncode(m);
+
+extension TaskAreaRowX on TaskAreaRow {
+  TaskArea toEntity() => TaskArea(
+    id: id,
+    name: name,
+    code: code,
+    color: color,
+    icon: icon,
+    schedule: AreaSchedule.tryParse(_decodeJson(schedule)),
+    sortOrder: sortOrder,
+    archived: archived,
+    createdAt: createdAt,
+    updatedAt: updatedAt,
+  );
+}
+
+extension TaskAreaX on TaskArea {
+  TaskAreasCompanion toCompanion() => TaskAreasCompanion.insert(
+    id: id,
+    name: name,
+    code: code,
+    color: Value(color),
+    icon: Value(icon),
+    schedule: Value(_encodeJson(schedule?.toJson())),
+    sortOrder: Value(sortOrder),
+    archived: Value(archived),
+    createdAt: createdAt,
+    updatedAt: updatedAt,
+  );
+}
+
+extension TaskRowX on TaskRow {
+  Task toEntity() => Task(
+    id: id,
+    areaId: areaId,
+    title: title,
+    note: note,
+    bucket: TaskBucket.fromWire(bucket),
+    dueDate: dueDate,
+    dueTime: dueTime,
+    remindBefore: remindBefore,
+    recurrence: Recurrence.tryParse(_decodeJson(recurrence)),
+    seriesId: seriesId,
+    done: done,
+    doneAt: doneAt,
+    sortOrder: sortOrder,
+    amount: amount,
+    walletId: walletId,
+    categoryId: categoryId,
+    transactionId: transactionId,
+    createdAt: createdAt,
+    updatedAt: updatedAt,
+  );
+}
+
+extension TaskX on Task {
+  TasksCompanion toCompanion() => TasksCompanion.insert(
+    id: id,
+    areaId: areaId,
+    title: title,
+    note: Value(note),
+    bucket: Value(bucket.wire),
+    dueDate: Value(dueDate),
+    dueTime: Value(dueTime),
+    remindBefore: Value(remindBefore),
+    recurrence: Value(_encodeJson(recurrence?.toJson())),
+    seriesId: Value(seriesId),
+    done: Value(done),
+    doneAt: Value(doneAt),
+    sortOrder: Value(sortOrder),
+    amount: Value(amount),
+    walletId: Value(walletId),
+    categoryId: Value(categoryId),
+    transactionId: Value(transactionId),
     createdAt: createdAt,
     updatedAt: updatedAt,
   );

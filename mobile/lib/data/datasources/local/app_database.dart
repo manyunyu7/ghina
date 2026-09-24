@@ -19,6 +19,8 @@ part 'app_database.g.dart';
     Prayers,
     Health,
     Food,
+    TaskAreas,
+    Tasks,
     Outbox,
     SyncMeta,
   ],
@@ -33,19 +35,22 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.memory() => AppDatabase(NativeDatabase.memory());
 
   /// v1: initial schema. v2: prayer quality columns on `prayers`.
+  /// v3: `task_areas`, `tasks`, `transactions.photos`, `sync_meta.tasks_seeded`.
   ///
   /// Bumping? Add a step below, run
   /// `dart run drift_dev schema dump lib/data/datasources/local/app_database.dart drift_schemas/`
   /// and `dart run drift_dev schema generate drift_schemas/ test/data/local/generated_migrations/`,
   /// then extend `test/data/local/migration_test.dart`.
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (m) => m.createAll(),
     onUpgrade: (m, from, to) async {
-      if (from < 2) {
+      // Each step runs only when the target includes it (tests migrate to
+      // intermediate versions).
+      if (from < 2 && to >= 2) {
         // Existing rows mean "performed" → status defaults to 'ontime'.
         await m.addColumn(prayers, prayers.status);
         await m.addColumn(prayers, prayers.qobliyah);
@@ -54,13 +59,27 @@ class AppDatabase extends _$AppDatabase {
         await m.addColumn(prayers, prayers.prayedAt);
         await m.addColumn(prayers, prayers.note);
       }
+      if (from < 3 && to >= 3) {
+        // Additive only: existing rows keep their data, photos default to `[]`.
+        await m.addColumn(transactions, transactions.photos);
+        await m.addColumn(syncMeta, syncMeta.tasksSeeded);
+        await m.createTable(taskAreas);
+        await m.createTable(tasks);
+        await m.createIndex(idxTaskArea);
+        await m.createIndex(idxTaskDue);
+        // The old app pulled past task areas/tasks and transaction photos without
+        // storing them, so an incremental pull from the old cursor would never
+        // bring them (and the device would then seed default areas over the
+        // server's). Re-download everything once; pending outbox rows still win.
+        await customStatement('UPDATE sync_meta SET full_pull_required = 1');
+      }
     },
     beforeOpen: (details) async {
       await customStatement('PRAGMA foreign_keys = OFF');
     },
   );
 
-  /// The 9 synced tables.
+  /// The synced tables.
   List<TableInfo<Table, dynamic>> get syncedTables => [
     wallets,
     categories,
@@ -71,6 +90,8 @@ class AppDatabase extends _$AppDatabase {
     prayers,
     health,
     food,
+    taskAreas,
+    tasks,
   ];
 
   /// Deletes all synced rows and the outbox. With [includeMeta] the sync meta

@@ -8,6 +8,7 @@ import '../models/entity_names.dart';
 import '../models/mappers.dart';
 import '../models/wire.dart';
 import 'local_store.dart';
+import 'photo_store.dart';
 
 class DriftWalletRepository implements WalletRepository {
   DriftWalletRepository(this._s);
@@ -153,9 +154,17 @@ class DriftCategoryRepository implements CategoryRepository {
 }
 
 class DriftTransactionRepository implements TransactionRepository {
-  DriftTransactionRepository(this._s);
+  /// [photos] keeps pending photo files (default: files are used where they are).
+  DriftTransactionRepository(this._s, [PhotoStore? photos])
+    : _photos = photos ?? InMemoryPhotoStore();
   final LocalStore _s;
+  final PhotoStore _photos;
   AppDatabase get _db => _s.db;
+
+  static Set<String> _localPaths(Iterable<TransactionPhoto> photos) => {
+    for (final p in photos)
+      if (p.isPending) p.localPath!,
+  };
 
   SimpleSelectStatement<$TransactionsTable, TransactionRow> _q({
     DateTime? from,
@@ -225,31 +234,62 @@ class DriftTransactionRepository implements TransactionRepository {
   )..where((t) => t.id.equals(id))).getSingleOrNull())?.toEntityOrNull();
 
   @override
-  Future<void> save(Transaction t) => _s.write(() async {
-    final existing = await getById(t.id);
-    await _db.into(_db.transactions).insertOnConflictUpdate(t.toCompanion());
-    await _s.outbox.enqueueUpsert(
-      entity: SyncEntity.transactions,
-      entityId: t.id,
-      data: transactionToWire(t),
-      clientUpdatedAt: t.updatedAt,
-      isCreate: existing == null,
-      base: existing == null ? null : transactionToWire(existing),
-    );
-  });
+  Future<void> save(Transaction t) async {
+    final before = await getById(t.id);
+    final oldLocal = _localPaths(before?.photos ?? const []);
+    // Copy newly picked files into app storage (file IO, outside the DB transaction).
+    var row = t;
+    if (t.photos.any((p) => p.isPending && !oldLocal.contains(p.localPath))) {
+      row = t.withPhotos([
+        for (final p in t.photos)
+          p.isPending && !oldLocal.contains(p.localPath)
+              ? TransactionPhoto.local(
+                  await _photos.ensureStored(p.localPath!, t.id),
+                )
+              : p,
+      ]);
+    }
+    await _s.write(() async {
+      final existing = await getById(row.id);
+      await _db
+          .into(_db.transactions)
+          .insertOnConflictUpdate(row.toCompanion());
+      await _s.outbox.enqueueUpsert(
+        entity: SyncEntity.transactions,
+        entityId: row.id,
+        data: transactionToWire(row),
+        clientUpdatedAt: row.updatedAt,
+        isCreate: existing == null,
+        base: existing == null ? null : transactionToWire(existing),
+      );
+    });
+    final keep = _localPaths(row.photos);
+    for (final path in oldLocal.difference(keep)) {
+      await _photos.delete(path);
+    }
+  }
 
   @override
-  Future<void> delete(String id) => _s.write(() async {
+  Future<void> delete(String id) async {
     final existing = await getById(id);
     if (existing == null) return;
-    await (_db.delete(_db.transactions)..where((t) => t.id.equals(id))).go();
-    await _s.outbox.enqueueDelete(
-      entity: SyncEntity.transactions,
-      entityId: id,
-      clientUpdatedAt: _s.clock.now(),
-      base: transactionToWire(existing),
-    );
-  });
+    await _s.write(() async {
+      final n = await (_db.delete(
+        _db.transactions,
+      )..where((t) => t.id.equals(id))).go();
+      if (n == 0) return;
+      await _s.cascades.transactionDeleted(id);
+      await _s.outbox.enqueueDelete(
+        entity: SyncEntity.transactions,
+        entityId: id,
+        clientUpdatedAt: _s.clock.now(),
+        base: transactionToWire(existing),
+      );
+    });
+    for (final path in _localPaths(existing.photos)) {
+      await _photos.delete(path);
+    }
+  }
 }
 
 class DriftBudgetRepository implements BudgetRepository {

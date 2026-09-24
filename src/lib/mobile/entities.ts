@@ -12,6 +12,9 @@ import {
   walletSchema,
 } from "@/lib/schemas";
 import type { SyncEntity } from "@/lib/tombstones";
+import { parsePhotos, photosSchema, removedPhotos, serializePhotos } from "@/lib/photos";
+import { taskAreaSchema } from "@/lib/tasks";
+import { areaToDb, saveTask, TaskError } from "@/lib/tasks-server";
 import {
   ALL_PRAYER_IDS,
   defaultStatusFor,
@@ -37,8 +40,11 @@ interface EntityDef<R extends Row = Row> {
   changedSince(db: Db, userId: string, since: Date): Promise<object[]>;
   /** Timestamp compared with `clientUpdatedAt` for last-write-wins. */
   lwwTime(row: R): Date;
-  /** Create (existing = null) or update the row with the pushed data. */
-  upsert(db: Db, userId: string, id: string, data: unknown, existing: R | null): Promise<UpsertOutcome>;
+  /**
+   * Create (existing = null) or update the row with the pushed data. Upload URLs whose
+   * files should be removed once the change is committed are pushed onto `cleanup`.
+   */
+  upsert(db: Db, userId: string, id: string, data: unknown, existing: R | null, cleanup: string[]): Promise<UpsertOutcome>;
 }
 
 const since = (userId: string, s: Date) => ({ where: { userId, updatedAt: { gte: s } } });
@@ -91,19 +97,28 @@ const categories: EntityDef = {
   },
 };
 
-const transactions: EntityDef<Row & { type: string; amount: number; walletId: string; toWalletId: string | null }> = {
+// `photos` is optional so older app versions keep the stored list on update ([] on create).
+const syncPhotosSchema = z.object({ photos: photosSchema.nullish() });
+
+const transactions: EntityDef<
+  Row & { type: string; amount: number; walletId: string; toWalletId: string | null; photos: string }
+> = {
   find: (db, id) => db.transaction.findUnique({ where: { id } }),
   changedSince: (db, userId, s) => db.transaction.findMany(since(userId, s)),
   lwwTime: (row) => row.updatedAt,
-  async upsert(db, userId, id, data, existing) {
+  async upsert(db, userId, id, data, existing, cleanup) {
     const p = transactionSchema.parse(data);
+    const { photos: sent } = syncPhotosSchema.parse(data);
+    const before = parsePhotos(existing?.photos);
+    const photos = sent === undefined ? before : (sent ?? []);
     let refs;
     try {
       refs = await validateTransactionRefs(db, userId, p);
     } catch (e) {
       throw new SyncRejection(e instanceof Error ? e.message : "Invalid references");
     }
-    const input = { ...p, ...refs };
+    const input = { ...p, ...refs, photos: serializePhotos(photos) };
+    cleanup.push(...removedPhotos(before, photos));
     // Balance effects go through the ledger, like the web.
     if (existing) await updateLedgerTransaction(db, existing, input);
     else await createLedgerTransaction(db, userId, input, id);
@@ -245,14 +260,52 @@ const health: EntityDef = {
   },
 };
 
-const food: EntityDef = {
+const food: EntityDef<Row & { photoUrl: string | null }> = {
   find: (db, id) => db.foodLog.findUnique({ where: { id } }),
   changedSince: (db, userId, s) => db.foodLog.findMany(since(userId, s)),
   lwwTime: (row) => row.updatedAt,
-  async upsert(db, userId, id, data, existing) {
+  async upsert(db, userId, id, data, existing, cleanup) {
     const d = foodSchema.parse(data);
+    // A replaced/removed photo's file is deleted (like the web).
+    if (existing?.photoUrl && existing.photoUrl !== d.photoUrl) cleanup.push(existing.photoUrl);
     if (existing) await db.foodLog.update({ where: { id }, data: d });
     else await db.foodLog.create({ data: { id, userId, ...d } });
+    return "applied";
+  },
+};
+
+// Area codes are unique per user: another id holding the code → `duplicate`.
+const taskAreas: EntityDef = {
+  find: (db, id) => db.taskArea.findUnique({ where: { id } }),
+  changedSince: (db, userId, s) => db.taskArea.findMany(since(userId, s)),
+  lwwTime: (row) => row.updatedAt,
+  async upsert(db, userId, id, data, existing) {
+    const d = areaToDb(taskAreaSchema.parse(data));
+    const holder = await db.taskArea.findUnique({
+      where: { userId_code: { userId, code: d.code } },
+      select: { id: true },
+    });
+    if (holder && holder.id !== id) return "duplicate";
+    if (existing) await db.taskArea.update({ where: { id }, data: d });
+    else await db.taskArea.create({ data: { id, userId, ...d } });
+    return "applied";
+  },
+};
+
+// Completing a recurring task: the client pushes the done upsert AND the next occurrence
+// (deterministic id `<seriesId>_<YYYYMMDD>`) — both are plain upserts here, so the same
+// id pushed from two devices lands on one row (LWW decides which version stays).
+const tasks: EntityDef = {
+  find: (db, id) => db.task.findUnique({ where: { id } }),
+  changedSince: (db, userId, s) => db.task.findMany(since(userId, s)),
+  lwwTime: (row) => row.updatedAt,
+  async upsert(db, userId, id, data, existing) {
+    try {
+      await saveTask(db, userId, id, data, !!existing);
+    } catch (e) {
+      if (e instanceof TaskError) throw new SyncRejection(e.message);
+      throw e;
+    }
     return "applied";
   },
 };
@@ -266,5 +319,7 @@ export const ENTITY_DEFS: Record<SyncEntity, EntityDef> = {
   planned,
   prayers: prayers as unknown as EntityDef,
   health,
-  food,
+  food: food as unknown as EntityDef,
+  taskAreas,
+  tasks,
 };

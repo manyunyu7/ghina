@@ -40,6 +40,10 @@ class _AdjustBalanceSheetState extends ConsumerState<AdjustBalanceSheet> {
   late bool _negative;
   bool _saving = false;
 
+  /// Proof photos (e.g. a bank app screenshot), attached after the adjustment
+  /// is recorded.
+  List<String> _photos = const [];
+
   @override
   void initState() {
     super.initState();
@@ -75,6 +79,15 @@ class _AdjustBalanceSheetState extends ConsumerState<AdjustBalanceSheet> {
       target,
       note: _note.text,
     );
+    if (r case Ok(:final value) when _photos.isNotEmpty) {
+      final pr = await ref.read(addTransactionPhotosProvider)(
+        value.id,
+        _photos,
+      );
+      if (pr case Err(:final failure) when mounted) {
+        showFailureToast(context, failure);
+      }
+    }
     if (!mounted) return;
     switch (r) {
       case Ok():
@@ -195,6 +208,32 @@ class _AdjustBalanceSheetState extends ConsumerState<AdjustBalanceSheet> {
           hint: 'Contoh: biaya admin bank',
           maxLength: 200,
           textInputAction: TextInputAction.done,
+        ),
+        const SizedBox(height: GhinaSpace.sm),
+        FieldLabel('Foto bukti (opsional)'),
+        PhotoStrip(
+          key: const ValueKey('adjust-photos'),
+          photos: [for (final p in _photos) ViewerPhoto.file(p)],
+          size: 56,
+          max: maxTransactionPhotos,
+          heroScope: 'adjust',
+          onRemove: (i) => setState(() => _photos = [..._photos]..removeAt(i)),
+          onAdd: () async {
+            final picked = await pickPhotos(
+              context,
+              ref,
+              remaining: maxTransactionPhotos - _photos.length,
+              max: maxTransactionPhotos,
+            );
+            if (picked.isEmpty || !mounted) return;
+            setState(
+              () => _photos = [
+                ..._photos,
+                for (final p in picked)
+                  if (!_photos.contains(p)) p,
+              ],
+            );
+          },
         ),
         const SizedBox(height: GhinaSpace.lg),
         ChunkyButton(

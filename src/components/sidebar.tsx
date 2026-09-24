@@ -6,13 +6,13 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
   LayoutDashboard, ArrowLeftRight, Wallet, Target, Tags, PieChart,
-  Settings, Repeat, Moon, HeartPulse, Utensils, TrendingUp, BarChart3, Menu, X,
+  Settings, Repeat, Moon, HeartPulse, Utensils, TrendingUp, BarChart3, ListTodo, Menu, X,
 } from "lucide-react";
 import { NAV_ITEMS } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { AppDownload } from "@/components/app-download";
 
-const ICONS = { LayoutDashboard, ArrowLeftRight, Wallet, Target, Tags, PieChart, Settings, Repeat, Moon, HeartPulse, Utensils, TrendingUp, BarChart3 };
+const ICONS = { LayoutDashboard, ArrowLeftRight, Wallet, Target, Tags, PieChart, Settings, Repeat, Moon, HeartPulse, Utensils, TrendingUp, BarChart3, ListTodo };
 
 /** Ghina's money-tree mascot, the brand mark next to the wordmark. */
 function Logo({ className }: { className?: string }) {

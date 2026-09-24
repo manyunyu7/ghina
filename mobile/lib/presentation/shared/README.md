@@ -49,5 +49,7 @@ Engine → visuals mapping: `mascotMoodOf` (domain `MascotMood` → design-syste
 | `date_picker.dart` | `showGhinaDatePicker` (the app's only date picker: chunky Indonesian calendar sheet, Monday-first, "Hari ini", optional `firstDate`/`lastDate`), `DateField` |
 | `entity_pickers.dart` | `showCategoryPickerSheet`, `showWalletPickerSheet` |
 | `wallet_avatar.dart` | `WalletAvatar`, `walletIcon`, `walletIconOf` |
+| `photo_viewer.dart` | Generic photos: `ViewerPhoto.file(path)` (local, not uploaded yet) / `ViewerPhoto.network(url)` (server path resolved with `AppConfig.resolveUrl`), `PhotoImage` (loading + broken placeholder), `showPhotoViewer(context, photos, initialIndex:, heroScope:)` → full-screen `PhotoViewer` (swipe, pinch/double-tap zoom, "2/4", close, "Belum diunggah" note for local files). Reusable by any feature (e.g. the food log photo). |
+| `photo_strip.dart` | `PhotoStrip` (thumbnails → viewer with hero, remove "×", "+" tile, cloud badge on pending photos), `PhotoThumb`, `PhotoCountBadge` (list rows), `showPhotoAttachSheet` (Kamera / Galeri multi-select, count "2/5", max note), `pickPhotos` / `pickPhotosFrom` (chooser + friendly permission-denied toasts). Picking goes through `photoPickerProvider` (`PhotoPicker`, compressed `maxWidth: 1600, imageQuality: 80`); override it in tests. |
 
 Feature-only widgets stay in their feature (e.g. `subscriptions/widgets/due_chip.dart`).

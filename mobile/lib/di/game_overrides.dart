@@ -17,13 +17,15 @@ import '../presentation/state/game/game_providers.dart';
 import '../presentation/state/session_controller.dart';
 import 'core_providers.dart';
 
-/// Maps synced rows to the engine's [ActivityEvent]s.
+/// Maps synced rows to the engine's [ActivityEvent]s. [tasks]: every task; the
+/// done ones become `ActivityEvent.task` (by `doneAt`).
 List<ActivityEvent> activityEventsFrom(
   List<Transaction> transactions,
   List<PrayerEntry> prayers,
   List<HealthEntry> health,
-  List<FoodLog> food,
-) => [
+  List<FoodLog> food, {
+  List<Task> tasks = const [],
+}) => [
   // Balance adjustments are not "logging a transaction": no XP/streak/goal.
   for (final x in transactions.where((t) => !t.isAdjustment))
     ActivityEvent.transaction(
@@ -53,6 +55,16 @@ List<ActivityEvent> activityEventsFrom(
     ),
   for (final x in food)
     ActivityEvent.food(id: x.id, createdAt: x.createdAt, date: x.date),
+  for (final x in tasks)
+    if (x.done)
+      ActivityEvent.task(
+        id: x.id,
+        doneAt: x.doneAt ?? x.updatedAt,
+        bucket: x.bucket.wire,
+        seriesId: x.seriesId,
+        areaId: x.areaId,
+        createdAt: x.createdAt,
+      ),
 ];
 
 /// The production overrides (game progress in shared_preferences).
@@ -66,14 +78,15 @@ List<Override> buildGameOverrides({GameStore? store}) => [
     (ref) => ref.watch(currentUserProvider)?.displayName,
   ),
   activityEventsSourceProvider.overrideWith(
-    (ref) => combineLatest4(
+    (ref) => combineLatest5(
       ref.watch(transactionRepositoryProvider).watch(),
       ref
           .watch(prayerRepositoryProvider)
           .watchRange('0000-01-01', '9999-12-31'),
       ref.watch(healthRepositoryProvider).watchAll(),
       ref.watch(foodRepositoryProvider).watchAll(),
-      activityEventsFrom,
+      ref.watch(taskRepositoryProvider).watchAll(),
+      (t, p, h, f, k) => activityEventsFrom(t, p, h, f, tasks: k),
     ),
   ),
   budgetStatusSourceProvider.overrideWith(

@@ -4,11 +4,14 @@
 /// `*FromWire` turns a pulled row into a drift companion.
 library;
 
+import 'dart:convert';
+
 import 'package:drift/drift.dart';
 
 import '../../domain/entities/entities.dart';
 import '../datasources/local/app_database.dart';
 import 'entity_names.dart';
+import 'mappers.dart' show encodePhotos, localPhotoPrefix;
 
 typedef Json = Map<String, dynamic>;
 
@@ -40,6 +43,8 @@ Json categoryToWire(TxCategory c) => {
   'icon': c.icon,
 };
 
+/// `photos` carries only uploaded paths: pending local photos are uploaded by the
+/// sync engine first, which then patches the queued upsert.
 Json transactionToWire(Transaction t) => {
   'walletId': t.walletId,
   'toWalletId': t.toWalletId,
@@ -48,6 +53,55 @@ Json transactionToWire(Transaction t) => {
   'amount': t.amount,
   'note': t.note,
   'date': isoUtc(t.date),
+  'photos': wirePhotos(t.photos),
+};
+
+/// What the server accepts in `transactions.photos` (what `/api/mobile/upload`
+/// returns).
+final uploadPathRe = RegExp(r'^/uploads/[A-Za-z0-9-]+\.[a-z]+$');
+
+/// Uploaded photo paths in order, deduplicated, at most [maxTransactionPhotos].
+/// Pending local ones — and anything the server would reject, which would get the
+/// whole transaction rejected — are left out.
+List<String> wirePhotos(List<TransactionPhoto> photos) {
+  final out = <String>[];
+  for (final p in photos) {
+    final url = p.url;
+    if (p.isPending || url == null || !uploadPathRe.hasMatch(url)) continue;
+    if (!out.contains(url)) out.add(url);
+  }
+  return out.length > maxTransactionPhotos
+      ? out.sublist(0, maxTransactionPhotos)
+      : out;
+}
+
+Json taskAreaToWire(TaskArea a) => {
+  'name': a.name,
+  'code': a.code,
+  'color': a.color,
+  'icon': a.icon,
+  'schedule': a.schedule?.toJson(),
+  'sortOrder': a.sortOrder,
+  'archived': a.archived,
+};
+
+Json taskToWire(Task t) => {
+  'areaId': t.areaId,
+  'title': t.title,
+  'note': t.note,
+  'bucket': t.bucket.wire,
+  'dueDate': t.dueDate,
+  'dueTime': t.dueTime,
+  'remindBefore': t.remindBefore,
+  'recurrence': t.recurrence?.toJson(),
+  'seriesId': t.seriesId,
+  'done': t.done,
+  'doneAt': t.doneAt == null ? null : isoUtc(t.doneAt!),
+  'sortOrder': t.sortOrder,
+  'amount': t.amount,
+  'walletId': t.walletId,
+  'categoryId': t.categoryId,
+  'transactionId': t.transactionId,
 };
 
 Json budgetToWire(Budget b) => {
@@ -141,7 +195,13 @@ CategoriesCompanion categoryFromWire(Json j) => CategoriesCompanion(
   updatedAt: _updated(j),
 );
 
-TransactionsCompanion transactionFromWire(Json j) => TransactionsCompanion(
+/// An older server sends no `photos`: the stored list is kept (absent value; `[]`
+/// on insert). [keepPending] = pending local photos of the local row, appended so
+/// a pull never loses a photo that hasn't been uploaded yet.
+TransactionsCompanion transactionFromWire(
+  Json j, {
+  List<TransactionPhoto> keepPending = const [],
+}) => TransactionsCompanion(
   id: Value(j['id'] as String),
   walletId: Value(j['walletId'] as String),
   toWalletId: Value(_strN(j['toWalletId'])),
@@ -150,6 +210,80 @@ TransactionsCompanion transactionFromWire(Json j) => TransactionsCompanion(
   amount: Value(_num(j['amount'])),
   note: Value(_strN(j['note'])),
   date: Value(_date(j['date'])),
+  photos: j['photos'] is List
+      ? Value(
+          encodePhotos([
+            for (final x in j['photos'] as List)
+              if (x is String &&
+                  x.isNotEmpty &&
+                  !x.startsWith(localPhotoPrefix))
+                TransactionPhoto.remote(x),
+            ...keepPending,
+          ]),
+        )
+      : const Value.absent(),
+  createdAt: _created(j),
+  updatedAt: _updated(j),
+);
+
+/// JSON objects on the wire; a JSON string is tolerated too.
+Object? _jsonField(Object? v) {
+  if (v is String) {
+    try {
+      return jsonDecode(v);
+    } catch (_) {
+      return null;
+    }
+  }
+  return v;
+}
+
+String? _jsonColumn(Object? parsed, Map<String, Object?>? Function(Object?) f) {
+  final m = f(parsed);
+  return m == null ? null : jsonEncode(m);
+}
+
+TaskAreasCompanion taskAreaFromWire(Json j) => TaskAreasCompanion(
+  id: Value(j['id'] as String),
+  name: Value(j['name'] as String? ?? ''),
+  code: Value(j['code'] as String? ?? ''),
+  color: Value(j['color'] as String? ?? '#58CC02'),
+  icon: Value(j['icon'] as String? ?? 'briefcase'),
+  schedule: Value(
+    _jsonColumn(
+      _jsonField(j['schedule']),
+      (v) => AreaSchedule.tryParse(v)?.toJson(),
+    ),
+  ),
+  sortOrder: Value(_intN(j['sortOrder']) ?? 0),
+  archived: Value(j['archived'] as bool? ?? false),
+  createdAt: _created(j),
+  updatedAt: _updated(j),
+);
+
+TasksCompanion taskFromWire(Json j) => TasksCompanion(
+  id: Value(j['id'] as String),
+  areaId: Value(j['areaId'] as String),
+  title: Value(j['title'] as String? ?? ''),
+  note: Value(_strN(j['note'])),
+  bucket: Value(TaskBucket.fromWire(j['bucket'] as String?).wire),
+  dueDate: Value(_strN(j['dueDate'])),
+  dueTime: Value(_strN(j['dueTime'])),
+  remindBefore: Value(_intN(j['remindBefore'])),
+  recurrence: Value(
+    _jsonColumn(
+      _jsonField(j['recurrence']),
+      (v) => Recurrence.tryParse(v)?.toJson(),
+    ),
+  ),
+  seriesId: Value(_strN(j['seriesId'])),
+  done: Value(j['done'] as bool? ?? false),
+  doneAt: Value(j['doneAt'] == null ? null : _date(j['doneAt'])),
+  sortOrder: Value(_numN(j['sortOrder']) ?? 0),
+  amount: Value(_numN(j['amount'])),
+  walletId: Value(_strN(j['walletId'])),
+  categoryId: Value(_strN(j['categoryId'])),
+  transactionId: Value(_strN(j['transactionId'])),
   createdAt: _created(j),
   updatedAt: _updated(j),
 );
@@ -255,6 +389,8 @@ Insertable<dynamic> companionFromWire(String entity, Json j) =>
       SyncEntity.prayers => prayerFromWire(j),
       SyncEntity.health => healthFromWire(j),
       SyncEntity.food => foodFromWire(j),
+      SyncEntity.taskAreas => taskAreaFromWire(j),
+      SyncEntity.tasks => taskFromWire(j),
       _ => throw ArgumentError('Unknown entity $entity'),
     };
 

@@ -12,6 +12,7 @@ import 'package:ghina/data/models/entity_names.dart';
 import 'package:ghina/data/repositories/photo_store.dart';
 import 'package:ghina/di/core_providers.dart';
 import 'package:ghina/di/game_overrides.dart';
+import 'package:ghina/domain/game/activity.dart';
 import 'package:ghina/domain/game/game_store.dart';
 import 'package:ghina/presentation/state/game/game_providers.dart';
 import 'package:ghina/di/usecase_providers.dart';
@@ -90,6 +91,9 @@ void main() {
         syncTriggersProvider.overrideWithValue(null),
         clockProvider.overrideWithValue(FixedClock(DateTime(2026, 9, 23, 12))),
         authRepositoryProvider.overrideWithValue(auth),
+        tickSourceProvider.overrideWithValue(
+          () => Stream.value(DateTime(2026, 9, 24, 10)), // Thu 10:00
+        ),
       ],
     );
   });
@@ -176,6 +180,82 @@ void main() {
     final summary = await c.read(gameSummaryProvider.future);
     sub.close();
     expect(summary.totalXp, greaterThan(0));
+  });
+
+  test('tasks & photos providers are wired end to end', () async {
+    final seeded = await c.read(seedDefaultTaskAreasProvider)('u1');
+    expect(seeded.valueOrThrow, 2);
+    final areas = await next(watchTaskAreasProvider, (l) => l.length == 2);
+    expect(areas.map((a) => a.code), ['KERJA', 'LIFE']);
+    final kerja = areas.first.id;
+
+    final t = (await c.read(createTaskProvider)(
+      TaskInput(
+        areaId: kerja,
+        title: 'Kirim revisi',
+        bucket: TaskBucket.fire,
+        dueDate: DateTime(2026, 9, 24),
+        dueTime: '14:00',
+        remindBefore: 30,
+        recurrence: const Recurrence.daily(),
+      ),
+    )).valueOrThrow;
+
+    final focus = await next(
+      watchFocusAreasProvider,
+      (f) => f.areas.isNotEmpty,
+    );
+    expect(focus.ids, [kerja]);
+    final board = await next(
+      watchTaskBoardProvider(TaskFilter.focus),
+      (b) => !b.isEmpty,
+    );
+    expect(board.section(TaskBucket.fire).tasks.single.id, t.id);
+    final home = await next(
+      watchTaskHomeProvider,
+      (h) => h.fireTasks.isNotEmpty,
+    );
+    expect(home.fireTasks.single.tag, '[KERJA-FIRE]');
+    final reminders = await next(watchRemindersProvider, (r) => r.isNotEmpty);
+    expect(reminders.single.title, '[KERJA-FIRE] Kirim revisi');
+
+    final done = (await c.read(completeTaskProvider)(t.id)).valueOrThrow;
+    expect(done.next!.dueDate, '2026-09-25');
+    final doneList = await next(
+      watchTasksProvider(const TaskFilter(status: TaskStatusFilter.done)),
+      (l) => l.isNotEmpty,
+    );
+    expect(doneList.single.id, t.id);
+
+    // Completed tasks reach the game engine as task events.
+    final events = await next(
+      activityEventsSourceProvider,
+      (l) => l.any((e) => e.kind == ActivityKind.task),
+    );
+    final taskEvents = events.where((e) => e.kind == ActivityKind.task);
+    expect(taskEvents.single.taskBucket, 'fire');
+    expect(taskEvents.single.taskSeriesId, t.id);
+
+    final w = (await c.read(createWalletProvider)(
+      const WalletInput(name: 'Tunai'),
+    )).valueOrThrow;
+    final tx = (await c.read(createTransactionProvider)(
+      TransactionInput(
+        type: TxType.expense,
+        amount: 1000,
+        walletId: w.id,
+        date: DateTime(2026, 9, 23, 9),
+        photos: const [TransactionPhoto.local('/tmp/nota.jpg')],
+      ),
+    )).valueOrThrow;
+    expect(tx.photos.single.isPending, isTrue);
+    await c.read(addTransactionPhotosProvider)(tx.id, ['/tmp/nota2.jpg']);
+    expect(await c.read(syncNowProvider)(), isA<Ok<void>>());
+    expect(
+      server.rows[SyncEntity.transactions]![tx.id]!['photos'],
+      hasLength(2),
+    );
+    expect(server.rows[SyncEntity.tasks], hasLength(2));
   });
 
   test('session controller: restore → sign in → sign out', () async {

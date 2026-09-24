@@ -28,20 +28,25 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge, Progress, EmptyState } from "@/components/ui/misc";
 import { CategoryIcon } from "@/components/icon";
+import { PhotoBadge } from "@/components/photo-viewer";
+import { parsePhotos } from "@/lib/photos";
 import { SpendingDonut, IncomeExpenseBars, type MonthlyBar } from "./dashboard-charts";
 import { ADJUSTMENT_LABEL } from "@/lib/adjustment";
+import { getFireTasks } from "../tasks/data";
+import { FireTodayCard } from "../tasks/fire-today-card";
 
 export default async function DashboardPage() {
   const user = await requireUser();
   const cm = currentMonth();
   const range = monthRange(cm.year, cm.month);
 
-  const [totalBalance, totals, spending, recent, wallets] = await Promise.all([
+  const [totalBalance, totals, spending, recent, wallets, fire] = await Promise.all([
     getTotalBalance(user.id),
     getMonthlyTotals(user.id, range),
     getSpendingByCategory(user.id, range),
     getRecentTransactions(user.id, 6),
     getWallets(user.id),
+    getFireTasks(user.id),
   ]);
 
   // Onboarding: no wallets and no transactions.
@@ -151,6 +156,9 @@ export default async function DashboardPage() {
         />
       </div>
 
+      {/* Focus-area FIRE tasks (docs/tasks.md) */}
+      {fire.areas.length > 0 && <FireTodayCard areas={fire.areas} tasks={fire.tasks} />}
+
       {/* Charts row */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card className="min-w-0">
@@ -256,6 +264,7 @@ export default async function DashboardPage() {
                         <div className="mt-0.5 flex items-center gap-2">
                           <Badge variant="default">{t.wallet.name}</Badge>
                           <span className="text-xs text-muted">{formatDate(t.date)}</span>
+                          <PhotoBadge photos={parsePhotos(t.photos)} />
                         </div>
                       </div>
                       <span

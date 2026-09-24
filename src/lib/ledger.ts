@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { writeTombstones } from "@/lib/tombstones";
 import { adjustmentNote } from "@/lib/adjustment";
+import { parsePhotos } from "@/lib/photos";
 
 /**
  * The single implementation of how transactions move wallet balances.
@@ -20,6 +21,8 @@ export type TransactionInput = LedgerTx & {
   categoryId: string | null;
   note: string | null;
   date: Date;
+  /** Serialized photo list (src/lib/photos.ts). Omit on update to keep the stored one. */
+  photos?: string;
 };
 
 /** Net effect of a transaction on wallet balances, keyed by walletId. */
@@ -101,14 +104,22 @@ export async function updateLedgerTransaction(db: Db, existing: LedgerTx & { id:
   return tx;
 }
 
-/** Delete a transaction, reverse its balance effect, and tombstone it for sync. */
+/**
+ * Delete a transaction, reverse its balance effect, and tombstone it for sync. Tasks
+ * linked to it lose their `transactionId` (docs/tasks.md). Returns the transaction's
+ * photo URLs — the caller removes the files after the DB transaction commits
+ * (`deleteUnreferencedUploads`).
+ */
 export async function deleteLedgerTransaction(
   db: Db,
   existing: LedgerTx & { id: string; userId: string },
-) {
+): Promise<string[]> {
+  const row = await db.transaction.findUnique({ where: { id: existing.id }, select: { photos: true } });
+  await db.task.updateMany({ where: { userId: existing.userId, transactionId: existing.id }, data: { transactionId: null } });
   await db.transaction.delete({ where: { id: existing.id } });
   await applyDeltas(db, ledgerDeltas(existing, null));
   await writeTombstones(db, existing.userId, "transactions", [existing.id]);
+  return parsePhotos(row?.photos);
 }
 
 /** Round to 2 decimals so float noise (0.1 + 0.2) never creates a phantom adjustment. */

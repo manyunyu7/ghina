@@ -15,7 +15,7 @@ const eslintConfig = defineConfig([
         "error",
         {
           selector:
-            "CallExpression[callee.property.name=/^delete(Many)?$/][callee.object.property.name=/^(wallet|category|transaction|budget|subscription|plannedTransaction|prayerEntry|healthEntry|foodLog)$/]",
+            "CallExpression[callee.property.name=/^delete(Many)?$/][callee.object.property.name=/^(wallet|category|transaction|budget|subscription|plannedTransaction|prayerEntry|healthEntry|foodLog|taskArea|task)$/]",
           message: "Delete synced rows via src/lib/sync-deletes.ts so a SyncTombstone is written.",
         },
       ],

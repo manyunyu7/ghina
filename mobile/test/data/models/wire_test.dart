@@ -103,4 +103,124 @@ void main() {
       isA<NetworkFailure>(),
     );
   });
+
+  group('tasks & photos on the wire', () {
+    test('task: JSON objects out, ISO doneAt, all fields present', () {
+      final t = Task(
+        id: 't',
+        areaId: 'a',
+        title: 'X',
+        bucket: TaskBucket.fire,
+        dueDate: '2026-09-24',
+        dueTime: '09:00',
+        remindBefore: 0,
+        recurrence: const Recurrence.weekly(weekdays: [4]),
+        seriesId: 't',
+        done: true,
+        doneAt: local,
+        sortOrder: 1.5,
+        createdAt: local,
+        updatedAt: local,
+      );
+      final w = taskToWire(t);
+      expect(w['recurrence'], {
+        'freq': 'weekly',
+        'interval': 1,
+        'weekdays': [4],
+      });
+      expect(w['doneAt'], local.toUtc().toIso8601String());
+      expect((w['doneAt'] as String).endsWith('Z'), isTrue);
+      expect(
+        w.keys,
+        containsAll([
+          'amount',
+          'walletId',
+          'categoryId',
+          'transactionId',
+          'note',
+        ]),
+      );
+    });
+
+    test('area: schedule object or null', () {
+      final a = TaskArea(
+        id: 'a',
+        name: 'K',
+        code: 'K',
+        schedule: AreaSchedule.workHours,
+        createdAt: local,
+        updatedAt: local,
+      );
+      expect(taskAreaToWire(a)['schedule'], {
+        'days': [1, 2, 3, 4, 5],
+        'start': '09:00',
+        'end': '17:00',
+      });
+      expect(taskAreaToWire(a.copyWith(schedule: null))['schedule'], isNull);
+    });
+
+    test(
+      'pulled task: missing optional fields and a JSON string are tolerated',
+      () {
+        final c = taskFromWire({
+          'id': 't',
+          'areaId': 'a',
+          'title': 'X',
+          'recurrence': '{"freq":"daily","interval":2}',
+          'bucket': 'someday',
+          'createdAt': '2026-09-23T10:00:00.000Z',
+        });
+        expect(c.bucket.value, 'want');
+        expect(c.recurrence.value, '{"freq":"daily","interval":2}');
+        expect(c.done.value, isFalse);
+        expect(c.sortOrder.value, 0);
+        expect(c.dueDate.value, isNull);
+        final bad = taskAreaFromWire({
+          'id': 'a',
+          'name': 'K',
+          'code': 'K',
+          'schedule': {'days': [], 'start': 'x', 'end': 'y'},
+          'createdAt': '2026-09-23T10:00:00.000Z',
+        });
+        expect(bad.schedule.value, isNull);
+      },
+    );
+
+    test('transaction photos: uploaded only; missing on pull = keep', () {
+      final t = Transaction(
+        id: 't',
+        walletId: 'w',
+        type: TxType.expense,
+        amount: 1,
+        date: local,
+        createdAt: local,
+        updatedAt: local,
+        photos: const [
+          TransactionPhoto.remote('/uploads/a.jpg'),
+          TransactionPhoto.local('/tmp/b.jpg'),
+        ],
+      );
+      expect(transactionToWire(t)['photos'], ['/uploads/a.jpg']);
+      final pulled = transactionFromWire({
+        'id': 't',
+        'walletId': 'w',
+        'amount': 1,
+        'date': '2026-09-23T10:00:00.000Z',
+        'createdAt': '2026-09-23T10:00:00.000Z',
+      });
+      expect(pulled.photos.present, isFalse);
+      final withPhotos = transactionFromWire(
+        {
+          'id': 't',
+          'walletId': 'w',
+          'amount': 1,
+          'date': '2026-09-23T10:00:00.000Z',
+          'createdAt': '2026-09-23T10:00:00.000Z',
+          'photos': ['/uploads/a.jpg'],
+        },
+        keepPending: const [TransactionPhoto.local('/tmp/b.jpg')],
+      );
+      expect(withPhotos.photos.value, '["/uploads/a.jpg","local:/tmp/b.jpg"]');
+    });
+  });
 }

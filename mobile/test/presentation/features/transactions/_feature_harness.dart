@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghina/core/clock.dart';
 import 'package:ghina/data/datasources/local/app_database.dart';
@@ -71,10 +72,14 @@ class _FakeAuth implements AuthRepository {
 }
 
 /// A container wired like the app, but everything in memory.
-ProviderContainer makeContainer({DateTime? now}) {
+ProviderContainer makeContainer({
+  DateTime? now,
+  List<Override> overrides = const [],
+}) {
   driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
   return ProviderContainer(
     overrides: [
+      ...overrides,
       ...buildGameOverrides(store: InMemoryGameStore()),
       gameTickProvider.overrideWith((ref) => const Stream.empty()),
       appDatabaseProvider.overrideWith((ref) {

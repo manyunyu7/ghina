@@ -114,6 +114,17 @@ class AcknowledgeCelebrations {
   }
 }
 
+/// Record the "FIRE kosong" snapshot of [day] (see `fire_clear.dart`).
+/// Add-only; returns the same instance when nothing changes.
+class RecordFireClearDay {
+  const RecordFireClearDay();
+
+  GameLocalState call(GameLocalState state, GameDate day) =>
+      state.fireClearDays.contains(day)
+      ? state
+      : state.copyWith(fireClearDays: {...state.fireClearDays, day});
+}
+
 class CompleteOnboarding {
   const CompleteOnboarding();
 

@@ -253,8 +253,9 @@ class Outbox {
   });
 
   /// Marks up to [limit] queued entries in flight and returns them in push order:
-  /// wallet and category upserts first (they're referenced by everything else),
-  /// then everything in queue order.
+  /// upserts of referenced entities first — wallets, categories, task areas, then
+  /// transactions (tasks reference them via `transactionId`) — then everything in
+  /// queue order.
   Future<List<OutboxRow>> takeBatch({int limit = 500}) =>
       _db.transaction(() async {
         final rows =
@@ -268,10 +269,14 @@ class Outbox {
               ..where((o) => o.seq.isIn(rows.map((r) => r.seq))))
             .write(const OutboxCompanion(inFlight: Value(true)));
         int rank(OutboxRow r) {
-          if (r.op != MutationOp.upsert.name) return 2;
-          if (r.entity == SyncEntity.wallets) return 0;
-          if (r.entity == SyncEntity.categories) return 1;
-          return 2;
+          if (r.op != MutationOp.upsert.name) return 4;
+          return switch (r.entity) {
+            SyncEntity.wallets => 0,
+            SyncEntity.categories => 1,
+            SyncEntity.taskAreas => 2,
+            SyncEntity.transactions => 3,
+            _ => 4,
+          };
         }
 
         final indexed = rows.indexed.toList()

@@ -32,6 +32,9 @@ class MascotContext {
     this.longestStreak = 0,
     this.hasAnyActivity = true,
     this.name,
+    this.overdueTasks = 0,
+    this.fireOpen = 0,
+    this.hasTasks = false,
   });
 
   final DateTime now;
@@ -49,12 +52,48 @@ class MascotContext {
   /// Optional first name for personal messages.
   final String? name;
 
+  /// Undone overdue tasks (any area). 0 when task info isn't known.
+  final int overdueTasks;
+
+  /// Undone FIRE tasks in the current focus areas.
+  final int fireOpen;
+
+  /// Task info is known and the user has tasks at all (enables task lines).
+  final bool hasTasks;
+
+  /// Enough overdue tasks for a worried nudge.
+  bool get manyOverdue => overdueTasks >= Mascot.manyOverdue;
+
+  /// The same context with task info (from the home's task summary).
+  MascotContext withTasks({
+    required int overdueTasks,
+    required int fireOpen,
+    required bool hasTasks,
+  }) => MascotContext(
+    now: now,
+    streak: streak,
+    loggedToday: loggedToday,
+    goalMet: goalMet,
+    goalRemaining: goalRemaining,
+    hearts: hearts,
+    maxHearts: maxHearts,
+    longestStreak: longestStreak,
+    hasAnyActivity: hasAnyActivity,
+    name: name,
+    overdueTasks: overdueTasks,
+    fireOpen: fireOpen,
+    hasTasks: hasTasks,
+  );
+
   bool get atRisk => streak > 0 && !loggedToday;
   bool get isNight => now.hour >= 22 || now.hour < 5;
   bool get isLateInDay => now.hour >= 18;
 }
 
 abstract final class Mascot {
+  /// Overdue tasks from which the mascot gets worried.
+  static const manyOverdue = 3;
+
   static MascotMood moodFor(MascotContext c) {
     if (c.atRisk && (c.isLateInDay || c.isNight)) return MascotMood.worried;
     if (c.isNight) return MascotMood.sleeping;
@@ -67,6 +106,7 @@ abstract final class Mascot {
       return MascotMood.sad;
     }
     if (c.hearts <= 1) return MascotMood.worried;
+    if (c.manyOverdue) return MascotMood.worried;
     if (!c.loggedToday) return MascotMood.encouraging;
     return MascotMood.happy;
   }
@@ -116,6 +156,26 @@ abstract final class Mascot {
     ],
   };
 
+  /// Task-aware lines (`docs/tasks.md`). Placeholders: {overdue}, {fire}.
+  static const taskMessages = <String, List<String>>{
+    // Worried because many tasks are overdue (replaces the worried pool).
+    'overdue': [
+      'Ada {overdue} tugas yang terlambat nih 😬 Yuk beresin satu-satu!',
+      'Tugasnya numpuk, {overdue} udah lewat tenggat… mulai dari yang FIRE dulu ya 🔥',
+      '{overdue} tugas terlambat. Aku semangatin, kamu yang eksekusi 💪',
+    ],
+    // Mixed into the encouraging/happy pool while FIRE tasks are open.
+    'fire': [
+      'Masih ada {fire} tugas FIRE 🔥 Beresin dulu, baru santai!',
+      'Satu tugas FIRE selesai = satu beban hilang. Gas! 🔥',
+    ],
+    // Mixed into the happy/celebrating pool when FIRE is empty.
+    'fireClear': [
+      'FIRE kosong! Fokusmu hari ini juara 🧯',
+      'Nggak ada tugas FIRE tersisa. Tenang banget rasanya 😌',
+    ],
+  };
+
   /// A message for [mood]. Deterministic for a given [seed] (defaults to the
   /// day + hour, so the line doesn't flicker on every rebuild).
   static String messageFor(MascotMood mood, MascotContext c, {int? seed}) {
@@ -147,6 +207,21 @@ abstract final class Mascot {
       return true;
     }).toList();
     if (pool.isEmpty) pool = [messages[mood]!.first];
+    if (mood == MascotMood.worried &&
+        c.manyOverdue &&
+        !c.atRisk &&
+        c.hearts > 1) {
+      // Worried only because of the overdue tasks.
+      pool = taskMessages['overdue']!;
+    } else if (c.hasTasks) {
+      if (c.fireOpen > 0 &&
+          (mood == MascotMood.encouraging || mood == MascotMood.happy)) {
+        pool = [...pool, ...taskMessages['fire']!];
+      } else if (c.fireOpen == 0 &&
+          (mood == MascotMood.happy || mood == MascotMood.celebrating)) {
+        pool = [...pool, ...taskMessages['fireClear']!];
+      }
+    }
     final s =
         seed ??
         (c.now.year * 10000 + c.now.month * 100 + c.now.day) * 24 + c.now.hour;
@@ -156,6 +231,8 @@ abstract final class Mascot {
         .replaceAll('{remaining}', '${c.goalRemaining}')
         .replaceAll('{hearts}', '${c.hearts}')
         .replaceAll('{longest}', '${c.longestStreak}')
+        .replaceAll('{overdue}', '${c.overdueTasks}')
+        .replaceAll('{fire}', '${c.fireOpen}')
         .replaceAll('{name}', c.name ?? '');
   }
 }

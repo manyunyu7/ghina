@@ -20,12 +20,21 @@ import '../data/repositories/finance_repositories.dart';
 import '../data/repositories/life_repositories.dart';
 import '../data/repositories/local_store.dart';
 import '../data/repositories/photo_store.dart';
+import '../data/repositories/task_repositories.dart';
 import '../data/sync/outbox.dart';
 import '../data/sync/sync_engine.dart';
 import '../data/sync/sync_triggers.dart';
 import '../domain/repositories/repositories.dart';
+import '../domain/usecases/task_usecases.dart' show TickSource;
 
 final clockProvider = Provider<Clock>((ref) => const SystemClock());
+
+/// "Now" right away and at every minute boundary — drives focus mode, overdue
+/// flags and reminders. Tests override it with a controllable stream.
+final tickSourceProvider = Provider<TickSource>((ref) {
+  final clock = ref.watch(clockProvider);
+  return () => minuteTicks(clock);
+});
 
 final apiBaseUrlProvider = Provider<String>((ref) => AppConfig.apiBaseUrl);
 
@@ -114,7 +123,10 @@ final categoryRepositoryProvider = Provider<CategoryRepository>(
   (ref) => DriftCategoryRepository(ref.watch(localStoreProvider)),
 );
 final transactionRepositoryProvider = Provider<TransactionRepository>(
-  (ref) => DriftTransactionRepository(ref.watch(localStoreProvider)),
+  (ref) => DriftTransactionRepository(
+    ref.watch(localStoreProvider),
+    ref.watch(photoStoreProvider),
+  ),
 );
 final budgetRepositoryProvider = Provider<BudgetRepository>(
   (ref) => DriftBudgetRepository(ref.watch(localStoreProvider)),
@@ -136,4 +148,10 @@ final foodRepositoryProvider = Provider<FoodRepository>(
     ref.watch(localStoreProvider),
     ref.watch(photoStoreProvider),
   ),
+);
+final taskAreaRepositoryProvider = Provider<TaskAreaRepository>(
+  (ref) => DriftTaskAreaRepository(ref.watch(localStoreProvider)),
+);
+final taskRepositoryProvider = Provider<TaskRepository>(
+  (ref) => DriftTaskRepository(ref.watch(localStoreProvider)),
 );

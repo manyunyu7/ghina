@@ -82,6 +82,7 @@ class GameLocalState {
     this.lastSeenLevel,
     this.celebrated = const {},
     this.onboardingDone = false,
+    this.fireClearDays = const {},
   });
 
   static const storageKey = 'ghina.game.state.v1';
@@ -107,6 +108,7 @@ class GameLocalState {
       lastSeenLevel: (j['lastSeenLevel'] as num?)?.toInt(),
       celebrated: {for (final e in list('celebrated')) e as String},
       onboardingDone: j['onboardingDone'] as bool? ?? false,
+      fireClearDays: {for (final e in list('fireClearDays')) ?date(e)},
     );
   }
 
@@ -139,6 +141,10 @@ class GameLocalState {
   final Set<String> celebrated;
   final bool onboardingDone;
 
+  /// Days that ended with 0 undone FIRE tasks in their focus areas ("FIRE
+  /// kosong", see `fire_clear.dart`): a local daily snapshot, add-only.
+  final Set<GameDate> fireClearDays;
+
   DailyGoalLevel get currentGoal => dailyGoalHistory.isEmpty
       ? DailyGoalLevel.defaultLevel
       : dailyGoalHistory.last.level;
@@ -155,6 +161,7 @@ class GameLocalState {
     int? lastSeenLevel,
     Set<String>? celebrated,
     bool? onboardingDone,
+    Set<GameDate>? fireClearDays,
   }) => GameLocalState(
     lessonCompletions: lessonCompletions ?? this.lessonCompletions,
     dailyGoalHistory: dailyGoalHistory ?? this.dailyGoalHistory,
@@ -164,6 +171,7 @@ class GameLocalState {
     lastSeenLevel: lastSeenLevel ?? this.lastSeenLevel,
     celebrated: celebrated ?? this.celebrated,
     onboardingDone: onboardingDone ?? this.onboardingDone,
+    fireClearDays: fireClearDays ?? this.fireClearDays,
   );
 
   Map<String, dynamic> toJson() => {
@@ -178,6 +186,7 @@ class GameLocalState {
     'lastSeenLevel': lastSeenLevel,
     'celebrated': celebrated.toList(),
     'onboardingDone': onboardingDone,
+    'fireClearDays': [for (final d in fireClearDays) d.toKey()],
   };
 
   String encode() => jsonEncode(toJson());
