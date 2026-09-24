@@ -125,6 +125,14 @@ abstract final class GhinaColors {
     on: Color(0xFFAFAFAF),
   );
 
+  /// Warm bark brown – the mascot's trunk, branches and roots. Not part of
+  /// [swatches] (it's not a UI accent color).
+  static const bark = ChunkySwatch(
+    base: Color(0xFFB0703C),
+    edge: Color(0xFF8A5129),
+    light: Color(0xFFF3E0CC),
+  );
+
   /// All brand swatches, handy for pickers & demos.
   static const swatches = <ChunkySwatch>[
     green,

@@ -8,7 +8,8 @@ import 'mascot_painter.dart';
 
 export 'mascot_painter.dart' show MascotMood;
 
-/// Ghina the mascot, animated (idle bounce, blink, wave, sparkles, Zzz).
+/// Ghina the money-tree mascot, animated (crown sway, leaf rustle, blink,
+/// wave, sparkles, popping coins, falling leaf, Zzz).
 ///
 /// ```dart
 /// const MascotView(mood: MascotMood.waving, size: 160);
@@ -33,7 +34,7 @@ class MascotView extends StatefulWidget {
   final bool animate;
   final bool showShadow;
 
-  /// Optional recolor (defaults to leaf green).
+  /// Optional crown recolor (defaults to leaf green).
   final ChunkySwatch? color;
   final String semanticLabel;
 

@@ -665,6 +665,22 @@ class _Mascots extends StatelessWidget {
               ),
           ],
         ),
+        const SizedBox(height: 12),
+        // Small sizes + crown recolors (seasons!).
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const MascotView(size: 48, animate: false),
+            const MascotView(size: 72, animate: false),
+            const MascotView(size: 72, color: GhinaColors.orange),
+            const MascotView(size: 72, color: GhinaColors.pink),
+            Text(
+              '48 · 72 · warna',
+              style: GhinaType.caption.copyWith(color: g.textSecondary),
+            ),
+          ],
+        ),
         const SizedBox(height: 16),
         const MascotSpeech(
           mood: MascotMood.waving,

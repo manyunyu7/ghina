@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { Wallet, TrendingUp, Target, PieChart } from "lucide-react";
 import { AppDownload } from "@/components/app-download";
 
@@ -8,7 +9,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
       <div className="relative hidden flex-col justify-between overflow-hidden bg-primary p-12 text-white lg:flex">
         <div className="flex items-center gap-2">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20">
-            <Wallet className="h-5 w-5" />
+            <Image src="/logo.png" alt="" aria-hidden width={28} height={28} className="h-7 w-7" loading="eager" />
           </div>
           <span className="text-xl font-bold">Ghina</span>
         </div>
@@ -43,9 +44,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
       <div className="flex items-center justify-center bg-background p-6">
         <div className="w-full max-w-sm">
           <div className="mb-8 flex items-center gap-2 lg:hidden">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-white">
-              <Wallet className="h-5 w-5" />
-            </div>
+            <Image src="/logo.png" alt="" aria-hidden width={36} height={36} className="h-9 w-9 shrink-0" loading="eager" />
             <span className="text-xl font-bold">Ghina</span>
           </div>
           {children}

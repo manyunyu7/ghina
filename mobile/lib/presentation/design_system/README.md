@@ -1,7 +1,8 @@
 # Ghina design system
 
 The Duolingo-flavored UI kit for Ghina: bright colors, chunky "3D" pressables, big
-rounded Nunito type, and Ghina the green piggy-sprout mascot. **Build screens only
+rounded Nunito type, and Ghina the money-tree mascot (a round leafy
+crown with a face, bark trunk, twig arms and gold-coin fruits). **Build screens only
 from these widgets.**
 
 ```dart
@@ -28,7 +29,7 @@ progress, tabs, date picker…) are themed already. You can open
 
 | What | API |
 |---|---|
-| Brand swatches (`base` / `edge` / `light` / `on`) | `GhinaColors.green · blue · red · orange · yellow · purple · pink · lime · gray` |
+| Brand swatches (`base` / `edge` / `light` / `on`) | `GhinaColors.green · blue · red · orange · yellow · purple · pink · lime · gray`, plus `bark` (mascot trunk brown) |
 | Semantic | `GhinaColors.income` (green), `expense` (red), `transfer` (blue), `warning` (orange), `xp` (yellow), `streak`, `heart`, `gem`, `level` |
 | Theme-aware neutrals | `context.ghina` → `background, surface, surfaceAlt, border, borderEdge, textPrimary, textSecondary, textMuted, isDark, tint(swatch)` |
 | User colors (hex strings, the web palette) | `CategoryColors.palette`, `.parse('#f97316')`, `.toHex(c)`, `.swatch(hex)`, `.forKey(name)`; `ChunkySwatch.fromColor(c)` |
@@ -91,7 +92,7 @@ variable, and `.w()` also sets the `wght` axis.
 ### Mascot
 | Widget | Use |
 |---|---|
-| `MascotView(mood, size, animate)` | Moods: `happy`, `excited`, `thinking`, `sad`, `sleeping`, `waving`. It idle-bounces and blinks. |
+| `MascotView(mood, size, animate, color)` | Ghina the money tree. Moods: `happy`, `excited` (branches up, sparkles, coins pop), `thinking` (twig on chin, thought dots), `sad` (drooping crown, tear, falling leaf, a coin on the ground), `sleeping` (Zzz), `waving`. The crown sways, leaves rustle and it blinks. `color` recolors the crown. The app icon and web logo are rendered from it (`test/tool/app_icon_render_test.dart`). |
 | `MascotSpeech(message, title, mood, mascotSize, bubbleColor, action)` | Mascot plus speech bubble for tips and greetings. |
 
 Pick the mood by situation:
