@@ -296,6 +296,153 @@ async function main() {
   check("planned categoryId + walletId nulled", pl && pl.categoryId === null && pl.walletId === null, pl);
   check("W1 balance unchanged by cascade (500)", (await prisma.wallet.findUnique({ where: { id: W1 } }))?.balance === 500);
 
+  // ---------- Prayer quality (docs/prayer-quality.md) ----------
+  console.log("prayer quality");
+  const P2 = randomUUID(), P3 = randomUUID(), P4 = randomUUID(), P5 = randomUUID();
+  const prayerAt = "2026-09-20T05:10:00.000Z";
+  r = await api("POST", "/api/mobile/sync", {
+    token,
+    body: {
+      mutations: [
+        // Old client: date + prayer only → defaults.
+        mut("prayers", P2, { date: "2026-09-20", prayer: "dzuhur" }),
+        // New client: full fields.
+        mut("prayers", P3, { date: "2026-09-20", prayer: "subuh", status: "masjid", qobliyah: true, badiyah: false, rakaat: null, prayedAt: prayerAt, note: "  di masjid  " }),
+        mut("prayers", P4, { date: "2026-09-20", prayer: "dhuha", rakaat: 4 }),
+        mut("prayers", P5, { date: "2026-09-20", prayer: "maghrib", status: "missed", qobliyah: false, badiyah: false }),
+      ],
+    },
+  });
+  check("prayer upserts (old + new clients) applied", JSON.stringify(statuses(r)) === '["applied","applied","applied","applied"]', r.json);
+  let prow = await prisma.prayerEntry.findUnique({ where: { id: P2 } });
+  check("old-client fardhu row defaults to ontime, no rawatib", prow?.status === "ontime" && !prow.qobliyah && !prow.badiyah && prow.rakaat === null);
+  prow = await prisma.prayerEntry.findUnique({ where: { id: P3 } });
+  check("new fields stored (status, qobliyah, prayedAt, trimmed note)",
+    prow?.status === "masjid" && prow.qobliyah === true && prow.prayedAt?.toISOString() === prayerAt && prow.note === "di masjid", prow);
+  prow = await prisma.prayerEntry.findUnique({ where: { id: P4 } });
+  check("sunnah row defaults to done, rakaat kept", prow?.status === "done" && prow.rakaat === 4, prow);
+  check("pre-existing prayer row reads as ontime", (await prisma.prayerEntry.findUnique({ where: { id: P1 } }))?.status === "ontime");
+
+  // Old client re-pushing the row without the new fields keeps the stored quality.
+  r = await api("POST", "/api/mobile/sync", { token, body: { mutations: [mut("prayers", P3, { date: "2026-09-20", prayer: "subuh" })] } });
+  prow = await prisma.prayerEntry.findUnique({ where: { id: P3 } });
+  check("old-client update keeps status/rawatib/note", statuses(r)?.[0] === "applied" && prow?.status === "masjid" && prow.qobliyah && prow.note === "di masjid", prow);
+  // Switching to missed while rawatib are ticked must be sent with rawatib cleared.
+  r = await api("POST", "/api/mobile/sync", {
+    token,
+    body: { mutations: [mut("prayers", P3, { date: "2026-09-20", prayer: "subuh", status: "missed" })] },
+  });
+  check("status → missed while stored qobliyah=true → rejected", statuses(r)?.[0] === "rejected", r.json);
+  r = await api("POST", "/api/mobile/sync", {
+    token,
+    body: { mutations: [mut("prayers", P3, { date: "2026-09-20", prayer: "subuh", status: "missed", qobliyah: false, prayedAt: null, note: "" })] },
+  });
+  prow = await prisma.prayerEntry.findUnique({ where: { id: P3 } });
+  check("status → missed with rawatib cleared, null prayedAt/note", statuses(r)?.[0] === "applied" && prow?.status === "missed" && !prow.qobliyah && prow.prayedAt === null && prow.note === null, prow);
+
+  const pbad = (data) => mut("prayers", randomUUID(), { date: "2026-09-21", ...data });
+  r = await api("POST", "/api/mobile/sync", {
+    token,
+    body: {
+      mutations: [
+        pbad({ prayer: "isya", status: "bogus" }),
+        pbad({ prayer: "ashar", status: "jamaah", qobliyah: true }),
+        pbad({ prayer: "subuh", status: "jamaah", badiyah: true }),
+        pbad({ prayer: "dzuhur", status: "missed", qobliyah: true }),
+        pbad({ prayer: "maghrib", status: "excused", badiyah: true }),
+        pbad({ prayer: "dhuha", rakaat: 3 }),
+        pbad({ prayer: "witir", rakaat: 2 }),
+        pbad({ prayer: "tahajud", rakaat: 14 }),
+        pbad({ prayer: "dhuha", status: "jamaah" }),
+        pbad({ prayer: "isya", status: "jamaah", rakaat: 4 }),
+        pbad({ prayer: "jumat" }),
+        pbad({ prayer: "isya", prayedAt: "2026-09-21T19:00:00" }),
+        pbad({ prayer: "tahajud", qobliyah: true }),
+        pbad({ prayer: "witir", rakaat: 3, status: "done" }),
+        pbad({ prayer: "dzuhur", status: "qadha", qobliyah: true, badiyah: true }),
+        { ...pbad({ prayer: "isya", status: "excused" }), data: { date: "2026-02-30", prayer: "isya" } },
+      ],
+    },
+  });
+  const ps = statuses(r) ?? [];
+  const expectReject = ["unknown status", "ashar qobliyah", "subuh ba'diyah", "rawatib + missed", "rawatib + excused",
+    "dhuha 3 rakaat", "witir 2 rakaat", "tahajud 14 rakaat", "sunnah with fardhu status", "rakaat on fardhu",
+    "unknown prayer id", "prayedAt without offset", "rawatib on sunnah"];
+  expectReject.forEach((name, i) => check(`prayer ${name} → rejected`, ps[i] === "rejected" && r.json.results[i].error, r.json?.results?.[i]));
+  check("witir 3 rakaat → applied", ps[13] === "applied", r.json?.results?.[13]);
+  check("dzuhur qadha + both rawatib → applied", ps[14] === "applied", r.json?.results?.[14]);
+  check("impossible date 2026-02-30 → rejected", ps[15] === "rejected", r.json?.results?.[15]);
+
+  r = await api("GET", `/api/mobile/sync?since=${cursor2}`, { token });
+  const pulledP3 = byId(r.json.changes.prayers, P3);
+  const pulledP4 = byId(r.json.changes.prayers, P4);
+  check("pulled prayer has all new wire fields",
+    pulledP3 && ["status", "qobliyah", "badiyah", "rakaat", "prayedAt", "note"].every((f) => f in pulledP3) && pulledP4?.rakaat === 4 && pulledP4?.status === "done",
+    pulledP3);
+
+  // ---------- Balance adjustments (docs/balance-adjustment.md) ----------
+  console.log("balance adjustments");
+  const W3 = randomUUID(), A1 = randomUUID(), A2 = randomUUID();
+  const bal = async (id) => (await prisma.wallet.findUnique({ where: { id } }))?.balance;
+  const adj = (amount, extra = {}) => ({ walletId: W3, toWalletId: null, categoryId: null, type: "adjustment", amount, note: "Penyesuaian saldo", date: now(), ...extra });
+  r = await api("POST", "/api/mobile/sync", {
+    token,
+    body: { mutations: [mut("wallets", W3, wallet("Adjust me", 1000)), mut("transactions", A1, adj(500)), mut("transactions", A2, adj(-200))] },
+  });
+  check("adjustments applied", statuses(r)?.every((x) => x === "applied"), r.json);
+  check("W3 = 1000 + 500 − 200 = 1300", (await bal(W3)) === 1300, await bal(W3));
+  r = await api("POST", "/api/mobile/sync", { token, body: { mutations: [mut("transactions", A1, adj(100))] } });
+  check("edit adjustment +500 → +100: W3 = 900", statuses(r)?.[0] === "applied" && (await bal(W3)) === 900, await bal(W3));
+  r = await api("POST", "/api/mobile/sync", { token, body: { mutations: [del("transactions", A2)] } });
+  check("delete −200 adjustment restores: W3 = 1100", statuses(r)?.[0] === "applied" && (await bal(W3)) === 1100, await bal(W3));
+  const catInc = full.changes.categories.find((c) => c.type === "income");
+  r = await api("POST", "/api/mobile/sync", {
+    token,
+    body: {
+      mutations: [
+        mut("transactions", randomUUID(), adj(0)),
+        mut("transactions", randomUUID(), adj(50, { categoryId: catInc.id })),
+        mut("transactions", randomUUID(), adj(50, { toWalletId: W1 })),
+        mut("transactions", randomUUID(), adj("abc")),
+      ],
+    },
+  });
+  check("adjustment amount 0 → rejected", statuses(r)?.[0] === "rejected", r.json?.results?.[0]);
+  check("adjustment with category → rejected", statuses(r)?.[1] === "rejected" && /category/.test(r.json.results[1].error), r.json?.results?.[1]);
+  check("adjustment with toWalletId → rejected", statuses(r)?.[2] === "rejected" && /destination/.test(r.json.results[2].error), r.json?.results?.[2]);
+  check("adjustment non-numeric amount → rejected", statuses(r)?.[3] === "rejected", r.json?.results?.[3]);
+  check("rejected adjustments did not move W3", (await bal(W3)) === 1100);
+  r = await api("GET", `/api/mobile/sync?since=${cursor2}`, { token });
+  const pa = byId(r.json.changes.transactions, A1);
+  check("pulled adjustment keeps type + signed amount", pa?.type === "adjustment" && pa.amount === 100 && pa.categoryId === null && pa.toWalletId === null, pa);
+
+  // Web wallet edit path (ledger helper the server action calls).
+  {
+    const jitiA = createJiti(import.meta.url, { alias: { "@": join(root, "src") } });
+    const { adjustWalletBalance } = await jitiA.import(join(root, "src/lib/ledger.ts"));
+    const t1 = await prisma.$transaction((db) => adjustWalletBalance(db, user.id, W3, 1250.5, { currency: "IDR", note: "cek kas" }));
+    check("web edit 1100 → 1250.5 creates +150.5 adjustment", t1?.type === "adjustment" && t1.amount === 150.5 && (await bal(W3)) === 1250.5, t1);
+    check("adjustment note default + user note", /^Penyesuaian saldo: .*1\.100.* → .*1\.25\d.* — cek kas$/.test(t1?.note ?? ""), t1?.note);
+    const t2 = await prisma.$transaction((db) => adjustWalletBalance(db, user.id, W3, 1250.5 + 1e-9, { currency: "IDR" }));
+    check("unchanged balance → no adjustment row", t2 === null);
+    const t3 = await prisma.$transaction((db) => adjustWalletBalance(db, user.id, W3, 0, { currency: "IDR" }));
+    check("web edit to 0 → negative adjustment", t3?.amount === -1250.5 && (await bal(W3)) === 0, t3);
+    let threw = false;
+    try {
+      await prisma.$transaction((db) => adjustWalletBalance(db, user.id, W3 + "x", 5, { currency: "IDR" }));
+    } catch {
+      threw = true;
+    }
+    check("adjusting a foreign/missing wallet throws", threw);
+    // Excluded from income/expense aggregates.
+    const { getMonthlyTotals, monthRange } = await jitiA.import(join(root, "src/lib/queries.ts"));
+    const d0 = new Date();
+    const before = await getMonthlyTotals(user.id, monthRange(d0.getFullYear(), d0.getMonth() + 1));
+    await prisma.$transaction((db) => adjustWalletBalance(db, user.id, W3, 999999, { currency: "IDR" }));
+    const after = await getMonthlyTotals(user.id, monthRange(d0.getFullYear(), d0.getMonth() + 1));
+    check("adjustments excluded from monthly income/expense totals", JSON.stringify(before) === JSON.stringify(after), { before, after });
+  }
+
   // ---------- Web helpers (same code the server actions call) ----------
   console.log("web deletes / reset");
   const jiti = createJiti(import.meta.url, { alias: { "@": join(root, "src") } });

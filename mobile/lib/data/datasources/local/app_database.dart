@@ -32,12 +32,29 @@ class AppDatabase extends _$AppDatabase {
   /// In-memory database for tests.
   factory AppDatabase.memory() => AppDatabase(NativeDatabase.memory());
 
+  /// v1: initial schema. v2: prayer quality columns on `prayers`.
+  ///
+  /// Bumping? Add a step below, run
+  /// `dart run drift_dev schema dump lib/data/datasources/local/app_database.dart drift_schemas/`
+  /// and `dart run drift_dev schema generate drift_schemas/ test/data/local/generated_migrations/`,
+  /// then extend `test/data/local/migration_test.dart`.
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (m) => m.createAll(),
+    onUpgrade: (m, from, to) async {
+      if (from < 2) {
+        // Existing rows mean "performed" → status defaults to 'ontime'.
+        await m.addColumn(prayers, prayers.status);
+        await m.addColumn(prayers, prayers.qobliyah);
+        await m.addColumn(prayers, prayers.badiyah);
+        await m.addColumn(prayers, prayers.rakaat);
+        await m.addColumn(prayers, prayers.prayedAt);
+        await m.addColumn(prayers, prayers.note);
+      }
+    },
     beforeOpen: (details) async {
       await customStatement('PRAGMA foreign_keys = OFF');
     },

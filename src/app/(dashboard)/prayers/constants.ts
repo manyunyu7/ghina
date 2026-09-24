@@ -1,20 +1,6 @@
-export const PRAYERS: { id: string; label: string }[] = [
-  { id: "subuh", label: "Subuh" },
-  { id: "dzuhur", label: "Dzuhur" },
-  { id: "ashar", label: "Ashar" },
-  { id: "maghrib", label: "Maghrib" },
-  { id: "isya", label: "Isya" },
-];
-
-export const PRAYER_IDS = PRAYERS.map((p) => p.id);
-
-/** Local date -> "YYYY-MM-DD" (no timezone shift). */
-export function dateKey(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
+// Prayer constants live in the shared pure module (also used by the sync endpoint).
+export { FARDHU as PRAYERS, FARDHU_IDS as PRAYER_IDS, dateKey } from "@/lib/prayer-quality";
+import { dateKey } from "@/lib/prayer-quality";
 
 export function todayKey(): string {
   return dateKey(new Date());

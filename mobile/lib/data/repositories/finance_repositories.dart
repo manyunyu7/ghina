@@ -169,7 +169,9 @@ class DriftTransactionRepository implements TransactionRepository {
       ..orderBy([
         (t) => OrderingTerm.desc(t.date),
         (t) => OrderingTerm.desc(t.createdAt),
-      ]);
+      ])
+      // Rows of a type this version doesn't know (newer server) are skipped.
+      ..where((t) => t.type.isIn([for (final x in TxType.values) x.wire]));
     if (from != null) {
       q.where((t) => t.date.isBiggerOrEqualValue(from.millisecondsSinceEpoch));
     }
@@ -202,28 +204,25 @@ class DriftTransactionRepository implements TransactionRepository {
     walletId: walletId,
     categoryId: categoryId,
     limit: limit,
-  ).watch().map((r) => [for (final x in r) x.toEntity()]);
+  ).watch().map((r) => r.toEntities());
 
   @override
   Future<List<Transaction>> list({
     DateTime? from,
     DateTime? to,
     TxType? type,
-  }) async => [
-    for (final x in await _q(from: from, to: to, type: type).get())
-      x.toEntity(),
-  ];
+  }) async => (await _q(from: from, to: to, type: type).get()).toEntities();
 
   @override
   Stream<Transaction?> watchById(String id) =>
       (_db.select(_db.transactions)..where((t) => t.id.equals(id)))
           .watchSingleOrNull()
-          .map((r) => r?.toEntity());
+          .map((r) => r?.toEntityOrNull());
 
   @override
   Future<Transaction?> getById(String id) async => (await (_db.select(
     _db.transactions,
-  )..where((t) => t.id.equals(id))).getSingleOrNull())?.toEntity();
+  )..where((t) => t.id.equals(id))).getSingleOrNull())?.toEntityOrNull();
 
   @override
   Future<void> save(Transaction t) => _s.write(() async {

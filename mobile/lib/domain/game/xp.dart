@@ -8,7 +8,15 @@ import 'xp_rules.dart';
 /// Where XP came from.
 enum XpSource {
   transaction,
+
+  /// Fardhu (by status points).
   prayer,
+
+  /// Rawatib ticked on fardhu rows.
+  rawatib,
+
+  /// Daily sunnah (dhuha / tahajud / witir).
+  sunnah,
   prayerBonus,
   health,
   food,
@@ -30,7 +38,12 @@ class DayXp {
 
   int transactionsCounted = 0;
   int transactionsTotal = 0;
+
+  /// Fardhu prayed (prayed status) this day.
   final Set<String> prayers = {};
+
+  /// Every prayer row counted this day (dedupe by name).
+  final Set<String> prayerRows = {};
   int healthCounted = 0;
   int foodCounted = 0;
   int lessons = 0;
@@ -102,14 +115,23 @@ abstract final class XpCalculator {
           }
         case ActivityKind.prayer:
           final name = e.prayer;
-          if (name != null &&
-              prayerNames.contains(name) &&
-              day.prayers.add(name)) {
-            day.activities++;
-            day.add(XpSource.prayer, XpRules.prayer);
-            if (day.allPrayers) {
-              day.add(XpSource.prayerBonus, XpRules.allPrayersBonus);
+          if (name == null || !day.prayerRows.add(name)) break;
+          if (e.isFardhu) {
+            day.add(XpSource.prayer, XpRules.prayerXp(e.prayerStatus));
+            if (e.isPrayedFardhu) {
+              day.activities++;
+              final rawatib = e.rawatibCount;
+              if (rawatib > 0) {
+                day.add(XpSource.rawatib, rawatib * XpRules.rawatib);
+              }
+              day.prayers.add(name);
+              if (day.allPrayers) {
+                day.add(XpSource.prayerBonus, XpRules.allPrayersBonus);
+              }
             }
+          } else if (e.isSunnah) {
+            day.activities++;
+            day.add(XpSource.sunnah, XpRules.sunnah);
           }
         case ActivityKind.health:
           if (day.healthCounted < XpRules.healthDailyCap) {

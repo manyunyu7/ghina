@@ -1,61 +1,13 @@
-/// Prayers, health and food log use cases.
+/// Health and food log use cases (prayers: `prayer_usecases.dart`).
 library;
 
 import '../../core/clock.dart';
-import '../../core/dates.dart';
 import '../../core/failure.dart';
 import '../../core/ids.dart';
 import '../../core/result.dart';
 import '../entities/entities.dart';
 import '../repositories/repositories.dart';
 import 'validation.dart';
-
-// ---------------------------------------------------------------- prayers
-
-/// Prayer entries between two local days (inclusive).
-final class WatchPrayers {
-  const WatchPrayers(this._repo);
-  final PrayerRepository _repo;
-
-  Stream<List<PrayerEntry>> call(DateTime from, DateTime to) =>
-      _repo.watchRange(dateKey(from), dateKey(to));
-}
-
-/// `YYYY-MM-DD` → prayers done that day.
-Map<String, Set<Prayer>> prayersByDate(List<PrayerEntry> entries) {
-  final out = <String, Set<Prayer>>{};
-  for (final e in entries) {
-    out.putIfAbsent(e.date, () => <Prayer>{}).add(e.prayer);
-  }
-  return out;
-}
-
-/// Toggles one prayer on [day]; returns true when it is now marked done.
-final class TogglePrayer {
-  const TogglePrayer(this._repo, this._clock);
-  final PrayerRepository _repo;
-  final Clock _clock;
-
-  Future<Result<bool>> call(DateTime day, Prayer prayer) => guard(() async {
-    final key = dateKey(day);
-    final existing = await _repo.findByKey(key, prayer);
-    if (existing != null) {
-      await _repo.delete(existing.id);
-      return false;
-    }
-    final now = _clock.now();
-    await _repo.save(
-      PrayerEntry(
-        id: newId(),
-        date: key,
-        prayer: prayer,
-        createdAt: now,
-        updatedAt: now,
-      ),
-    );
-    return true;
-  });
-}
 
 // ---------------------------------------------------------------- health
 

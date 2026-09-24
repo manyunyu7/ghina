@@ -81,7 +81,16 @@ Json plannedToWire(PlannedTransaction p) => {
   'done': p.done,
 };
 
-Json prayerToWire(PrayerEntry p) => {'date': p.date, 'prayer': p.prayer.wire};
+Json prayerToWire(PrayerEntry p) => {
+  'date': p.date,
+  'prayer': p.prayer.wire,
+  'status': p.status.wire,
+  'qobliyah': p.qobliyah,
+  'badiyah': p.badiyah,
+  'rakaat': p.rakaat,
+  'prayedAt': p.prayedAt == null ? null : isoUtc(p.prayedAt!),
+  'note': p.note,
+};
 
 Json healthToWire(HealthEntry h) => {
   'date': isoUtc(h.date),
@@ -185,13 +194,28 @@ PlannedCompanion plannedFromWire(Json j) => PlannedCompanion(
   updatedAt: _updated(j),
 );
 
-PrayersCompanion prayerFromWire(Json j) => PrayersCompanion(
-  id: Value(j['id'] as String),
-  date: Value(j['date'] as String),
-  prayer: Value(j['prayer'] as String),
-  createdAt: _created(j),
-  updatedAt: _updated(j),
-);
+/// Older servers send only `date, prayer`: the new fields fall back to the
+/// server defaults (`status` ontime — done for sunnah —, no rawatib).
+PrayersCompanion prayerFromWire(Json j) {
+  final prayer = j['prayer'] as String;
+  final p = Prayer.fromWire(prayer);
+  final status = p == null
+      ? (j['status'] as String? ?? 'ontime')
+      : PrayerStatus.forPrayer(p, j['status'] as String?).wire;
+  return PrayersCompanion(
+    id: Value(j['id'] as String),
+    date: Value(j['date'] as String),
+    prayer: Value(prayer),
+    status: Value(status),
+    qobliyah: Value(j['qobliyah'] as bool? ?? false),
+    badiyah: Value(j['badiyah'] as bool? ?? false),
+    rakaat: Value(_intN(j['rakaat'])),
+    prayedAt: Value(j['prayedAt'] == null ? null : _date(j['prayedAt'])),
+    note: Value(_strN(j['note'])),
+    createdAt: _created(j),
+    updatedAt: _updated(j),
+  );
+}
 
 HealthCompanion healthFromWire(Json j) => HealthCompanion(
   id: Value(j['id'] as String),
@@ -234,11 +258,14 @@ Insertable<dynamic> companionFromWire(String entity, Json j) =>
       _ => throw ArgumentError('Unknown entity $entity'),
     };
 
-/// Balance effects of a transaction given as wire data (null = no row).
+/// Balance effects of a transaction given as wire data (null = no row). A type
+/// this app doesn't know has no local effect.
 Map<String, double> wireTxEffects(Json? data) {
   if (data == null) return const {};
+  final type = TxType.tryFromWire(data['type'] as String?);
+  if (type == null) return const {};
   return ledgerEffects(
-    type: TxType.fromWire(data['type'] as String?),
+    type: type,
     amount: _num(data['amount']),
     walletId: data['walletId'] as String,
     toWalletId: data['toWalletId'] as String?,

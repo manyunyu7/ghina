@@ -119,7 +119,8 @@ can't be failed: mistakes only reduce XP.
 
 **XP per activity:**
 - Transaction: +10 XP, counting at most 15 per day.
-- Prayer: +5 XP each, plus a +15 bonus when all 5 of a day are logged.
+- Prayer (docs/prayer-quality.md): each fardhu = its status points (masjid 10, jamaah 8, ontime 6, late 3, qadha 1, missed/excused 0); each rawatib +2; each daily sunnah (dhuha/tahajud/witir) +3; +15 bonus when all 5 fardhu of a day are prayed. Missed/excused rows don't count toward the daily goal.
+- Balance adjustments are not activity (no XP, streak or daily goal).
 - Health: +5 XP, at most 3 per day.
 - Food: +5 XP, at most 6 per day.
 - Lesson: 15 XP minus 2 per mistake, with a minimum of 5, plus a +5 bonus for a perfect lesson.

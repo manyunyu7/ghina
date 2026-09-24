@@ -9,6 +9,7 @@ import '../../../design_system/design_system.dart';
 import '../../../state/session_controller.dart';
 import '../../../shared/widgets/widgets.dart';
 import '../../transactions/widgets/tx_visuals.dart';
+import '../widgets/adjust_balance_sheet.dart';
 
 /// All wallets: total balance hero, colored wallet cards, archived section and a
 /// transfer shortcut.
@@ -58,6 +59,20 @@ class _WalletsPageState extends ConsumerState<WalletsPage> {
             variant: ChunkyButtonVariant.secondary,
             onPressed: () => Navigator.of(c).pop('edit'),
           ),
+          const SizedBox(height: GhinaSpace.sm),
+          ChunkyButton(
+            label: 'Sesuaikan saldo',
+            icon: Icons.tune_rounded,
+            variant: ChunkyButtonVariant.outline,
+            onPressed: () => Navigator.of(c).pop('adjust'),
+          ),
+          const SizedBox(height: GhinaSpace.sm),
+          ChunkyButton(
+            label: 'Riwayat',
+            icon: Icons.history_rounded,
+            variant: ChunkyButtonVariant.outline,
+            onPressed: () => Navigator.of(c).pop('history'),
+          ),
           if (canTransfer && !w.archived) ...[
             const SizedBox(height: GhinaSpace.sm),
             ChunkyButton(
@@ -81,6 +96,10 @@ class _WalletsPageState extends ConsumerState<WalletsPage> {
     switch (action) {
       case 'edit':
         context.push('/wallets/${w.id}');
+      case 'adjust':
+        await showAdjustBalanceSheet(context, ref, w);
+      case 'history':
+        context.push('/wallets/${w.id}/history');
       case 'transfer':
         _transfer(fromId: w.id);
       case 'archive':
@@ -178,6 +197,8 @@ class _WalletsPageState extends ConsumerState<WalletsPage> {
               slideY: 10,
               child: WalletCard(
                 wallet: active[i],
+                onHistory: () =>
+                    context.push('/wallets/${active[i].id}/history'),
                 onTap: () => context.push('/wallets/${active[i].id}'),
                 onLongPress: () => _actions(active[i], active.length >= 2),
               ),
@@ -320,11 +341,15 @@ class WalletCard extends StatelessWidget {
     required this.wallet,
     this.onTap,
     this.onLongPress,
+    this.onHistory,
   });
 
   final Wallet wallet;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
+
+  /// Shows a "Riwayat" pill (the wallet's transaction history).
+  final VoidCallback? onHistory;
 
   @override
   Widget build(BuildContext context) {
@@ -377,16 +402,50 @@ class WalletCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: MoneyText(
-              amount: w.balance,
-              currency: w.currency,
-              tone: MoneyTone.neutral,
-              color: on,
-              style: GhinaType.moneyL,
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: MoneyText(
+                    amount: w.balance,
+                    currency: w.currency,
+                    tone: MoneyTone.neutral,
+                    color: on,
+                    style: GhinaType.moneyL,
+                  ),
+                ),
+              ),
+              if (onHistory != null) ...[
+                const SizedBox(width: 8),
+                ChunkySurface(
+                  key: ValueKey('wallet-history-${w.id}'),
+                  color: on.withValues(alpha: 0.2),
+                  edgeColor: sw.edge,
+                  depth: GhinaDepth.sm,
+                  borderRadius: GhinaRadii.rPill,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  onTap: onHistory,
+                  semanticLabel: 'Riwayat ${w.name}',
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.history_rounded, color: on, size: 16),
+                      const SizedBox(width: 4),
+                      Text(
+                        'RIWAYAT',
+                        style: GhinaType.caption.w(900).copyWith(color: on),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
           ),
           if (w.hasPendingChanges) ...[
             const SizedBox(height: 8),

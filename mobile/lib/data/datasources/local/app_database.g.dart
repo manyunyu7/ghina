@@ -3526,6 +3526,73 @@ class $PrayersTable extends Prayers with TableInfo<$PrayersTable, PrayerRow> {
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('ontime'),
+  );
+  static const VerificationMeta _qobliyahMeta = const VerificationMeta(
+    'qobliyah',
+  );
+  @override
+  late final GeneratedColumn<bool> qobliyah = GeneratedColumn<bool>(
+    'qobliyah',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("qobliyah" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _badiyahMeta = const VerificationMeta(
+    'badiyah',
+  );
+  @override
+  late final GeneratedColumn<bool> badiyah = GeneratedColumn<bool>(
+    'badiyah',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("badiyah" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _rakaatMeta = const VerificationMeta('rakaat');
+  @override
+  late final GeneratedColumn<int> rakaat = GeneratedColumn<int>(
+    'rakaat',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  @override
+  late final GeneratedColumnWithTypeConverter<DateTime?, int> prayedAt =
+      GeneratedColumn<int>(
+        'prayed_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+      ).withConverter<DateTime?>($PrayersTable.$converterprayedAtn);
+  static const VerificationMeta _noteMeta = const VerificationMeta('note');
+  @override
+  late final GeneratedColumn<String> note = GeneratedColumn<String>(
+    'note',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     createdAt,
@@ -3533,6 +3600,12 @@ class $PrayersTable extends Prayers with TableInfo<$PrayersTable, PrayerRow> {
     id,
     date,
     prayer,
+    status,
+    qobliyah,
+    badiyah,
+    rakaat,
+    prayedAt,
+    note,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -3566,6 +3639,36 @@ class $PrayersTable extends Prayers with TableInfo<$PrayersTable, PrayerRow> {
       );
     } else if (isInserting) {
       context.missing(_prayerMeta);
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    }
+    if (data.containsKey('qobliyah')) {
+      context.handle(
+        _qobliyahMeta,
+        qobliyah.isAcceptableOrUnknown(data['qobliyah']!, _qobliyahMeta),
+      );
+    }
+    if (data.containsKey('badiyah')) {
+      context.handle(
+        _badiyahMeta,
+        badiyah.isAcceptableOrUnknown(data['badiyah']!, _badiyahMeta),
+      );
+    }
+    if (data.containsKey('rakaat')) {
+      context.handle(
+        _rakaatMeta,
+        rakaat.isAcceptableOrUnknown(data['rakaat']!, _rakaatMeta),
+      );
+    }
+    if (data.containsKey('note')) {
+      context.handle(
+        _noteMeta,
+        note.isAcceptableOrUnknown(data['note']!, _noteMeta),
+      );
     }
     return context;
   }
@@ -3604,6 +3707,32 @@ class $PrayersTable extends Prayers with TableInfo<$PrayersTable, PrayerRow> {
         DriftSqlType.string,
         data['${effectivePrefix}prayer'],
       )!,
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      qobliyah: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}qobliyah'],
+      )!,
+      badiyah: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}badiyah'],
+      )!,
+      rakaat: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}rakaat'],
+      ),
+      prayedAt: $PrayersTable.$converterprayedAtn.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}prayed_at'],
+        ),
+      ),
+      note: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note'],
+      ),
     );
   }
 
@@ -3614,6 +3743,9 @@ class $PrayersTable extends Prayers with TableInfo<$PrayersTable, PrayerRow> {
 
   static TypeConverter<DateTime, int> $convertercreatedAt = epochMs;
   static TypeConverter<DateTime, int> $converterupdatedAt = epochMs;
+  static TypeConverter<DateTime, int> $converterprayedAt = epochMs;
+  static TypeConverter<DateTime?, int?> $converterprayedAtn =
+      NullAwareTypeConverter.wrap($converterprayedAt);
 }
 
 class PrayerRow extends DataClass implements Insertable<PrayerRow> {
@@ -3623,13 +3755,32 @@ class PrayerRow extends DataClass implements Insertable<PrayerRow> {
 
   /// `YYYY-MM-DD`
   final String date;
+
+  /// Fardhu `subuh|dzuhur|ashar|maghrib|isya`, sunnah `dhuha|tahajud|witir`.
   final String prayer;
+
+  /// Fardhu: `masjid|jamaah|ontime|late|qadha|missed|excused`; sunnah: `done`.
+  /// v1 rows (performed) migrate to `ontime`.
+  final String status;
+  final bool qobliyah;
+  final bool badiyah;
+
+  /// Sunnah only.
+  final int? rakaat;
+  final DateTime? prayedAt;
+  final String? note;
   const PrayerRow({
     required this.createdAt,
     required this.updatedAt,
     required this.id,
     required this.date,
     required this.prayer,
+    required this.status,
+    required this.qobliyah,
+    required this.badiyah,
+    this.rakaat,
+    this.prayedAt,
+    this.note,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -3647,6 +3798,20 @@ class PrayerRow extends DataClass implements Insertable<PrayerRow> {
     map['id'] = Variable<String>(id);
     map['date'] = Variable<String>(date);
     map['prayer'] = Variable<String>(prayer);
+    map['status'] = Variable<String>(status);
+    map['qobliyah'] = Variable<bool>(qobliyah);
+    map['badiyah'] = Variable<bool>(badiyah);
+    if (!nullToAbsent || rakaat != null) {
+      map['rakaat'] = Variable<int>(rakaat);
+    }
+    if (!nullToAbsent || prayedAt != null) {
+      map['prayed_at'] = Variable<int>(
+        $PrayersTable.$converterprayedAtn.toSql(prayedAt),
+      );
+    }
+    if (!nullToAbsent || note != null) {
+      map['note'] = Variable<String>(note);
+    }
     return map;
   }
 
@@ -3657,6 +3822,16 @@ class PrayerRow extends DataClass implements Insertable<PrayerRow> {
       id: Value(id),
       date: Value(date),
       prayer: Value(prayer),
+      status: Value(status),
+      qobliyah: Value(qobliyah),
+      badiyah: Value(badiyah),
+      rakaat: rakaat == null && nullToAbsent
+          ? const Value.absent()
+          : Value(rakaat),
+      prayedAt: prayedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(prayedAt),
+      note: note == null && nullToAbsent ? const Value.absent() : Value(note),
     );
   }
 
@@ -3671,6 +3846,12 @@ class PrayerRow extends DataClass implements Insertable<PrayerRow> {
       id: serializer.fromJson<String>(json['id']),
       date: serializer.fromJson<String>(json['date']),
       prayer: serializer.fromJson<String>(json['prayer']),
+      status: serializer.fromJson<String>(json['status']),
+      qobliyah: serializer.fromJson<bool>(json['qobliyah']),
+      badiyah: serializer.fromJson<bool>(json['badiyah']),
+      rakaat: serializer.fromJson<int?>(json['rakaat']),
+      prayedAt: serializer.fromJson<DateTime?>(json['prayedAt']),
+      note: serializer.fromJson<String?>(json['note']),
     );
   }
   @override
@@ -3682,6 +3863,12 @@ class PrayerRow extends DataClass implements Insertable<PrayerRow> {
       'id': serializer.toJson<String>(id),
       'date': serializer.toJson<String>(date),
       'prayer': serializer.toJson<String>(prayer),
+      'status': serializer.toJson<String>(status),
+      'qobliyah': serializer.toJson<bool>(qobliyah),
+      'badiyah': serializer.toJson<bool>(badiyah),
+      'rakaat': serializer.toJson<int?>(rakaat),
+      'prayedAt': serializer.toJson<DateTime?>(prayedAt),
+      'note': serializer.toJson<String?>(note),
     };
   }
 
@@ -3691,12 +3878,24 @@ class PrayerRow extends DataClass implements Insertable<PrayerRow> {
     String? id,
     String? date,
     String? prayer,
+    String? status,
+    bool? qobliyah,
+    bool? badiyah,
+    Value<int?> rakaat = const Value.absent(),
+    Value<DateTime?> prayedAt = const Value.absent(),
+    Value<String?> note = const Value.absent(),
   }) => PrayerRow(
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
     id: id ?? this.id,
     date: date ?? this.date,
     prayer: prayer ?? this.prayer,
+    status: status ?? this.status,
+    qobliyah: qobliyah ?? this.qobliyah,
+    badiyah: badiyah ?? this.badiyah,
+    rakaat: rakaat.present ? rakaat.value : this.rakaat,
+    prayedAt: prayedAt.present ? prayedAt.value : this.prayedAt,
+    note: note.present ? note.value : this.note,
   );
   PrayerRow copyWithCompanion(PrayersCompanion data) {
     return PrayerRow(
@@ -3705,6 +3904,12 @@ class PrayerRow extends DataClass implements Insertable<PrayerRow> {
       id: data.id.present ? data.id.value : this.id,
       date: data.date.present ? data.date.value : this.date,
       prayer: data.prayer.present ? data.prayer.value : this.prayer,
+      status: data.status.present ? data.status.value : this.status,
+      qobliyah: data.qobliyah.present ? data.qobliyah.value : this.qobliyah,
+      badiyah: data.badiyah.present ? data.badiyah.value : this.badiyah,
+      rakaat: data.rakaat.present ? data.rakaat.value : this.rakaat,
+      prayedAt: data.prayedAt.present ? data.prayedAt.value : this.prayedAt,
+      note: data.note.present ? data.note.value : this.note,
     );
   }
 
@@ -3715,13 +3920,31 @@ class PrayerRow extends DataClass implements Insertable<PrayerRow> {
           ..write('updatedAt: $updatedAt, ')
           ..write('id: $id, ')
           ..write('date: $date, ')
-          ..write('prayer: $prayer')
+          ..write('prayer: $prayer, ')
+          ..write('status: $status, ')
+          ..write('qobliyah: $qobliyah, ')
+          ..write('badiyah: $badiyah, ')
+          ..write('rakaat: $rakaat, ')
+          ..write('prayedAt: $prayedAt, ')
+          ..write('note: $note')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(createdAt, updatedAt, id, date, prayer);
+  int get hashCode => Object.hash(
+    createdAt,
+    updatedAt,
+    id,
+    date,
+    prayer,
+    status,
+    qobliyah,
+    badiyah,
+    rakaat,
+    prayedAt,
+    note,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -3730,7 +3953,13 @@ class PrayerRow extends DataClass implements Insertable<PrayerRow> {
           other.updatedAt == this.updatedAt &&
           other.id == this.id &&
           other.date == this.date &&
-          other.prayer == this.prayer);
+          other.prayer == this.prayer &&
+          other.status == this.status &&
+          other.qobliyah == this.qobliyah &&
+          other.badiyah == this.badiyah &&
+          other.rakaat == this.rakaat &&
+          other.prayedAt == this.prayedAt &&
+          other.note == this.note);
 }
 
 class PrayersCompanion extends UpdateCompanion<PrayerRow> {
@@ -3739,6 +3968,12 @@ class PrayersCompanion extends UpdateCompanion<PrayerRow> {
   final Value<String> id;
   final Value<String> date;
   final Value<String> prayer;
+  final Value<String> status;
+  final Value<bool> qobliyah;
+  final Value<bool> badiyah;
+  final Value<int?> rakaat;
+  final Value<DateTime?> prayedAt;
+  final Value<String?> note;
   final Value<int> rowid;
   const PrayersCompanion({
     this.createdAt = const Value.absent(),
@@ -3746,6 +3981,12 @@ class PrayersCompanion extends UpdateCompanion<PrayerRow> {
     this.id = const Value.absent(),
     this.date = const Value.absent(),
     this.prayer = const Value.absent(),
+    this.status = const Value.absent(),
+    this.qobliyah = const Value.absent(),
+    this.badiyah = const Value.absent(),
+    this.rakaat = const Value.absent(),
+    this.prayedAt = const Value.absent(),
+    this.note = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   PrayersCompanion.insert({
@@ -3754,6 +3995,12 @@ class PrayersCompanion extends UpdateCompanion<PrayerRow> {
     required String id,
     required String date,
     required String prayer,
+    this.status = const Value.absent(),
+    this.qobliyah = const Value.absent(),
+    this.badiyah = const Value.absent(),
+    this.rakaat = const Value.absent(),
+    this.prayedAt = const Value.absent(),
+    this.note = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : createdAt = Value(createdAt),
        updatedAt = Value(updatedAt),
@@ -3766,6 +4013,12 @@ class PrayersCompanion extends UpdateCompanion<PrayerRow> {
     Expression<String>? id,
     Expression<String>? date,
     Expression<String>? prayer,
+    Expression<String>? status,
+    Expression<bool>? qobliyah,
+    Expression<bool>? badiyah,
+    Expression<int>? rakaat,
+    Expression<int>? prayedAt,
+    Expression<String>? note,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -3774,6 +4027,12 @@ class PrayersCompanion extends UpdateCompanion<PrayerRow> {
       if (id != null) 'id': id,
       if (date != null) 'date': date,
       if (prayer != null) 'prayer': prayer,
+      if (status != null) 'status': status,
+      if (qobliyah != null) 'qobliyah': qobliyah,
+      if (badiyah != null) 'badiyah': badiyah,
+      if (rakaat != null) 'rakaat': rakaat,
+      if (prayedAt != null) 'prayed_at': prayedAt,
+      if (note != null) 'note': note,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -3784,6 +4043,12 @@ class PrayersCompanion extends UpdateCompanion<PrayerRow> {
     Value<String>? id,
     Value<String>? date,
     Value<String>? prayer,
+    Value<String>? status,
+    Value<bool>? qobliyah,
+    Value<bool>? badiyah,
+    Value<int?>? rakaat,
+    Value<DateTime?>? prayedAt,
+    Value<String?>? note,
     Value<int>? rowid,
   }) {
     return PrayersCompanion(
@@ -3792,6 +4057,12 @@ class PrayersCompanion extends UpdateCompanion<PrayerRow> {
       id: id ?? this.id,
       date: date ?? this.date,
       prayer: prayer ?? this.prayer,
+      status: status ?? this.status,
+      qobliyah: qobliyah ?? this.qobliyah,
+      badiyah: badiyah ?? this.badiyah,
+      rakaat: rakaat ?? this.rakaat,
+      prayedAt: prayedAt ?? this.prayedAt,
+      note: note ?? this.note,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -3818,6 +4089,26 @@ class PrayersCompanion extends UpdateCompanion<PrayerRow> {
     if (prayer.present) {
       map['prayer'] = Variable<String>(prayer.value);
     }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (qobliyah.present) {
+      map['qobliyah'] = Variable<bool>(qobliyah.value);
+    }
+    if (badiyah.present) {
+      map['badiyah'] = Variable<bool>(badiyah.value);
+    }
+    if (rakaat.present) {
+      map['rakaat'] = Variable<int>(rakaat.value);
+    }
+    if (prayedAt.present) {
+      map['prayed_at'] = Variable<int>(
+        $PrayersTable.$converterprayedAtn.toSql(prayedAt.value),
+      );
+    }
+    if (note.present) {
+      map['note'] = Variable<String>(note.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -3832,6 +4123,12 @@ class PrayersCompanion extends UpdateCompanion<PrayerRow> {
           ..write('id: $id, ')
           ..write('date: $date, ')
           ..write('prayer: $prayer, ')
+          ..write('status: $status, ')
+          ..write('qobliyah: $qobliyah, ')
+          ..write('badiyah: $badiyah, ')
+          ..write('rakaat: $rakaat, ')
+          ..write('prayedAt: $prayedAt, ')
+          ..write('note: $note, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -7958,6 +8255,12 @@ typedef $$PrayersTableCreateCompanionBuilder =
       required String id,
       required String date,
       required String prayer,
+      Value<String> status,
+      Value<bool> qobliyah,
+      Value<bool> badiyah,
+      Value<int?> rakaat,
+      Value<DateTime?> prayedAt,
+      Value<String?> note,
       Value<int> rowid,
     });
 typedef $$PrayersTableUpdateCompanionBuilder =
@@ -7967,6 +8270,12 @@ typedef $$PrayersTableUpdateCompanionBuilder =
       Value<String> id,
       Value<String> date,
       Value<String> prayer,
+      Value<String> status,
+      Value<bool> qobliyah,
+      Value<bool> badiyah,
+      Value<int?> rakaat,
+      Value<DateTime?> prayedAt,
+      Value<String?> note,
       Value<int> rowid,
     });
 
@@ -8005,6 +8314,37 @@ class $$PrayersTableFilterComposer
     column: $table.prayer,
     builder: (column) => ColumnFilters(column),
   );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get qobliyah => $composableBuilder(
+    column: $table.qobliyah,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get badiyah => $composableBuilder(
+    column: $table.badiyah,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get rakaat => $composableBuilder(
+    column: $table.rakaat,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<DateTime?, DateTime, int> get prayedAt =>
+      $composableBuilder(
+        column: $table.prayedAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
+
+  ColumnFilters<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnFilters(column),
+  );
 }
 
 class $$PrayersTableOrderingComposer
@@ -8040,6 +8380,36 @@ class $$PrayersTableOrderingComposer
     column: $table.prayer,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get qobliyah => $composableBuilder(
+    column: $table.qobliyah,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get badiyah => $composableBuilder(
+    column: $table.badiyah,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get rakaat => $composableBuilder(
+    column: $table.rakaat,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get prayedAt => $composableBuilder(
+    column: $table.prayedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$PrayersTableAnnotationComposer
@@ -8065,6 +8435,24 @@ class $$PrayersTableAnnotationComposer
 
   GeneratedColumn<String> get prayer =>
       $composableBuilder(column: $table.prayer, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<bool> get qobliyah =>
+      $composableBuilder(column: $table.qobliyah, builder: (column) => column);
+
+  GeneratedColumn<bool> get badiyah =>
+      $composableBuilder(column: $table.badiyah, builder: (column) => column);
+
+  GeneratedColumn<int> get rakaat =>
+      $composableBuilder(column: $table.rakaat, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<DateTime?, int> get prayedAt =>
+      $composableBuilder(column: $table.prayedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get note =>
+      $composableBuilder(column: $table.note, builder: (column) => column);
 }
 
 class $$PrayersTableTableManager
@@ -8100,6 +8488,12 @@ class $$PrayersTableTableManager
                 Value<String> id = const Value.absent(),
                 Value<String> date = const Value.absent(),
                 Value<String> prayer = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<bool> qobliyah = const Value.absent(),
+                Value<bool> badiyah = const Value.absent(),
+                Value<int?> rakaat = const Value.absent(),
+                Value<DateTime?> prayedAt = const Value.absent(),
+                Value<String?> note = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => PrayersCompanion(
                 createdAt: createdAt,
@@ -8107,6 +8501,12 @@ class $$PrayersTableTableManager
                 id: id,
                 date: date,
                 prayer: prayer,
+                status: status,
+                qobliyah: qobliyah,
+                badiyah: badiyah,
+                rakaat: rakaat,
+                prayedAt: prayedAt,
+                note: note,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -8116,6 +8516,12 @@ class $$PrayersTableTableManager
                 required String id,
                 required String date,
                 required String prayer,
+                Value<String> status = const Value.absent(),
+                Value<bool> qobliyah = const Value.absent(),
+                Value<bool> badiyah = const Value.absent(),
+                Value<int?> rakaat = const Value.absent(),
+                Value<DateTime?> prayedAt = const Value.absent(),
+                Value<String?> note = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => PrayersCompanion.insert(
                 createdAt: createdAt,
@@ -8123,6 +8529,12 @@ class $$PrayersTableTableManager
                 id: id,
                 date: date,
                 prayer: prayer,
+                status: status,
+                qobliyah: qobliyah,
+                badiyah: badiyah,
+                rakaat: rakaat,
+                prayedAt: prayedAt,
+                note: note,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

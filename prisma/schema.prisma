@@ -79,18 +79,18 @@ model VerificationToken {
 
 // A wallet / account holding money (cash, bank, e-wallet, credit card...)
 model Wallet {
-  id        String   @id @default(cuid())
-  userId    String
-  name      String
-  type      String   @default("cash") // cash | bank | ewallet | credit | savings | investment
-  balance   Float    @default(0)
-  currency  String   @default("IDR")
-  color     String   @default("#6366f1")
-  icon      String   @default("wallet")
-  archived  Boolean  @default(false)
+  id       String   @id @default(cuid())
+  userId   String
+  name     String
+  type     String   @default("cash") // cash | bank | ewallet | credit | savings | investment
+  balance  Float    @default(0)
+  currency String   @default("IDR")
+  color    String   @default("#6366f1")
+  icon     String   @default("wallet")
+  archived Boolean  @default(false)
   // Last time the wallet's own fields were edited (not bumped by balance changes).
   // Used for last-write-wins in mobile sync, since `updatedAt` moves with every transaction.
-  editedAt  DateTime @default(now())
+  editedAt DateTime @default(now())
 
   user          User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions  Transaction[]        @relation("WalletTransactions")
@@ -130,8 +130,8 @@ model Transaction {
   walletId   String
   toWalletId String? // destination wallet for type = transfer
   categoryId String?
-  type       String   @default("expense") // expense | income | transfer
-  amount     Float
+  type       String   @default("expense") // expense | income | transfer | adjustment
+  amount     Float // > 0, except adjustment: signed, non-zero (docs/balance-adjustment.md)
   note       String?
   date       DateTime @default(now())
 
@@ -218,12 +218,19 @@ model PlannedTransaction {
   @@index([date])
 }
 
-// A logged prayer. A row's existence means that prayer was performed that day.
+// A recorded prayer (docs/prayer-quality.md). A row = the user recorded something for
+// that prayer that day; no row = not filled in yet.
 model PrayerEntry {
-  id     String @id @default(cuid())
-  userId String
-  date   String // local date as YYYY-MM-DD
-  prayer String // subuh | dzuhur | ashar | maghrib | isya
+  id       String    @id @default(cuid())
+  userId   String
+  date     String // local date as YYYY-MM-DD
+  prayer   String // fardhu: subuh|dzuhur|ashar|maghrib|isya · sunnah: dhuha|tahajud|witir
+  status   String    @default("ontime") // fardhu: masjid|jamaah|ontime|late|qadha|missed|excused · sunnah: done
+  qobliyah Boolean   @default(false) // rawatib before (fardhu rows only, where it exists)
+  badiyah  Boolean   @default(false) // rawatib after (fardhu rows only, where it exists)
+  rakaat   Int? // sunnah rows only, optional
+  prayedAt DateTime? // optional: when it was prayed
+  note     String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

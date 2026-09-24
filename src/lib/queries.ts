@@ -1,4 +1,8 @@
 import { prisma } from "@/lib/prisma";
+import { CASHFLOW_TYPES } from "@/lib/schemas";
+
+// Every income/expense aggregate below filters on an explicit type, so transfers and
+// balance adjustments (docs/balance-adjustment.md) never count as income or spending.
 
 export type DateRange = { start: Date; end: Date };
 
@@ -40,7 +44,7 @@ export async function getTotalBalance(userId: string) {
 export async function getMonthlyTotals(userId: string, range: DateRange) {
   const rows = await prisma.transaction.groupBy({
     by: ["type"],
-    where: { userId, date: { gte: range.start, lte: range.end }, type: { in: ["income", "expense"] } },
+    where: { userId, date: { gte: range.start, lte: range.end }, type: { in: [...CASHFLOW_TYPES] } },
     _sum: { amount: true },
   });
   const income = rows.find((r) => r.type === "income")?._sum.amount ?? 0;

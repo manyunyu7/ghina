@@ -1,4 +1,4 @@
-import { ArrowDownLeft, ArrowUpRight, Receipt, ArrowLeftRight } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Receipt, ArrowLeftRight, Scale } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 import { requireUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
@@ -11,6 +11,10 @@ import { AddTransactionButton } from "./add-transaction-button";
 import { TransactionFilters } from "./transaction-filters";
 import { TransactionActions } from "./transaction-actions";
 import type { TransactionFormData } from "./transaction-form";
+import { ADJUSTMENT_LABEL } from "@/lib/adjustment";
+import { TRANSACTION_TYPES } from "@/lib/schemas";
+
+const ADJUSTMENT_COLOR = "#0284c7";
 
 type SearchParams = {
   type?: string;
@@ -47,10 +51,11 @@ export default async function TransactionsPage({
   // Build the filtered query.
   const where: Prisma.TransactionWhereInput = { userId: user.id };
 
-  if (sp.type === "income" || sp.type === "expense" || sp.type === "transfer") {
+  if ((TRANSACTION_TYPES as readonly string[]).includes(sp.type ?? "")) {
     where.type = sp.type;
   }
-  if (sp.walletId) where.walletId = sp.walletId;
+  // A wallet's history: everything that moves its balance, incl. transfers into it.
+  if (sp.walletId) where.OR = [{ walletId: sp.walletId }, { toWalletId: sp.walletId }];
   if (sp.categoryId) where.categoryId = sp.categoryId;
   if (sp.q) where.note = { contains: sp.q };
 
@@ -146,7 +151,8 @@ export default async function TransactionsPage({
                     const isIncome = t.type === "income";
                     const isExpense = t.type === "expense";
                     const isTransfer = t.type === "transfer";
-                    const tint = isTransfer ? "#6366f1" : t.category?.color ?? "#6366f1";
+                    const isAdjustment = t.type === "adjustment";
+                    const tint = isAdjustment ? ADJUSTMENT_COLOR : isTransfer ? "#6366f1" : t.category?.color ?? "#6366f1";
                     const formData: TransactionFormData = {
                       id: t.id,
                       type: t.type,
@@ -157,14 +163,18 @@ export default async function TransactionsPage({
                       note: t.note,
                       date: t.date,
                     };
-                    const title = t.note || t.category?.name || (isIncome ? "Income" : isExpense ? "Expense" : "Transfer");
+                    const title = isAdjustment
+                      ? ADJUSTMENT_LABEL
+                      : t.note || t.category?.name || (isIncome ? "Income" : isExpense ? "Expense" : "Transfer");
                     return (
                       <div key={t.id} className="flex items-center gap-3 p-3 sm:p-4">
                         <div
                           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
                           style={{ backgroundColor: `${tint}1a`, color: tint }}
                         >
-                          {isTransfer ? (
+                          {isAdjustment ? (
+                            <Scale className="h-5 w-5" />
+                          ) : isTransfer ? (
                             <ArrowLeftRight className="h-5 w-5" />
                           ) : (
                             <CategoryIcon name={t.category?.icon} className="h-5 w-5" />
@@ -176,6 +186,9 @@ export default async function TransactionsPage({
                           <div className="mt-0.5 flex flex-wrap items-center gap-2">
                             {t.category && t.note ? (
                               <span className="text-xs text-muted">{t.category.name}</span>
+                            ) : null}
+                            {isAdjustment && t.note ? (
+                              <span className="max-w-full truncate text-xs text-muted">{t.note}</span>
                             ) : null}
                             {isTransfer ? (
                               <Badge>
@@ -191,11 +204,11 @@ export default async function TransactionsPage({
                         <div
                           className={cn(
                             "shrink-0 text-sm font-semibold tabular-nums",
-                            isIncome ? "text-income" : isExpense ? "text-expense" : "text-foreground",
+                            isIncome ? "text-income" : isExpense ? "text-expense" : isAdjustment ? "text-sky-600" : "text-foreground",
                           )}
                         >
-                          {isIncome ? "+" : isExpense ? "−" : ""}
-                          {formatCurrency(t.amount, t.wallet.currency)}
+                          {isIncome ? "+" : isExpense ? "−" : isAdjustment ? (t.amount > 0 ? "+" : "−") : ""}
+                          {formatCurrency(isAdjustment ? Math.abs(t.amount) : t.amount, t.wallet.currency)}
                         </div>
 
                         <TransactionActions transaction={formData} wallets={wallets} categories={categories} />

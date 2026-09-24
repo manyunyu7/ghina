@@ -125,7 +125,22 @@ class Prayers extends Table with Timestamps {
 
   /// `YYYY-MM-DD`
   TextColumn get date => text()();
+
+  /// Fardhu `subuh|dzuhur|ashar|maghrib|isya`, sunnah `dhuha|tahajud|witir`.
   TextColumn get prayer => text()();
+
+  // --- schema v2 (prayer quality, `docs/prayer-quality.md`) ---
+
+  /// Fardhu: `masjid|jamaah|ontime|late|qadha|missed|excused`; sunnah: `done`.
+  /// v1 rows (performed) migrate to `ontime`.
+  TextColumn get status => text().withDefault(const Constant('ontime'))();
+  BoolColumn get qobliyah => boolean().withDefault(const Constant(false))();
+  BoolColumn get badiyah => boolean().withDefault(const Constant(false))();
+
+  /// Sunnah only.
+  IntColumn get rakaat => integer().nullable()();
+  IntColumn get prayedAt => integer().map(epochMs).nullable()();
+  TextColumn get note => text().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};

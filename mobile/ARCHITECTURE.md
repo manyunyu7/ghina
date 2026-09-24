@@ -98,7 +98,7 @@ Pushed routes (full screen, outside the shell):
 `/subscriptions`, `/subscriptions/new`, `/subscriptions/:id`,
 `/forecast`, `/forecast/new`, `/forecast/:id`,
 `/reports`,
-`/prayers`, `/health`, `/health/new`, `/health/:id`, `/food`, `/food/new`, `/food/:id`,
+`/prayers`, `/prayers/report`, `/wallets/:id/history`, `/health`, `/health/new`, `/health/:id`, `/food`, `/food/new`, `/food/:id`,
 `/achievements`, `/learn/lesson/:lessonId`, `/settings`, `/sync`.
 
 ## Feature parity with the web

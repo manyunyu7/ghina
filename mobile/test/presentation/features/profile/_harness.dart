@@ -71,6 +71,29 @@ class FakePrayerRepository implements PrayerRepository {
   @override
   Future<void> delete(String id) async => s.remove(id);
 
+  /// Rows with explicit statuses (fardhu) or `done` (sunnah).
+  void seedStatuses(
+    DateTime day,
+    Map<Prayer, PrayerStatus> statuses, {
+    Set<Prayer> qobliyah = const {},
+    Set<Prayer> badiyah = const {},
+  }) {
+    statuses.forEach((p, st) {
+      s.put(
+        PrayerEntry(
+          id: '${dateKey(day)}-${p.wire}',
+          date: dateKey(day),
+          prayer: p,
+          status: st,
+          qobliyah: qobliyah.contains(p),
+          badiyah: badiyah.contains(p),
+          createdAt: day,
+          updatedAt: day,
+        ),
+      );
+    });
+  }
+
   void seed(DateTime day, Iterable<Prayer> prayers) {
     for (final p in prayers) {
       s.put(

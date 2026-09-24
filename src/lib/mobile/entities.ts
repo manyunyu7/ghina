@@ -12,7 +12,13 @@ import {
   walletSchema,
 } from "@/lib/schemas";
 import type { SyncEntity } from "@/lib/tombstones";
-import { PRAYER_IDS } from "@/app/(dashboard)/prayers/constants";
+import {
+  ALL_PRAYER_IDS,
+  defaultStatusFor,
+  isValidDateKey,
+  prayerEntryError,
+  type PrayerFields,
+} from "@/lib/prayer-quality";
 
 /**
  * Per-entity sync definitions: how to find a row, list changed rows, and apply
@@ -170,17 +176,51 @@ const planned: EntityDef = {
   },
 };
 
+// New fields are optional so older app versions (date + prayer only) keep working:
+// on create they get defaults (fardhu → "ontime", sunnah → "done"); on update a missing
+// field keeps the stored value (an old client never wipes a status it doesn't know about).
 const prayerSchema = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date"),
-  prayer: z.string().refine((v) => PRAYER_IDS.includes(v), "Invalid prayer"),
+  date: z.string().refine(isValidDateKey, "Invalid date"),
+  prayer: z.string().refine((v) => ALL_PRAYER_IDS.includes(v), "Invalid prayer"),
+  status: z.string().optional(),
+  qobliyah: z.boolean().optional(),
+  badiyah: z.boolean().optional(),
+  rakaat: z.number().int("Rakaat must be an integer").nullable().optional(),
+  prayedAt: z.iso
+    .datetime({ offset: true })
+    .transform((v) => new Date(v))
+    .nullable()
+    .optional(),
+  note: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((v) => (v === undefined ? undefined : v && v.trim().length > 0 ? v.trim() : null)),
 });
 
-const prayers: EntityDef = {
+type PrayerRow = Row & PrayerFields;
+
+const prayers: EntityDef<PrayerRow> = {
   find: (db, id) => db.prayerEntry.findUnique({ where: { id } }),
   changedSince: (db, userId, s) => db.prayerEntry.findMany(since(userId, s)),
   lwwTime: (row) => row.updatedAt,
   async upsert(db, userId, id, data, existing) {
-    const d = prayerSchema.parse(data);
+    const p = prayerSchema.parse(data);
+    // Fields carried over from the stored row only if it is the same prayer slot.
+    const base = existing && existing.prayer === p.prayer ? existing : null;
+    const d: PrayerFields = {
+      date: p.date,
+      prayer: p.prayer,
+      status: p.status ?? base?.status ?? defaultStatusFor(p.prayer),
+      qobliyah: p.qobliyah ?? base?.qobliyah ?? false,
+      badiyah: p.badiyah ?? base?.badiyah ?? false,
+      rakaat: p.rakaat !== undefined ? p.rakaat : (base?.rakaat ?? null),
+      prayedAt: p.prayedAt !== undefined ? p.prayedAt : (base?.prayedAt ?? null),
+      note: p.note !== undefined ? p.note : (base?.note ?? null),
+    };
+    const err = prayerEntryError(d);
+    if (err) throw new SyncRejection(err);
+
     const holder = await db.prayerEntry.findUnique({
       where: { userId_date_prayer: { userId, date: d.date, prayer: d.prayer } },
       select: { id: true },
@@ -224,7 +264,7 @@ export const ENTITY_DEFS: Record<SyncEntity, EntityDef> = {
   budgets,
   subscriptions,
   planned,
-  prayers,
+  prayers: prayers as unknown as EntityDef,
   health,
   food,
 };

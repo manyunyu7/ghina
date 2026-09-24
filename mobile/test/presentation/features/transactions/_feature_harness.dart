@@ -113,6 +113,10 @@ GoRouter makeRouter(String initial) => GoRouter(
     GoRoute(path: '/wallets', builder: (_, _) => const WalletsPage()),
     GoRoute(path: '/wallets/new', builder: (_, _) => const WalletFormPage()),
     GoRoute(
+      path: '/wallets/:id/history',
+      builder: (_, s) => TransactionsPage(walletId: s.pathParameters['id']),
+    ),
+    GoRoute(
       path: '/wallets/:id',
       builder: (_, s) => WalletFormPage(id: s.pathParameters['id']),
     ),

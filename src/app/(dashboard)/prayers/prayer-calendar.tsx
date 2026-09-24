@@ -1,14 +1,16 @@
 "use client";
 
 import * as React from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { startOfMonth, endOfMonth, eachDayOfInterval, getDay } from "date-fns";
 import { Modal } from "@/components/ui/modal";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn, MONTHS } from "@/lib/utils";
-import { dateKey, todayKey, PRAYERS } from "./constants";
-import { PrayerToggles } from "./prayer-toggles";
+import { FARDHU, SUNNAH, dateKey, statusColor } from "@/lib/prayer-quality";
+import { PrayerDayEditor } from "./prayer-day-editor";
+import { StatusLegend } from "./status-legend";
+import { formatLong, type PrayerEntryDTO } from "./types";
 
 const WEEKDAYS = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
 
@@ -16,16 +18,18 @@ export function PrayerCalendar({
   year,
   month, // 1-12
   data,
+  today,
 }: {
   year: number;
   month: number;
-  data: Record<string, string[]>;
+  data: Record<string, Record<string, PrayerEntryDTO>>;
+  today: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [selected, setSelected] = React.useState<string | null>(null);
 
-  const tKey = todayKey();
   const monthStart = startOfMonth(new Date(year, month - 1, 1));
   const days = eachDayOfInterval({ start: monthStart, end: endOfMonth(monthStart) });
   const leadPad = getDay(monthStart); // 0 = Sunday
@@ -35,7 +39,10 @@ export function PrayerCalendar({
     let y = year;
     if (m < 1) { m = 12; y -= 1; }
     if (m > 12) { m = 1; y += 1; }
-    router.replace(`${pathname}?month=${m}&year=${y}`, { scroll: false });
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("month", String(m));
+    params.set("year", String(y));
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   }
 
   return (
@@ -47,10 +54,10 @@ export function PrayerCalendar({
             {MONTHS[month - 1]} {year}
           </h3>
           <div className="flex gap-1">
-            <button onClick={() => go(-1)} className="rounded-lg p-1.5 text-muted hover:bg-accent" aria-label="Previous month">
+            <button onClick={() => go(-1)} className="rounded-lg p-1.5 text-muted hover:bg-accent" aria-label="Bulan sebelumnya">
               <ChevronLeft className="h-5 w-5" />
             </button>
-            <button onClick={() => go(1)} className="rounded-lg p-1.5 text-muted hover:bg-accent" aria-label="Next month">
+            <button onClick={() => go(1)} className="rounded-lg p-1.5 text-muted hover:bg-accent" aria-label="Bulan berikutnya">
               <ChevronRight className="h-5 w-5" />
             </button>
           </div>
@@ -63,22 +70,16 @@ export function PrayerCalendar({
           ))}
         </div>
 
-        {/* Day grid */}
+        {/* Day grid: one colored segment per fardhu (in order), sunnah dots below */}
         <div className="grid grid-cols-7 gap-1">
           {Array.from({ length: leadPad }).map((_, i) => (
             <div key={`pad-${i}`} />
           ))}
           {days.map((d) => {
             const key = dateKey(d);
-            const count = data[key]?.length ?? 0;
-            const isToday = key === tKey;
-            const isFuture = key > tKey;
-
-            let dot = "bg-transparent border border-border";
-            if (count === 5) dot = "bg-income";
-            else if (count > 0) dot = "bg-amber-400";
-            else if (!isFuture) dot = "bg-expense/30";
-
+            const day = data[key];
+            const isToday = key === today;
+            const isFuture = key > today;
             return (
               <button
                 key={key}
@@ -90,17 +91,27 @@ export function PrayerCalendar({
                 )}
               >
                 <span>{d.getDate()}</span>
-                <span className={cn("h-2 w-2 rounded-full", dot)} />
+                <span className={cn("flex gap-0.5", isFuture && "opacity-40")} aria-hidden>
+                  {FARDHU.map((p) => (
+                    <span
+                      key={p.id}
+                      className="h-1.5 w-1.5 rounded-sm sm:w-2"
+                      style={{ background: statusColor(day?.[p.id]?.status) }}
+                    />
+                  ))}
+                </span>
+                <span className="flex h-1 gap-0.5" aria-hidden>
+                  {SUNNAH.map((s) =>
+                    day?.[s.id] ? <span key={s.id} className="h-1 w-1 rounded-full" style={{ background: s.color }} /> : null,
+                  )}
+                </span>
               </button>
             );
           })}
         </div>
 
-        {/* Legend */}
-        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
-          <Legend className="bg-income" label="Complete (5/5)" />
-          <Legend className="bg-amber-400" label="Partial" />
-          <Legend className="bg-expense/30" label="Missed" />
+        <div className="mt-4">
+          <StatusLegend />
         </div>
 
         {/* Day editor */}
@@ -108,34 +119,14 @@ export function PrayerCalendar({
           open={selected !== null}
           onClose={() => setSelected(null)}
           title={selected ? formatLong(selected) : ""}
-          description="Tap a prayer to mark it done or undo."
+          description="Pilih status tiap shalat."
+          className="sm:max-w-2xl"
         >
           {selected && (
-            <PrayerToggles key={selected} dateKey={selected} initialDone={data[selected] ?? []} size="lg" />
-          )}
-          {selected && (
-            <p className="mt-3 text-center text-sm text-muted">
-              {(data[selected]?.length ?? 0)} of {PRAYERS.length} prayers
-            </p>
+            <PrayerDayEditor key={selected} dateKey={selected} initial={data[selected] ?? {}} readOnly={selected > today} />
           )}
         </Modal>
       </CardContent>
     </Card>
-  );
-}
-
-function Legend({ className, label }: { className: string; label: string }) {
-  return (
-    <span className="inline-flex items-center gap-1.5">
-      <span className={cn("h-2.5 w-2.5 rounded-full", className)} />
-      {label}
-    </span>
-  );
-}
-
-function formatLong(key: string): string {
-  const [y, m, d] = key.split("-").map(Number);
-  return new Intl.DateTimeFormat("en-US", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(
-    new Date(y, m - 1, d),
   );
 }

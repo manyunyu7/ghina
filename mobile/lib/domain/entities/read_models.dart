@@ -82,8 +82,10 @@ final class TransactionView {
   double get amount => transaction.amount;
   DateTime get date => transaction.date;
 
-  /// Display title: note, else category name, else a type label.
+  /// Display title: note, else category name, else a type label. Adjustments
+  /// are always "Penyesuaian saldo" (their note is shown as detail).
   String get title {
+    if (transaction.isAdjustment) return TxType.adjustment.label;
     final note = transaction.note?.trim();
     if (note != null && note.isNotEmpty) return note;
     if (transaction.isTransfer) {

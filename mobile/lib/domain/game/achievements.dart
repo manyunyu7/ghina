@@ -15,8 +15,22 @@ enum AchievementMetric {
   budgetsCreated,
   cleanBudgetMonths,
   bestSavingsRatePct,
+
+  /// Complete days (all 5 fardhu prayed).
   allPrayerDays,
+
+  /// Longest run of complete days (excused days are neutral).
   bestAllPrayerRun,
+
+  /// Longest run of consecutive days with Subuh in congregation (masjid/jamaah).
+  bestSubuhJamaahRun,
+
+  /// Longest run of consecutive days with the same fardhu prayed at the masjid.
+  bestMasjidRun,
+  tahajudCount,
+
+  /// Days with all 5 rawatib muakkad done.
+  fullRawatibDays,
   weightDays,
   healthEntries,
   foodLogs,
@@ -199,6 +213,53 @@ const List<AchievementDef> achievementDefs = [
     target: 30,
   ),
   AchievementDef(
+    id: 'prayers_complete_30',
+    title: 'Tiga Puluh Hari Lengkap',
+    description: 'Lengkap lima waktu di 30 hari (boleh nggak berturut-turut).',
+    icon: 'event_available',
+    tier: AchievementTier.gold,
+    metric: AchievementMetric.allPrayerDays,
+    target: 30,
+  ),
+  AchievementDef(
+    id: 'subuh_jamaah_7',
+    title: 'Pejuang Subuh',
+    description: 'Subuh berjamaah 7 hari berturut-turut.',
+    icon: 'wb_twilight',
+    tier: AchievementTier.silver,
+    metric: AchievementMetric.bestSubuhJamaahRun,
+    target: 7,
+  ),
+  AchievementDef(
+    id: 'masjid_week',
+    title: 'Anak Masjid',
+    description:
+        'Seminggu penuh salat di masjid untuk satu waktu yang sama (misalnya Isya).',
+    icon: 'mosque',
+    tier: AchievementTier.gold,
+    metric: AchievementMetric.bestMasjidRun,
+    target: 7,
+  ),
+  AchievementDef(
+    id: 'tahajud_10',
+    title: 'Sahabat Malam',
+    description: 'Tahajud 10 kali.',
+    icon: 'nights_stay',
+    tier: AchievementTier.silver,
+    metric: AchievementMetric.tahajudCount,
+    target: 10,
+  ),
+  AchievementDef(
+    id: 'rawatib_full_day',
+    title: 'Rawatib Komplet',
+    description:
+        'Kerjakan kelima rawatib muakkad dalam sehari (qobliyah Subuh & Dzuhur, ba\'diyah Dzuhur, Maghrib & Isya).',
+    icon: 'auto_awesome',
+    tier: AchievementTier.silver,
+    metric: AchievementMetric.fullRawatibDays,
+    target: 1,
+  ),
+  AchievementDef(
     id: 'first_health',
     title: 'Cek Kesehatan',
     description: 'Catat data kesehatan pertamamu.',
@@ -326,7 +387,8 @@ class AchievementStats {
   }) {
     var transactions = 0, transfers = 0, health = 0, food = 0;
     final weightDays = <GameDate>{};
-    final prayersByDay = <GameDate, Set<String>>{};
+    // Prayer rows per day: name → event (deduped by id above).
+    final prayersByDay = <GameDate, Map<String, ActivityEvent>>{};
     final income = <GameMonth, double>{};
     final expense = <GameMonth, double>{};
     final seenIds = <String>{};
@@ -347,8 +409,8 @@ class AchievementStats {
               expense[month] = (expense[month] ?? 0) + amount;
           }
         case ActivityKind.prayer:
-          if (e.prayer != null && prayerNames.contains(e.prayer)) {
-            prayersByDay.putIfAbsent(e.day, () => {}).add(e.prayer!);
+          if (e.isFardhu || e.isSunnah) {
+            prayersByDay.putIfAbsent(e.day, () => {})[e.prayer!] = e;
           }
         case ActivityKind.health:
           health++;
@@ -381,18 +443,7 @@ class AchievementStats {
         .where((e) => e.key.compareTo(currentMonth) < 0 && !e.value)
         .length;
 
-    // Prayers: full days and best consecutive run of full days.
-    final fullDays = [
-      for (final e in prayersByDay.entries)
-        if (e.value.length >= prayerNames.length) e.key,
-    ]..sort();
-    var bestRun = 0, run = 0;
-    GameDate? prev;
-    for (final d in fullDays) {
-      run = (prev != null && d.difference(prev) == 1) ? run + 1 : 1;
-      if (run > bestRun) bestRun = run;
-      prev = d;
-    }
+    final prayers = PrayerStats.compute(prayersByDay);
 
     final completedLessonIds = {for (final c in lessons) c.lessonId};
     final perfect = {
@@ -407,8 +458,12 @@ class AchievementStats {
       AchievementMetric.budgetsCreated: budgetKeys.length,
       AchievementMetric.cleanBudgetMonths: cleanMonths,
       AchievementMetric.bestSavingsRatePct: bestSavings,
-      AchievementMetric.allPrayerDays: fullDays.length,
-      AchievementMetric.bestAllPrayerRun: bestRun,
+      AchievementMetric.allPrayerDays: prayers.completeDays,
+      AchievementMetric.bestAllPrayerRun: prayers.bestCompleteRun,
+      AchievementMetric.bestSubuhJamaahRun: prayers.bestSubuhJamaahRun,
+      AchievementMetric.bestMasjidRun: prayers.bestMasjidRun,
+      AchievementMetric.tahajudCount: prayers.tahajud,
+      AchievementMetric.fullRawatibDays: prayers.fullRawatibDays,
       AchievementMetric.weightDays: weightDays.length,
       AchievementMetric.healthEntries: health,
       AchievementMetric.foodLogs: food,
@@ -420,6 +475,100 @@ class AchievementStats {
       AchievementMetric.totalXp: xp.total,
       AchievementMetric.goalDays: xp.goalDays,
     });
+  }
+}
+
+/// Prayer numbers for achievements (spec `docs/prayer-quality.md`).
+class PrayerStats {
+  const PrayerStats({
+    required this.completeDays,
+    required this.bestCompleteRun,
+    required this.bestSubuhJamaahRun,
+    required this.bestMasjidRun,
+    required this.tahajud,
+    required this.fullRawatibDays,
+  });
+
+  final int completeDays;
+  final int bestCompleteRun;
+  final int bestSubuhJamaahRun;
+  final int bestMasjidRun;
+  final int tahajud;
+  final int fullRawatibDays;
+
+  /// [byDay]: day → prayer name → row.
+  static PrayerStats compute(Map<GameDate, Map<String, ActivityEvent>> byDay) {
+    final days = byDay.keys.toList()..sort();
+    var complete = 0, tahajud = 0, fullRawatib = 0;
+    // Complete-day runs: excused days (≥1 excused, rest prayed) are neutral.
+    var bestRun = 0, run = 0;
+    GameDate? prev;
+    for (final d in days) {
+      final rows = byDay[d]!;
+      if (rows.containsKey('tahajud')) tahajud++;
+      final rawatib = rows.values
+          .where((e) => e.isPrayedFardhu)
+          .fold(0, (s, e) => s + e.rawatibCount);
+      if (rawatib >= rawatibSlotsPerDay) fullRawatib++;
+
+      var prayed = 0, excused = 0;
+      for (final name in prayerNames) {
+        final e = rows[name];
+        if (e == null) continue;
+        if (e.isPrayedFardhu) prayed++;
+        if (e.prayerStatus == 'excused') excused++;
+      }
+      final isComplete = prayed == prayerNames.length;
+      final isExcused =
+          !isComplete && excused > 0 && prayed + excused == prayerNames.length;
+      if (isComplete) complete++;
+      // A gap of missing days (or an incomplete day) breaks the run; excused
+      // days bridge it without counting.
+      if (isComplete) {
+        run = (prev != null && d.difference(prev) == 1) ? run + 1 : 1;
+        if (run > bestRun) bestRun = run;
+        prev = d;
+      } else if (isExcused) {
+        if (prev != null && d.difference(prev) == 1) prev = d;
+      } else {
+        run = 0;
+        prev = null;
+      }
+    }
+
+    int bestRunWhere(bool Function(Map<String, ActivityEvent> rows) ok) {
+      var best = 0, cur = 0;
+      GameDate? last;
+      for (final d in days) {
+        if (!ok(byDay[d]!)) {
+          cur = 0;
+          last = null;
+          continue;
+        }
+        cur = (last != null && d.difference(last) == 1) ? cur + 1 : 1;
+        if (cur > best) best = cur;
+        last = d;
+      }
+      return best;
+    }
+
+    final subuh = bestRunWhere((rows) {
+      final s = rows['subuh']?.prayerStatus;
+      return s == 'masjid' || s == 'jamaah';
+    });
+    var masjid = 0;
+    for (final name in prayerNames) {
+      final r = bestRunWhere((rows) => rows[name]?.prayerStatus == 'masjid');
+      if (r > masjid) masjid = r;
+    }
+    return PrayerStats(
+      completeDays: complete,
+      bestCompleteRun: bestRun,
+      bestSubuhJamaahRun: subuh,
+      bestMasjidRun: masjid,
+      tahajud: tahajud,
+      fullRawatibDays: fullRawatib,
+    );
   }
 }
 

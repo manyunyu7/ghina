@@ -37,6 +37,15 @@ final deleteWalletProvider = Provider<DeleteWallet>(
   (ref) => DeleteWallet(ref.watch(walletRepositoryProvider)),
 );
 
+/// "Sesuaikan saldo": records an `adjustment` transaction (works offline).
+final adjustWalletBalanceProvider = Provider<AdjustWalletBalance>(
+  (ref) => AdjustWalletBalance(
+    ref.watch(walletRepositoryProvider),
+    ref.watch(transactionRepositoryProvider),
+    ref.watch(clockProvider),
+  ),
+);
+
 // ---------------------------------------------------------------- Categories
 
 final createCategoryProvider = Provider<CreateCategory>(
@@ -187,6 +196,31 @@ final togglePrayerProvider = Provider<TogglePrayer>(
     ref.watch(prayerRepositoryProvider),
     ref.watch(clockProvider),
   ),
+);
+final setPrayerStatusProvider = Provider<SetPrayerStatus>(
+  (ref) => SetPrayerStatus(
+    ref.watch(prayerRepositoryProvider),
+    ref.watch(clockProvider),
+  ),
+);
+final toggleRawatibProvider = Provider<ToggleRawatib>(
+  (ref) => ToggleRawatib(
+    ref.watch(prayerRepositoryProvider),
+    ref.watch(clockProvider),
+  ),
+);
+final setSunnahProvider = Provider<SetSunnah>(
+  (ref) =>
+      SetSunnah(ref.watch(prayerRepositoryProvider), ref.watch(clockProvider)),
+);
+final savePrayerDetailsProvider = Provider<SavePrayerDetails>(
+  (ref) => SavePrayerDetails(
+    ref.watch(prayerRepositoryProvider),
+    ref.watch(clockProvider),
+  ),
+);
+final clearPrayerProvider = Provider<ClearPrayer>(
+  (ref) => ClearPrayer(ref.watch(prayerRepositoryProvider)),
 );
 final createHealthEntryProvider = Provider<CreateHealthEntry>(
   (ref) => CreateHealthEntry(
@@ -414,6 +448,15 @@ final watchPrayersProvider = StreamProvider.autoDispose
     .family<List<PrayerEntry>, ({DateTime from, DateTime to})>(
       (ref, r) =>
           WatchPrayers(ref.watch(prayerRepositoryProvider))(r.from, r.to),
+    );
+
+/// Prayer quality report for an inclusive range of local days (clipped to today).
+final watchPrayerReportProvider = StreamProvider.autoDispose
+    .family<PrayerReport, ({DateTime from, DateTime to})>(
+      (ref, r) => WatchPrayerReport(
+        ref.watch(prayerRepositoryProvider),
+        ref.watch(clockProvider),
+      )(r.from, r.to),
     );
 
 /// Health entries, newest first (all).

@@ -52,7 +52,7 @@ with UUID v4 ids, the server keeps its existing cuid ids — both are valid.
 | `budgets` | Budget | id, categoryId, amount, month, year, createdAt, updatedAt |
 | `subscriptions` | Subscription | id, name, amount, currency, cycle, nextBilling, categoryId, walletId, color, icon, note, active, createdAt, updatedAt |
 | `planned` | PlannedTransaction | id, type, amount, note, categoryId, walletId, date, done, createdAt, updatedAt |
-| `prayers` | PrayerEntry | id, date (`YYYY-MM-DD` string), prayer, createdAt, updatedAt |
+| `prayers` | PrayerEntry | id, date (`YYYY-MM-DD` string), prayer, status, qobliyah, badiyah, rakaat, prayedAt, note, createdAt, updatedAt |
 | `health` | HealthEntry | id, date, weight, systolic, diastolic, pulse, note, createdAt, updatedAt |
 | `food` | FoodLog | id, date, name, meal, calories, photoUrl, note, createdAt, updatedAt |
 
@@ -61,6 +61,10 @@ Schema changes the server makes for sync:
 - `User` gains `syncEpoch String @default(cuid())`.
 - New model `SyncTombstone { id, userId, entity, entityId, deletedAt @default(now()) }`,
   indexed on `(userId, deletedAt)`. `entity` is the wire name (`transactions`, …).
+- `PrayerEntry` gains `status String @default("ontime")`, `qobliyah Boolean @default(false)`,
+  `badiyah Boolean @default(false)`, `rakaat Int?`, `prayedAt DateTime?`, `note String?`
+  (docs/prayer-quality.md). Existing rows read as `status = "ontime"`.
+- `Transaction.type` may be `adjustment` (docs/balance-adjustment.md) — no column change.
 - `Wallet` gains `editedAt DateTime` — server-only, **not** on the wire. It is the
   last-write-wins timestamp for wallets (see Push), because a wallet's `updatedAt`
   also moves every time a transaction changes its balance.
@@ -70,7 +74,9 @@ Schema changes the server makes for sync:
 `wallet.balance` is **server-authoritative**. The server changes it only through
 transactions (and the initial balance when a wallet is created). Effect of a transaction:
 income `+amount` to `walletId`; expense `−amount` from `walletId`; transfer `−amount`
-from `walletId` and `+amount` to `toWalletId`. Editing a transaction reverses the old
+from `walletId` and `+amount` to `toWalletId`; adjustment `+amount` (signed) to `walletId`.
+Editing a wallet's balance (web or mobile) never overwrites it — it records an
+`adjustment` transaction for the difference (docs/balance-adjustment.md). Editing a transaction reverses the old
 effect and applies the new one; deleting reverses it. The server implements this once in
 `src/lib/ledger.ts`, used by both the web actions and the sync endpoint.
 
@@ -184,7 +190,9 @@ Rules:
   cascade rules above and writes tombstones.
 - `wallets` upsert: `balance` is honored only when creating the wallet (initial balance).
   On update it is ignored.
-- `transactions` upsert/delete adjust wallet balances via `src/lib/ledger.ts`.
+- `transactions` upsert/delete adjust wallet balances via `src/lib/ledger.ts` (including
+  `adjustment`: `+amount` signed). Clients must tolerate unknown future `type` values from
+  a pull (skip or show generically; never crash).
 - `prayers` and `budgets` have unique keys (`date+prayer`, `categoryId+month+year`). If
   another row with a different id already holds that key, the mutation returns
   `duplicate`. The client then deletes its local row; the server row arrives on the pull.
@@ -211,20 +219,42 @@ from a pull.
 |---|---|---|
 | wallets | name, type, balance?, currency, color, icon, archived? | type ∈ cash/bank/ewallet/credit/savings/investment; currency ∈ IDR/USD/EUR/GBP/JPY/SGD/MYR; color `#rrggbb`; name 1–60; `balance` only used on create (default 0); `archived` default false |
 | categories | name, type, color, icon | type ∈ expense/income; icon must be one of the web's `CATEGORY_ICONS` (`src/lib/constants.ts`) |
-| transactions | walletId, toWalletId, categoryId, type, amount, note, date | amount > 0; wallets/category must be the user's; transfer needs a different `toWalletId` and is stored with `categoryId = null` (non-transfers with `toWalletId = null`) — the client should store the same |
+| transactions | walletId, toWalletId, categoryId, type, amount, note, date | type ∈ expense/income/transfer/adjustment; amount > 0, except `adjustment`: signed, finite, non-zero; wallets/category must be the user's; transfer needs a different `toWalletId` and is stored with `categoryId = null` (non-transfers with `toWalletId = null`) — the client should store the same; `adjustment` with a non-null `categoryId` or `toWalletId` → rejected |
 | budgets | categoryId, amount, month, year | category must be the user's **expense** category; month 1–12; amount > 0 |
 | subscriptions | name, amount, currency, cycle, nextBilling, categoryId, walletId, color, icon, note, active | cycle ∈ weekly/monthly/yearly; currency any 1–8 chars; note ≤ 200; `active` default true |
 | planned | type, amount, note, categoryId, walletId, date, done | type ∈ expense/income; note ≤ 200; `done` default false |
-| prayers | date, prayer | date `YYYY-MM-DD`; prayer ∈ subuh/dzuhur/ashar/maghrib/isya |
+| prayers | date, prayer, status?, qobliyah?, badiyah?, rakaat?, prayedAt?, note? | see "Prayers" below |
 | health | date, weight, systolic, diastolic, pulse, note | weight 1–500; systolic 50–300, diastolic 30–200, pulse 20–250 (integers); systolic and diastolic both or neither; at least one of weight/BP/pulse |
 | food | date, name, meal, calories, photoUrl, note | name 1–120; unknown `meal` → null; calories 0–20000, rounded to an integer |
 
 Empty/whitespace `note` becomes `null`; `""` ids become `null`.
 
+#### Prayers (docs/prayer-quality.md)
+
+- `date`: a real calendar date `YYYY-MM-DD`. `prayer` ∈ subuh/dzuhur/ashar/maghrib/isya
+  (fardhu) or dhuha/tahajud/witir (daily sunnah).
+- `status`: fardhu ∈ masjid/jamaah/ontime/late/qadha/missed/excused; sunnah must be `done`.
+- `qobliyah`/`badiyah` (bool): only where the rawatib exists (qobliyah: subuh, dzuhur;
+  ba'diyah: dzuhur, maghrib, isya) and only with a prayed status
+  (masjid/jamaah/ontime/late/qadha). Never on sunnah rows. Violations → `rejected` (the
+  server does not silently clear them — send `false` when switching to missed/excused).
+- `rakaat` (int or null): sunnah only — dhuha/tahajud even 2–12, witir odd 1–11. Non-null
+  on a fardhu row → `rejected`.
+- `prayedAt`: ISO-8601 **with** `Z`/offset, or null. `note`: string ≤ 500 chars or null
+  (trimmed; empty → null).
+- Backward compatibility: every new field is optional. **On create** a missing field gets
+  its default (`status` fardhu → `ontime`, sunnah → `done`; booleans false; others null).
+  **On update** a missing field keeps the stored value (so an old app version re-pushing
+  `{date, prayer}` never wipes a status it doesn't know). Validation runs on the merged row.
+  New clients should always send all fields.
+- Pulled rows always carry all fields (`rakaat`, `prayedAt`, `note` may be null).
+
 ### JSON conventions
 
 - Numbers are JSON numbers, never strings (`amount`, `balance`, `weight` may be
-  fractional; `month`, `year`, `calories`, `systolic`, `diastolic`, `pulse` are integers).
+  fractional; `amount` is negative only for `adjustment`; `month`, `year`, `calories`,
+  `systolic`, `diastolic`, `pulse`, `rakaat` are integers). Booleans are JSON booleans
+  (`archived`, `active`, `done`, `qobliyah`, `badiyah`).
 - Every wire field is always present in pulled rows; missing values are `null`.
 - Server dates are ISO-8601 UTC with milliseconds (`2026-09-23T10:00:00.000Z`). Send
   `DateTime` fields (`date`, `nextBilling`) as UTC ISO strings with `Z` too — a string
@@ -246,4 +276,6 @@ The API base URL defaults to production `https://ghina.tentrem.space`; override 
 
 `node scripts/test-mobile-sync.mjs [baseUrl]` (default `http://localhost:3100`, e.g. after
 `npx next dev -p 3100`) runs the whole protocol end to end against a throwaway user and
-deletes it afterwards.
+deletes it afterwards. It covers prayer statuses/rawatib/sunnah validation and balance
+adjustments too. `node scripts/test-prayer-quality.mjs` unit-tests the scoring module,
+report ranges and the ledger's adjustment effect (no server needed).

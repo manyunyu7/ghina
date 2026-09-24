@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Badge, Progress, EmptyState } from "@/components/ui/misc";
 import { CategoryIcon } from "@/components/icon";
 import { SpendingDonut, IncomeExpenseBars, type MonthlyBar } from "./dashboard-charts";
+import { ADJUSTMENT_LABEL } from "@/lib/adjustment";
 
 export default async function DashboardPage() {
   const user = await requireUser();
@@ -234,18 +235,23 @@ export default async function DashboardPage() {
                 {recent.map((t) => {
                   const isIncome = t.type === "income";
                   const isExpense = t.type === "expense";
-                  const sign = isIncome ? "+" : isExpense ? "-" : "";
+                  const isAdjustment = t.type === "adjustment";
+                  const sign = isIncome ? "+" : isExpense ? "-" : isAdjustment ? (t.amount > 0 ? "+" : "-") : "";
                   return (
                     <li key={t.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
                       <div
                         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white"
-                        style={{ background: t.category?.color ?? "#94a3b8" }}
+                        style={{ background: isAdjustment ? "#0284c7" : t.category?.color ?? "#94a3b8" }}
                       >
-                        <CategoryIcon name={t.category?.icon} className="h-4 w-4" />
+                        {isAdjustment ? (
+                          <Scale className="h-4 w-4" />
+                        ) : (
+                          <CategoryIcon name={t.category?.icon} className="h-4 w-4" />
+                        )}
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-foreground">
-                          {t.note || t.category?.name || "Transaction"}
+                          {isAdjustment ? ADJUSTMENT_LABEL : t.note || t.category?.name || "Transaction"}
                         </p>
                         <div className="mt-0.5 flex items-center gap-2">
                           <Badge variant="default">{t.wallet.name}</Badge>
@@ -257,11 +263,12 @@ export default async function DashboardPage() {
                           "shrink-0 text-sm font-semibold",
                           isIncome && "text-income",
                           isExpense && "text-expense",
-                          !isIncome && !isExpense && "text-foreground",
+                          isAdjustment && "text-sky-600",
+                          !isIncome && !isExpense && !isAdjustment && "text-foreground",
                         )}
                       >
                         {sign}
-                        {formatCurrency(t.amount, t.wallet.currency)}
+                        {formatCurrency(Math.abs(t.amount), t.wallet.currency)}
                       </span>
                     </li>
                   );

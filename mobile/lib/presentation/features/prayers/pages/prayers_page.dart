@@ -1,53 +1,25 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/dates.dart';
 import '../../../../core/formatters.dart';
-import '../../../../core/result.dart';
 import '../../../../di/di.dart';
 import '../../../../domain/entities/entities.dart';
 import '../../../../domain/game/game.dart' show XpRules;
 import '../../../../domain/usecases/usecases.dart';
 import '../../../design_system/design_system.dart';
 import '../../../shared/widgets/widgets.dart';
-import '../../../shared/rewards/rewards.dart';
-
-/// Look of each prayer tile.
-typedef _PrayerStyle = ({IconData icon, String time, ChunkySwatch color});
-
-const Map<Prayer, _PrayerStyle> _styles = {
-  Prayer.subuh: (
-    icon: Icons.wb_twilight_rounded,
-    time: 'Fajar',
-    color: GhinaColors.purple,
-  ),
-  Prayer.dzuhur: (
-    icon: Icons.wb_sunny_rounded,
-    time: 'Siang',
-    color: GhinaColors.yellow,
-  ),
-  Prayer.ashar: (
-    icon: Icons.brightness_medium_rounded,
-    time: 'Sore',
-    color: GhinaColors.orange,
-  ),
-  Prayer.maghrib: (
-    icon: Icons.nights_stay_rounded,
-    time: 'Senja',
-    color: GhinaColors.pink,
-  ),
-  Prayer.isya: (
-    icon: Icons.dark_mode_rounded,
-    time: 'Malam',
-    color: GhinaColors.blue,
-  ),
-};
+import '../widgets/prayer_sheet.dart';
+import '../widgets/prayer_visuals.dart';
 
 const _weekdays = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
 
-/// Five daily prayers: chunky toggles for the chosen day, a week strip, stats
-/// and a month heatmap (tap a day to edit it).
+typedef _DayMap = Map<String, Map<Prayer, PrayerEntry>>;
+
+/// Daily prayers: five fardhu tiles (tap = jamaah, long-press / chevron = pick
+/// any status + rawatib), daily sunnah, a week strip, stats and a month heatmap
+/// colored by status. The quality report is one tap away.
 class PrayersPage extends ConsumerStatefulWidget {
   const PrayersPage({super.key});
 
@@ -59,6 +31,7 @@ class _PrayersPageState extends ConsumerState<PrayersPage> {
   DateTime? _selected;
   YearMonth? _month;
   final _busy = <Prayer>{};
+  final _pops = <Prayer, (int, int)>{};
   final _scroll = ScrollController();
 
   @override
@@ -95,43 +68,34 @@ class _PrayersPageState extends ConsumerState<PrayersPage> {
     }
   }
 
-  Future<void> _toggle(DateTime day, Prayer p, Set<Prayer> doneBefore) async {
+  Future<void> _run(Prayer p, Future<void> Function() action) async {
     if (_busy.contains(p)) return;
     setState(() => _busy.add(p));
-    final rewards = RewardTracker.start(ref);
-    final r = await ref.read(togglePrayerProvider)(day, p);
-    if (!mounted) return;
-    setState(() => _busy.remove(p));
-    switch (r) {
-      case Ok(:final value):
-        if (!value) {
-          HapticFeedback.selectionClick();
-          return;
-        }
-        HapticFeedback.mediumImpact();
-        final nowAll = {...doneBefore, p}.length == Prayer.values.length;
-        if (nowAll) {
-          await showCelebration(
-            context,
-            title: 'Lima waktu lengkap! 🕌',
-            subtitle: isSameDay(day, _today)
-                ? 'Semua salat hari ini sudah tercatat. MasyaAllah, keren!'
-                : 'Semua salat ${Fmt.dateLong(day)} sudah tercatat.',
-            stats: const [
-              CelebrationStat(
-                label: 'Bonus',
-                value: '+${XpRules.allPrayersBonus} XP',
-                icon: Icons.bolt_rounded,
-                color: GhinaColors.yellow,
-              ),
-            ],
-          );
-        }
-        if (mounted) await rewards.finish(context);
-      case Err(:final failure):
-        showErrorToast(context, failure.message);
+    try {
+      await action();
+    } finally {
+      if (mounted) setState(() => _busy.remove(p));
     }
   }
+
+  void _tap(DateTime day, Prayer p, Map<Prayer, PrayerEntry> entries) {
+    if (entries[p] != null) {
+      _edit(day, p, entries);
+      return;
+    }
+    _run(p, () async {
+      final ok = await PrayerActions.quickLog(context, ref, day, p, entries);
+      if (ok && mounted) {
+        setState(() {
+          final n = (_pops[p]?.$1 ?? 0) + 1;
+          _pops[p] = (n, prayerStatusXp(PrayerStatus.quick));
+        });
+      }
+    });
+  }
+
+  void _edit(DateTime day, Prayer p, Map<Prayer, PrayerEntry> entries) =>
+      _run(p, () => PrayerActions.edit(context, ref, day, p, entries));
 
   @override
   Widget build(BuildContext context) {
@@ -148,14 +112,28 @@ class _PrayersPageState extends ConsumerState<PrayersPage> {
       watchPrayersProvider((from: month.start, to: startOfDay(month.end))),
     );
 
-    final byDate = <String, Set<Prayer>>{
-      ...prayersByDate(monthAsync.value ?? const []),
-      ...prayersByDate(recent.value ?? const []),
+    final all = [...?monthAsync.value, ...?recent.value];
+    final byDate = <String, Map<Prayer, PrayerEntry>>{
+      ...prayerEntriesByDate(monthAsync.value ?? const []),
+      ...prayerEntriesByDate(recent.value ?? const []),
     };
+    final dayEntries = byDate[dateKey(selected)] ?? const {};
 
     return Scaffold(
       backgroundColor: g.background,
-      appBar: AppBar(title: const Text('Salat')),
+      appBar: AppBar(
+        title: const Text('Salat'),
+        actions: [
+          IconButton(
+            key: const ValueKey('prayer-report'),
+            tooltip: 'Laporan salat',
+            icon: const Icon(Icons.insights_rounded),
+            color: GhinaColors.blue.base,
+            onPressed: () => context.push('/prayers/report'),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: _refresh,
         child: switch (recent) {
@@ -176,7 +154,7 @@ class _PrayersPageState extends ConsumerState<PrayersPage> {
               _DayHeader(
                 day: selected,
                 today: today,
-                done: byDate[dateKey(selected)]?.length ?? 0,
+                entries: dayEntries,
                 onPrev: () => _select(addDays(selected, -1)),
                 onNext: isSameDay(selected, today)
                     ? null
@@ -192,26 +170,93 @@ class _PrayersPageState extends ConsumerState<PrayersPage> {
               const SizedBox(height: 16),
               if (recent.value == null && monthAsync.value == null)
                 const SkeletonList(count: 5)
-              else
-                for (final p in Prayer.values)
+              else ...[
+                for (final p in Prayer.fardhu)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: _PrayerTile(
                       key: ValueKey('prayer-${p.wire}'),
                       prayer: p,
-                      done: byDate[dateKey(selected)]?.contains(p) ?? false,
+                      entry: dayEntries[p],
                       busy: _busy.contains(p),
-                      onTap: () => _toggle(
-                        selected,
-                        p,
-                        byDate[dateKey(selected)] ?? const {},
-                      ),
+                      pop: _pops[p],
+                      onTap: () => _tap(selected, p, dayEntries),
+                      onEdit: () => _edit(selected, p, dayEntries),
                     ),
                   ),
+                const SizedBox(height: 4),
+                _SunnahCard(
+                  day: selected,
+                  entries: dayEntries,
+                  busy: _busy,
+                  onToggle: (p, done) => _run(
+                    p,
+                    () => PrayerActions.setSunnah(
+                      context,
+                      ref,
+                      selected,
+                      p,
+                      done: done,
+                      rakaat: dayEntries[p]?.rakaat,
+                    ),
+                  ),
+                  onRakaat: (p, r) => _run(
+                    p,
+                    () => PrayerActions.setSunnah(
+                      context,
+                      ref,
+                      selected,
+                      p,
+                      done: true,
+                      rakaat: r,
+                      reward: false,
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 16),
-              _Stats(today: today, month: month, byDate: byDate),
+              _Stats(today: today, month: month, entries: all),
+              const SizedBox(height: 12),
+              ChunkyCard(
+                key: const ValueKey('prayer-report-card'),
+                tinted: GhinaColors.blue,
+                onTap: () => context.push('/prayers/report'),
+                padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+                child: Row(
+                  children: [
+                    CategoryAvatar(
+                      icon: Icons.grid_view_rounded,
+                      color: GhinaColors.blue.base,
+                      size: 40,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Laporan & peta warna',
+                            style: GhinaType.h3.copyWith(color: g.textPrimary),
+                          ),
+                          Text(
+                            'Skor kualitas, salat terlemah, rawatib & sunnah',
+                            style: GhinaType.bodyS.copyWith(
+                              color: g.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      color: GhinaColors.blue.base,
+                      size: 28,
+                    ),
+                  ],
+                ),
+              ),
               const SizedBox(height: 28),
-              SectionHeader(
+              const SectionHeader(
                 title: 'Kalender',
                 subtitle: 'Ketuk tanggal untuk mengubah catatannya',
               ),
@@ -234,27 +279,32 @@ class _PrayersPageState extends ConsumerState<PrayersPage> {
   }
 }
 
+int _prayedCount(Map<Prayer, PrayerEntry>? m) =>
+    m == null ? 0 : Prayer.fardhu.where((p) => m[p]?.isPrayed ?? false).length;
+
 // ---------------------------------------------------------------- header
 
 class _DayHeader extends StatelessWidget {
   const _DayHeader({
     required this.day,
     required this.today,
-    required this.done,
+    required this.entries,
     required this.onPrev,
     required this.onNext,
   });
 
   final DateTime day;
   final DateTime today;
-  final int done;
+  final Map<Prayer, PrayerEntry> entries;
   final VoidCallback onPrev;
   final VoidCallback? onNext;
 
   @override
   Widget build(BuildContext context) {
     final g = context.ghina;
-    final all = done == Prayer.values.length;
+    final done = _prayedCount(entries);
+    final all = done == 5;
+    final excused = prayerDayState(entries) == PrayerDayState.neutral;
     return ChunkyCard(
       tinted: all ? GhinaColors.green : null,
       child: Row(
@@ -285,11 +335,21 @@ class _DayHeader extends StatelessWidget {
                 Pulse(
                   trigger: done,
                   child: ChunkyPill(
-                    label: all ? 'Lengkap $done/5' : '$done/5 salat',
+                    label: all
+                        ? 'Lengkap $done/5'
+                        : excused
+                        ? 'Berhalangan'
+                        : '$done/5 salat',
                     icon: all
                         ? Icons.check_circle_rounded
+                        : excused
+                        ? Icons.spa_rounded
                         : Icons.mosque_rounded,
-                    color: all ? GhinaColors.green : GhinaColors.blue,
+                    color: all
+                        ? GhinaColors.green
+                        : excused
+                        ? GhinaColors.purple
+                        : GhinaColors.blue,
                   ),
                 ),
               ],
@@ -320,7 +380,7 @@ class _WeekStrip extends StatelessWidget {
 
   final DateTime selected;
   final DateTime today;
-  final Map<String, Set<Prayer>> byDate;
+  final _DayMap byDate;
   final ValueChanged<DateTime> onTap;
 
   @override
@@ -335,9 +395,9 @@ class _WeekStrip extends StatelessWidget {
               builder: (context) {
                 final d = addDays(monday, i);
                 final future = d.isAfter(today);
-                final count = byDate[dateKey(d)]?.length ?? 0;
+                final count = _prayedCount(byDate[dateKey(d)]);
                 final isSel = isSameDay(d, selected);
-                final full = count == Prayer.values.length;
+                final full = count == 5;
                 return GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTap: future ? null : () => onTap(d),
@@ -373,7 +433,7 @@ class _WeekStrip extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           ProgressRing(
-                            value: count / Prayer.values.length,
+                            value: count / 5,
                             size: 34,
                             stroke: 4,
                             color: full
@@ -398,6 +458,11 @@ class _WeekStrip extends StatelessWidget {
                                     ),
                                   ),
                           ),
+                          const SizedBox(height: 5),
+                          _StatusDots(
+                            entries: byDate[dateKey(d)],
+                            future: future,
+                          ),
                         ],
                       ),
                     ),
@@ -411,64 +476,107 @@ class _WeekStrip extends StatelessWidget {
   }
 }
 
+/// Five tiny status-colored dots (one per fardhu).
+class _StatusDots extends StatelessWidget {
+  const _StatusDots({
+    required this.entries,
+    this.future = false,
+    this.size = 5,
+  });
+
+  final Map<Prayer, PrayerEntry>? entries;
+  final bool future;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      for (final p in Prayer.fardhu)
+        Container(
+          width: size,
+          height: size,
+          margin: const EdgeInsets.symmetric(horizontal: 0.75),
+          decoration: BoxDecoration(
+            color: future
+                ? Colors.transparent
+                : prayerCellColor(context, entries?[p]?.status),
+            shape: BoxShape.circle,
+          ),
+        ),
+    ],
+  );
+}
+
 // ---------------------------------------------------------------- tile
 
-class _PrayerTile extends StatefulWidget {
+class _PrayerTile extends StatelessWidget {
   const _PrayerTile({
     super.key,
     required this.prayer,
-    required this.done,
+    required this.entry,
     required this.busy,
+    required this.pop,
     required this.onTap,
+    required this.onEdit,
   });
 
   final Prayer prayer;
-  final bool done;
+  final PrayerEntry? entry;
   final bool busy;
+
+  /// (replay counter, xp) of the last "+XP" pop.
+  final (int, int)? pop;
   final VoidCallback onTap;
-
-  @override
-  State<_PrayerTile> createState() => _PrayerTileState();
-}
-
-class _PrayerTileState extends State<_PrayerTile> {
-  int _pops = 0;
-
-  @override
-  void didUpdateWidget(covariant _PrayerTile old) {
-    super.didUpdateWidget(old);
-    if (widget.done && !old.done) _pops++;
-  }
+  final VoidCallback onEdit;
 
   @override
   Widget build(BuildContext context) {
     final g = context.ghina;
-    final st = _styles[widget.prayer]!;
-    final sw = st.color;
-    final done = widget.done;
-    final fg = done ? sw.on : g.textPrimary;
+    final st = prayerStyles[prayer]!;
+    final e = entry;
+    final status = e?.status;
+    final sw = status == null ? st.color : prayerStatusSwatch(status);
+    final filled = status != null;
+    final fg = filled ? sw.on : g.textPrimary;
+    final sub = filled ? sw.on.withValues(alpha: 0.9) : g.textSecondary;
+    final rawatib = [
+      if (e?.qobliyah ?? false) 'Qobliyah',
+      if (e?.badiyah ?? false) "Ba'diyah",
+    ];
+    final subtitle = status == null
+        ? '${st.time} · ketuk = jamaah'
+        : [
+            status.label,
+            if (rawatib.isNotEmpty) '+ ${rawatib.join(' & ')}',
+          ].join(' · ');
     return Stack(
       clipBehavior: Clip.none,
       children: [
         ChunkySurface(
-          color: done ? sw.base : g.surface,
-          edgeColor: done ? sw.edge : g.borderEdge,
-          borderColor: done ? null : g.border,
+          color: filled ? sw.base : g.surface,
+          edgeColor: filled ? sw.edge : g.borderEdge,
+          borderColor: filled ? null : g.border,
           depth: GhinaDepth.lg,
           borderRadius: GhinaRadii.rXl,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          onTap: widget.busy ? null : widget.onTap,
-          semanticLabel: '${widget.prayer.label}, ${done ? 'sudah' : 'belum'}',
+          padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+          onTap: busy ? null : onTap,
+          onLongPress: busy ? null : onEdit,
+          semanticLabel: '${prayer.label}, ${status?.label ?? 'belum diisi'}',
           child: Row(
             children: [
               Container(
                 width: 46,
                 height: 46,
                 decoration: BoxDecoration(
-                  color: done ? sw.edge : sw.tint(g.brightness),
+                  color: filled ? sw.edge : st.color.tint(g.brightness),
                   borderRadius: GhinaRadii.rLg,
                 ),
-                child: Icon(st.icon, color: done ? sw.on : sw.base, size: 26),
+                child: Icon(
+                  filled ? prayerStatusIcon(status) : st.icon,
+                  color: filled ? sw.on : st.color.base,
+                  size: 26,
+                ),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -476,27 +584,26 @@ class _PrayerTileState extends State<_PrayerTile> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      widget.prayer.label,
+                      prayer.label,
                       style: GhinaType.h3.w(900).copyWith(color: fg),
                     ),
                     Text(
-                      done ? 'Sudah, alhamdulillah' : st.time,
-                      style: GhinaType.bodyS.copyWith(
-                        color: done
-                            ? sw.on.withValues(alpha: 0.9)
-                            : g.textSecondary,
-                      ),
+                      subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: GhinaType.bodyS.copyWith(color: sub),
                     ),
                   ],
                 ),
               ),
+              const SizedBox(width: 6),
               AnimatedSwitcher(
                 duration: GhinaMotion.fast,
                 transitionBuilder: (c, a) =>
                     ScaleTransition(scale: a, child: c),
-                child: done
+                child: filled
                     ? Container(
-                        key: const ValueKey('done'),
+                        key: ValueKey('done-${status.wire}'),
                         width: 34,
                         height: 34,
                         decoration: const BoxDecoration(
@@ -504,9 +611,11 @@ class _PrayerTileState extends State<_PrayerTile> {
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
-                          Icons.check_rounded,
+                          status.isPrayed
+                              ? Icons.check_rounded
+                              : prayerStatusIcon(status),
                           color: sw.base,
-                          size: 24,
+                          size: 22,
                         ),
                       )
                     : Container(
@@ -519,37 +628,238 @@ class _PrayerTileState extends State<_PrayerTile> {
                         ),
                       ),
               ),
-            ],
-          ),
-        ),
-        if (_pops > 0)
-          Positioned(
-            right: 56,
-            top: 6,
-            child: IgnorePointer(
-              child: TweenAnimationBuilder<double>(
-                key: ValueKey(_pops),
-                tween: Tween(begin: 0, end: 1),
-                duration: const Duration(milliseconds: 900),
-                curve: Curves.easeOut,
-                builder: (_, t, child) => Opacity(
-                  opacity: (t < 0.7 ? 1.0 : 1 - (t - 0.7) / 0.3).clamp(
-                    0.0,
-                    1.0,
-                  ),
-                  child: Transform.translate(
-                    offset: Offset(0, -26 * t),
-                    child: Transform.scale(
-                      scale: 0.8 + 0.4 * (t < 0.3 ? t / 0.3 : 1),
-                      child: child,
+              Semantics(
+                button: true,
+                label: 'Pilih status ${prayer.label}',
+                child: GestureDetector(
+                  key: ValueKey('prayer-more-${prayer.wire}'),
+                  behavior: HitTestBehavior.opaque,
+                  onTap: busy ? null : onEdit,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 8,
+                    ),
+                    child: Icon(
+                      Icons.expand_more_rounded,
+                      color: filled ? sw.on : g.textMuted,
+                      size: 26,
                     ),
                   ),
                 ),
-                child: const XpBadge(xp: XpRules.prayer, plus: true),
               ),
-            ),
+            ],
+          ),
+        ),
+        if (pop case (final n, final xp))
+          Positioned(
+            right: 70,
+            top: 6,
+            child: XpPop(key: ValueKey('pop-$n'), xp: xp),
           ),
       ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------- sunnah
+
+class _SunnahCard extends StatelessWidget {
+  const _SunnahCard({
+    required this.day,
+    required this.entries,
+    required this.busy,
+    required this.onToggle,
+    required this.onRakaat,
+  });
+
+  final DateTime day;
+  final Map<Prayer, PrayerEntry> entries;
+  final Set<Prayer> busy;
+  final void Function(Prayer p, bool done) onToggle;
+  final void Function(Prayer p, int? rakaat) onRakaat;
+
+  @override
+  Widget build(BuildContext context) {
+    final g = context.ghina;
+    final done = [
+      for (final p in Prayer.sunnah)
+        if (entries[p] != null) p,
+    ];
+    return ChunkyCard(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'SUNNAH HARIAN',
+                  style: GhinaType.overline.copyWith(color: g.textSecondary),
+                ),
+              ),
+              Text(
+                '+${XpRules.sunnah} XP / salat',
+                style: GhinaType.caption.copyWith(color: g.textMuted),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              for (final p in Prayer.sunnah) ...[
+                if (p != Prayer.sunnah.first) const SizedBox(width: 8),
+                Expanded(
+                  child: _SunnahChip(
+                    key: ValueKey('sunnah-${p.wire}'),
+                    prayer: p,
+                    done: entries[p] != null,
+                    onTap: busy.contains(p)
+                        ? null
+                        : () => onToggle(p, entries[p] == null),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          for (final p in done) ...[
+            const SizedBox(height: 10),
+            _RakaatStepper(
+              key: ValueKey('rakaat-${p.wire}'),
+              prayer: p,
+              rakaat: entries[p]?.rakaat,
+              enabled: !busy.contains(p),
+              onChanged: (r) => onRakaat(p, r),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SunnahChip extends StatelessWidget {
+  const _SunnahChip({
+    super.key,
+    required this.prayer,
+    required this.done,
+    required this.onTap,
+  });
+
+  final Prayer prayer;
+  final bool done;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final g = context.ghina;
+    final st = prayerStyles[prayer]!;
+    final sw = st.color;
+    return ChunkySurface(
+      color: done ? sw.base : g.surface,
+      edgeColor: done ? sw.edge : g.borderEdge,
+      borderColor: done ? null : g.border,
+      depth: GhinaDepth.md,
+      borderRadius: GhinaRadii.rLg,
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+      onTap: onTap,
+      semanticLabel: '${prayer.label}, ${done ? 'sudah' : 'belum'}',
+      child: Column(
+        children: [
+          Icon(
+            done ? Icons.check_circle_rounded : st.icon,
+            color: done ? sw.on : sw.base,
+            size: 24,
+          ),
+          const SizedBox(height: 4),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              prayer.label,
+              maxLines: 1,
+              style: GhinaType.bodyS
+                  .w(900)
+                  .copyWith(color: done ? sw.on : g.textPrimary),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RakaatStepper extends StatelessWidget {
+  const _RakaatStepper({
+    super.key,
+    required this.prayer,
+    required this.rakaat,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final Prayer prayer;
+  final int? rakaat;
+  final bool enabled;
+  final ValueChanged<int?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final g = context.ghina;
+    final options = rakaatOptions(prayer);
+    final r = rakaat;
+    final i = r == null ? -1 : options.indexOf(r);
+    final canDown = enabled && r != null;
+    final canUp = enabled && i < options.length - 1;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
+      decoration: BoxDecoration(
+        color: g.surfaceAlt,
+        borderRadius: GhinaRadii.rLg,
+      ),
+      child: Row(
+        children: [
+          Icon(
+            prayerStyles[prayer]!.icon,
+            size: 18,
+            color: prayerStyles[prayer]!.color.base,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              prayer.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GhinaType.body.w(800).copyWith(color: g.textPrimary),
+            ),
+          ),
+          ChunkyIconButton(
+            icon: Icons.remove_rounded,
+            size: 34,
+            tooltip: 'Kurangi rakaat ${prayer.label}',
+            onPressed: canDown
+                ? () => onChanged(i <= 0 ? null : options[i - 1])
+                : null,
+          ),
+          SizedBox(
+            width: 78,
+            child: Text(
+              r == null ? 'Rakaat?' : '$r rakaat',
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              style: GhinaType.bodyS
+                  .w(900)
+                  .copyWith(color: r == null ? g.textMuted : g.textPrimary),
+            ),
+          ),
+          ChunkyIconButton(
+            icon: Icons.add_rounded,
+            size: 34,
+            tooltip: 'Tambah rakaat ${prayer.label}',
+            onPressed: canUp ? () => onChanged(options[i + 1]) : null,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -560,38 +870,26 @@ class _Stats extends StatelessWidget {
   const _Stats({
     required this.today,
     required this.month,
-    required this.byDate,
+    required this.entries,
   });
 
   final DateTime today;
   final YearMonth month;
-  final Map<String, Set<Prayer>> byDate;
+  final List<PrayerEntry> entries;
 
   @override
   Widget build(BuildContext context) {
-    // Streak of full (5/5) days; today still counts as "in progress".
-    var cursor = today;
-    if ((byDate[dateKey(cursor)]?.length ?? 0) < 5) {
-      cursor = addDays(cursor, -1);
-    }
-    var streak = 0;
-    while ((byDate[dateKey(cursor)]?.length ?? 0) >= 5) {
-      streak++;
-      cursor = addDays(cursor, -1);
-    }
-    // Month completion.
-    final isCurrent = month.contains(today);
-    final isPast = month.compareTo(YearMonth.of(today)) < 0;
-    final elapsed = isCurrent
-        ? today.day
-        : (isPast ? daysInMonth(month.year, month.month) : 0);
-    var doneCount = 0;
-    for (var d = 1; d <= elapsed; d++) {
-      doneCount +=
-          byDate[dateKey(DateTime(month.year, month.month, d))]?.length ?? 0;
-    }
-    final pct = elapsed == 0 ? 0 : (doneCount / (elapsed * 5) * 100).round();
-    final todayCount = byDate[dateKey(today)]?.length ?? 0;
+    final streak = completeDayStreak(entries, today);
+    final report = buildPrayerReport(
+      entries,
+      from: month.start,
+      to: startOfDay(month.end),
+      today: today,
+    );
+    final todayCount = _prayedCount(
+      prayerEntriesByDate(entries)[dateKey(today)],
+    );
+    final score = report.score;
 
     return IntrinsicHeight(
       child: Row(
@@ -617,9 +915,9 @@ class _Stats extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: _MiniStat(
-              icon: Icons.percent_rounded,
-              value: '$pct%',
-              label: Fmt.monthName(month.month),
+              icon: Icons.speed_rounded,
+              value: score == null ? '–' : '$score',
+              label: 'Skor ${Fmt.monthName(month.month)}',
               color: GhinaColors.blue,
             ),
           ),
@@ -685,7 +983,7 @@ class _MonthHeatmap extends StatelessWidget {
   final YearMonth month;
   final DateTime today;
   final DateTime selected;
-  final Map<String, Set<Prayer>> byDate;
+  final _DayMap byDate;
   final bool loading;
   final ValueChanged<YearMonth> onMonth;
   final ValueChanged<DateTime> onTap;
@@ -747,10 +1045,8 @@ class _MonthHeatmap extends StatelessWidget {
               for (var d = 1; d <= dim; d++)
                 _HeatCell(
                   day: DateTime(month.year, month.month, d),
-                  count:
-                      byDate[dateKey(DateTime(month.year, month.month, d))]
-                          ?.length ??
-                      0,
+                  entries:
+                      byDate[dateKey(DateTime(month.year, month.month, d))],
                   today: today,
                   selected: selected,
                   onTap: onTap,
@@ -758,52 +1054,23 @@ class _MonthHeatmap extends StatelessWidget {
             ],
           ),
         const SizedBox(height: 12),
-        Wrap(
-          spacing: 14,
-          runSpacing: 6,
-          alignment: WrapAlignment.center,
-          children: [
-            _legend(context, GhinaColors.green.base, 'Lengkap'),
-            _legend(
-              context,
-              GhinaColors.orange.base.withValues(alpha: 0.7),
-              'Sebagian',
-            ),
-            _legend(context, GhinaColors.red.tint(g.brightness), 'Terlewat'),
-          ],
-        ),
+        const PrayerStatusLegend(),
       ],
     );
   }
-
-  Widget _legend(BuildContext context, Color c, String label) => Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Container(
-        width: 14,
-        height: 14,
-        decoration: BoxDecoration(color: c, borderRadius: GhinaRadii.rSm),
-      ),
-      const SizedBox(width: 5),
-      Text(
-        label,
-        style: GhinaType.caption.copyWith(color: context.ghina.textSecondary),
-      ),
-    ],
-  );
 }
 
 class _HeatCell extends StatelessWidget {
   const _HeatCell({
     required this.day,
-    required this.count,
+    required this.entries,
     required this.today,
     required this.selected,
     required this.onTap,
   });
 
   final DateTime day;
-  final int count;
+  final Map<Prayer, PrayerEntry>? entries;
   final DateTime today;
   final DateTime selected;
   final ValueChanged<DateTime> onTap;
@@ -814,24 +1081,8 @@ class _HeatCell extends StatelessWidget {
     final future = day.isAfter(today);
     final isToday = isSameDay(day, today);
     final isSel = isSameDay(day, selected);
-    final Color? bg;
-    final Color fg;
-    if (future) {
-      bg = null;
-      fg = g.textMuted;
-    } else if (count >= 5) {
-      bg = GhinaColors.green.base;
-      fg = Colors.white;
-    } else if (count > 0) {
-      bg = GhinaColors.orange.base.withValues(alpha: 0.3 + 0.12 * count);
-      fg = Colors.white;
-    } else if (isToday) {
-      bg = null;
-      fg = g.textPrimary;
-    } else {
-      bg = GhinaColors.red.tint(g.brightness);
-      fg = g.textMuted;
-    }
+    final count = _prayedCount(entries);
+    final full = count == 5;
     return GestureDetector(
       onTap: future ? null : () => onTap(day),
       child: Semantics(
@@ -839,7 +1090,11 @@ class _HeatCell extends StatelessWidget {
         label: '${day.day}: $count dari 5 salat',
         child: Container(
           decoration: BoxDecoration(
-            color: bg,
+            color: future
+                ? null
+                : full
+                ? GhinaColors.green.tint(g.brightness)
+                : g.surfaceAlt,
             borderRadius: GhinaRadii.rMd,
             border: isSel
                 ? Border.all(color: GhinaColors.blue.base, width: 3)
@@ -849,13 +1104,29 @@ class _HeatCell extends StatelessWidget {
                 ? Border.all(color: g.border, width: 1.5)
                 : null,
           ),
-          alignment: Alignment.center,
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(
-              '${day.day}',
-              style: GhinaType.bodyS.w(900).copyWith(color: fg),
-            ),
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    '${day.day}',
+                    style: GhinaType.bodyS
+                        .w(900)
+                        .copyWith(color: future ? g.textMuted : g.textPrimary),
+                  ),
+                ),
+              ),
+              if (!future) ...[
+                const SizedBox(height: 2),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: _StatusDots(entries: entries, size: 6),
+                ),
+              ],
+            ],
           ),
         ),
       ),

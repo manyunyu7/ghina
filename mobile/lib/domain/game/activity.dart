@@ -4,6 +4,8 @@ import 'game_date.dart';
 enum ActivityKind { transaction, prayer, health, food, lesson }
 
 /// Transaction type, mirrors `Transaction.type` (expense | income | transfer).
+/// Balance adjustments are not activity: the data seam never maps them to
+/// events (they don't earn XP, streak or daily goal progress).
 enum TxKind {
   expense,
   income,
@@ -16,8 +18,17 @@ enum TxKind {
   };
 }
 
-/// The five daily prayers, mirrors `PrayerEntry.prayer`.
+/// The five daily (fardhu) prayers, mirrors `PrayerEntry.prayer`.
 const prayerNames = ['subuh', 'dzuhur', 'ashar', 'maghrib', 'isya'];
+
+/// The daily sunnah prayers tracked alongside the fardhu.
+const sunnahPrayerNames = ['dhuha', 'tahajud', 'witir'];
+
+/// Fardhu statuses that count as prayed (spec `docs/prayer-quality.md`).
+const prayedStatuses = {'masjid', 'jamaah', 'ontime', 'late', 'qadha'};
+
+/// Rawatib muakkad slots per day (subuh q, dzuhur q+b, maghrib b, isya b).
+const rawatibSlotsPerDay = 5;
 
 /// One piece of synced user activity, the engine's only view of the data layer.
 ///
@@ -35,6 +46,9 @@ class ActivityEvent {
     this.txKind,
     this.amount,
     this.prayer,
+    this.prayerStatus,
+    this.qobliyah = false,
+    this.badiyah = false,
     this.hasWeight = false,
   });
 
@@ -55,10 +69,15 @@ class ActivityEvent {
   );
 
   /// A prayer entry. Counted on its own [date] (`YYYY-MM-DD` local date).
+  /// [status] is the fardhu status (`masjid … excused`; null → `ontime`, the
+  /// server default); sunnah rows are `done`. [qobliyah]/[badiyah] = rawatib.
   factory ActivityEvent.prayer({
     String? id,
     required GameDate date,
     required String prayer,
+    String? status,
+    bool qobliyah = false,
+    bool badiyah = false,
     DateTime? createdAt,
   }) => ActivityEvent(
     kind: ActivityKind.prayer,
@@ -66,6 +85,11 @@ class ActivityEvent {
     at: createdAt ?? date.toLocalDateTime(),
     dayOverride: date,
     prayer: prayer.toLowerCase(),
+    prayerStatus:
+        status?.toLowerCase() ??
+        (sunnahPrayerNames.contains(prayer.toLowerCase()) ? 'done' : 'ontime'),
+    qobliyah: qobliyah,
+    badiyah: badiyah,
   );
 
   /// A health entry (weight / blood pressure).
@@ -108,8 +132,22 @@ class ActivityEvent {
   final TxKind? txKind;
   final double? amount;
 
-  /// Prayer name (see [prayerNames]).
+  /// Prayer name (see [prayerNames] / [sunnahPrayerNames]).
   final String? prayer;
+
+  /// Prayer status (`masjid|jamaah|ontime|late|qadha|missed|excused|done`).
+  final String? prayerStatus;
+
+  /// Rawatib ticked on a fardhu row.
+  final bool qobliyah;
+  final bool badiyah;
+
+  bool get isFardhu => prayer != null && prayerNames.contains(prayer);
+  bool get isSunnah => prayer != null && sunnahPrayerNames.contains(prayer);
+
+  /// Fardhu with a prayed status.
+  bool get isPrayedFardhu => isFardhu && prayedStatuses.contains(prayerStatus);
+  int get rawatibCount => (qobliyah ? 1 : 0) + (badiyah ? 1 : 0);
 
   /// Health entry includes a weight measurement.
   final bool hasWeight;

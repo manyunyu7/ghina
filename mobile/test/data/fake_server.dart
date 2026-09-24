@@ -3,6 +3,8 @@ import 'package:ghina/data/datasources/remote/sync_api.dart';
 import 'package:ghina/data/models/api_dto.dart';
 import 'package:ghina/data/models/entity_names.dart';
 import 'package:ghina/data/models/wire.dart';
+import 'package:ghina/domain/entities/entities.dart';
+import 'package:ghina/domain/usecases/prayer_quality.dart';
 
 typedef Tomb = ({String entity, String id, int deletedAt});
 
@@ -28,6 +30,9 @@ class FakeServer implements SyncApi {
   final rejectIds = <String>{};
   final uploads = <String>[];
   final pushed = <PushMutation>[];
+
+  /// Every rejected mutation with its error.
+  final rejected = <(PushMutation, String?)>[];
   int pullCount = 0;
 
   static final _idRe = RegExp(r'^[A-Za-z0-9_-]{1,64}$');
@@ -96,6 +101,7 @@ class FakeServer implements SyncApi {
     final results = <PushResult>[];
     for (final m in mutations) {
       final (status, error) = _apply(m);
+      if (status == PushStatus.rejected) rejected.add((m, error));
       results.add(PushResult(id: m.id, status: status, error: error));
     }
     return PushResponse(serverTime: tick(), results: results);
@@ -155,6 +161,26 @@ class FakeServer implements SyncApi {
   String? _validate(String e, Json d) {
     switch (e) {
       case SyncEntity.transactions:
+        final type = d['type'];
+        if (!const [
+          'expense',
+          'income',
+          'transfer',
+          'adjustment',
+        ].contains(type)) {
+          return 'Invalid type';
+        }
+        if (type == 'adjustment') {
+          final a = (d['amount'] as num).toDouble();
+          if (!a.isFinite || a == 0) return 'Amount must not be 0';
+          if (d['categoryId'] != null || d['toWalletId'] != null) {
+            return 'Adjustment takes no category or destination wallet';
+          }
+          if (!_owned(SyncEntity.wallets, d['walletId'] as String?)) {
+            return 'Wallet not found';
+          }
+          return null;
+        }
         if ((d['amount'] as num) <= 0) return 'Amount must be greater than 0';
         if (!_owned(SyncEntity.wallets, d['walletId'] as String?)) {
           return 'Wallet not found';
@@ -171,6 +197,27 @@ class FakeServer implements SyncApi {
             !_owned(SyncEntity.categories, d['categoryId'] as String?)) {
           return 'Category not found';
         }
+      case SyncEntity.prayers:
+        // The real server runs `prayerEntryError` (src/lib/prayer-quality.ts);
+        // the app's mirror of it is the same function.
+        final p = Prayer.fromWire(d['prayer'] as String?);
+        if (p == null) return 'Shalat tidak dikenal';
+        final status = PrayerStatus.fromWire(d['status'] as String?);
+        if (status == null) return 'Status tidak valid';
+        return prayerEntryError(
+          PrayerEntry(
+            id: 'x',
+            date: d['date'] as String,
+            prayer: p,
+            status: status,
+            qobliyah: d['qobliyah'] as bool? ?? false,
+            badiyah: d['badiyah'] as bool? ?? false,
+            rakaat: d['rakaat'] as int?,
+            note: d['note'] as String?,
+            createdAt: DateTime(2026),
+            updatedAt: DateTime(2026),
+          ),
+        );
       case SyncEntity.budgets:
         final c = rows[SyncEntity.categories]![d['categoryId']];
         if (c == null || c['type'] != 'expense') return 'Invalid category';

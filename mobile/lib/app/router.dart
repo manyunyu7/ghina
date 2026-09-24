@@ -19,6 +19,7 @@ import '../presentation/features/health/pages/health_page.dart';
 import '../presentation/features/home/pages/home_page.dart';
 import '../presentation/features/learn/pages/learn_page.dart';
 import '../presentation/features/learn/pages/lesson_page.dart';
+import '../presentation/features/prayers/pages/prayer_report_page.dart';
 import '../presentation/features/prayers/pages/prayers_page.dart';
 import '../presentation/features/profile/pages/achievements_page.dart';
 import '../presentation/features/profile/pages/profile_page.dart';
@@ -112,6 +113,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         listInShell: true,
       ),
       ..._crud('/wallets', const WalletsPage(), (id) => WalletFormPage(id: id)),
+      GoRoute(
+        path: '/wallets/:id/history',
+        builder: (_, s) => TransactionsPage(walletId: s.pathParameters['id']),
+      ),
       ..._crud(
         '/categories',
         const CategoriesPage(),
@@ -132,6 +137,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       ..._crud('/food', const FoodPage(), (id) => FoodFormPage(id: id)),
       GoRoute(path: '/reports', builder: (_, _) => const ReportsPage()),
       GoRoute(path: '/prayers', builder: (_, _) => const PrayersPage()),
+      GoRoute(
+        path: '/prayers/report',
+        builder: (_, _) => const PrayerReportPage(),
+      ),
       GoRoute(
         path: '/achievements',
         builder: (_, _) => const AchievementsPage(),

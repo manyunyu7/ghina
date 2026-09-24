@@ -64,18 +64,30 @@ extension CategoryX on TxCategory {
 }
 
 extension TransactionRowX on TransactionRow {
-  Transaction toEntity() => Transaction(
-    id: id,
-    walletId: walletId,
-    toWalletId: toWalletId,
-    categoryId: categoryId,
-    type: TxType.fromWire(type),
-    amount: amount,
-    note: note,
-    date: date,
-    createdAt: createdAt,
-    updatedAt: updatedAt,
-  );
+  /// Null when the stored type is unknown to this app version (a newer server):
+  /// such rows stay in the database (their balance effect is already in the
+  /// server balance) but are hidden from every list and aggregate.
+  Transaction? toEntityOrNull() {
+    final t = TxType.tryFromWire(type);
+    if (t == null) return null;
+    return Transaction(
+      id: id,
+      walletId: walletId,
+      toWalletId: toWalletId,
+      categoryId: categoryId,
+      type: t,
+      amount: amount,
+      note: note,
+      date: date,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+    );
+  }
+}
+
+extension TransactionRowsX on Iterable<TransactionRow> {
+  /// Entities of the rows with a known type.
+  List<Transaction> toEntities() => [for (final r in this) ?r.toEntityOrNull()];
 }
 
 extension TransactionX on Transaction {
@@ -194,6 +206,12 @@ extension PrayerRowX on PrayerRow {
       id: id,
       date: date,
       prayer: p,
+      status: PrayerStatus.forPrayer(p, status),
+      qobliyah: p.isFardhu && p.hasQobliyah && qobliyah,
+      badiyah: p.isFardhu && p.hasBadiyah && badiyah,
+      rakaat: p.isSunnah ? rakaat : null,
+      prayedAt: prayedAt,
+      note: note,
       createdAt: createdAt,
       updatedAt: updatedAt,
     );
@@ -205,6 +223,12 @@ extension PrayerX on PrayerEntry {
     id: id,
     date: date,
     prayer: prayer.wire,
+    status: Value(status.wire),
+    qobliyah: Value(qobliyah),
+    badiyah: Value(badiyah),
+    rakaat: Value(rakaat),
+    prayedAt: Value(prayedAt),
+    note: Value(note),
     createdAt: createdAt,
     updatedAt: updatedAt,
   );

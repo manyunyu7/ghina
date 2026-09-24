@@ -80,6 +80,7 @@ export function TransactionFilters({
           <option value="income">Income</option>
           <option value="expense">Expense</option>
           <option value="transfer">Transfer</option>
+          <option value="adjustment">Penyesuaian saldo</option>
         </Select>
 
         <Select

@@ -43,6 +43,10 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
   late DateTime _date;
   String _note = '';
 
+  /// Adjustments only: +1 adds to the balance, −1 subtracts.
+  int _adjSign = 1;
+  bool get _isAdjustment => _type == TxType.adjustment;
+
   bool _loaded = false;
   bool _saving = false;
   bool _deleted = false;
@@ -82,7 +86,11 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
     _categoryId = t.categoryId;
     _date = t.date;
     _note = t.note ?? '';
-    _setCurrency(v.wallet?.currency ?? _amount.currency, amount: t.amount);
+    _adjSign = t.amount < 0 ? -1 : 1;
+    _setCurrency(
+      v.wallet?.currency ?? _amount.currency,
+      amount: t.amount.abs(),
+    );
     _loaded = true;
   }
 
@@ -245,10 +253,14 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
     }
     final input = TransactionInput(
       type: _type,
-      amount: _amount.amount.toDouble(),
+      amount: _isAdjustment
+          ? _adjSign * _amount.amount.toDouble()
+          : _amount.amount.toDouble(),
       walletId: walletId,
       toWalletId: _type == TxType.transfer ? _toWalletId : null,
-      categoryId: _type == TxType.transfer ? null : _categoryId,
+      categoryId: _type == TxType.transfer || _isAdjustment
+          ? null
+          : _categoryId,
       note: _note,
       date: _date,
     );
@@ -378,7 +390,7 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
     }
     final allCats = catsAsync.value ?? const <TxCategory>[];
     final cats = _orderedCategories(allCats, recent);
-    final sw = txSwatch(_type);
+    final sw = _isAdjustment ? GhinaColors.blue : txSwatch(_type);
 
     final height = MediaQuery.sizeOf(context).height;
     final small = height < 720;
@@ -396,15 +408,40 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
             ),
             child: MediaQuery.withClampedTextScaling(
               maxScaleFactor: 1.1,
-              child: ChunkySegmented<TxType>(
-                value: _type,
-                height: small ? 42 : 46,
-                onChanged: (t) => _setType(t, allCats),
-                segments: [
-                  for (final t in TxType.values)
-                    ChunkySegment(value: t, label: t.label, color: txSwatch(t)),
-                ],
-              ),
+              child: _isAdjustment
+                  ? ChunkySegmented<int>(
+                      key: const ValueKey('adj-sign'),
+                      value: _adjSign,
+                      height: small ? 42 : 46,
+                      onChanged: (v) => setState(() => _adjSign = v),
+                      segments: const [
+                        ChunkySegment(
+                          value: 1,
+                          label: 'Tambah saldo',
+                          icon: Icons.add_rounded,
+                          color: GhinaColors.blue,
+                        ),
+                        ChunkySegment(
+                          value: -1,
+                          label: 'Kurangi saldo',
+                          icon: Icons.remove_rounded,
+                          color: GhinaColors.blue,
+                        ),
+                      ],
+                    )
+                  : ChunkySegmented<TxType>(
+                      value: _type,
+                      height: small ? 42 : 46,
+                      onChanged: (t) => _setType(t, allCats),
+                      segments: [
+                        for (final t in TxType.loggable)
+                          ChunkySegment(
+                            value: t,
+                            label: t.label,
+                            color: txSwatch(t),
+                          ),
+                      ],
+                    ),
             ),
           ),
           Expanded(
@@ -468,7 +505,31 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
                     ),
                   ),
                   SizedBox(height: small ? GhinaSpace.md : GhinaSpace.lg),
-                  if (_type == TxType.transfer)
+                  if (_isAdjustment)
+                    ChunkyCard(
+                      key: const ValueKey('adj-info'),
+                      tinted: GhinaColors.blue,
+                      padding: const EdgeInsets.all(GhinaSpace.md),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.tune_rounded,
+                            color: GhinaColors.blue.base,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Penyesuaian saldo cuma mengubah saldo dompet. '
+                              'Nggak dihitung sebagai pemasukan atau pengeluaran.',
+                              style: GhinaType.bodyS.copyWith(
+                                color: context.ghina.textPrimary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else if (_type == TxType.transfer)
                     _TransferWallets(
                       from: wallet,
                       to: toWallet,
@@ -551,7 +612,11 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
         tooltip: 'Tutup',
         onPressed: () => popOr(context, '/transactions'),
       ),
-      title: Text(_isEdit ? 'Edit transaksi' : 'Catat transaksi'),
+      title: Text(
+        _isAdjustment
+            ? 'Penyesuaian saldo'
+            : (_isEdit ? 'Edit transaksi' : 'Catat transaksi'),
+      ),
       actions: [
         if (_isEdit && _loaded && !_deleted)
           IconButton(

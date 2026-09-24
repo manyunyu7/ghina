@@ -7,6 +7,7 @@ import { requireUser } from "@/lib/auth-helpers";
 import { COLOR_PALETTE } from "@/lib/constants";
 import { walletSchema } from "@/lib/schemas";
 import { deleteSynced } from "@/lib/sync-deletes";
+import { adjustWalletBalance } from "@/lib/ledger";
 
 export type WalletActionResult = { ok: boolean; error?: string };
 
@@ -49,23 +50,34 @@ export async function createWallet(formData: FormData): Promise<WalletActionResu
   return { ok: true };
 }
 
+/**
+ * Edit a wallet. The balance field is "Saldo sekarang": if it changed, a balance
+ * `adjustment` transaction for the difference is recorded in the same DB transaction
+ * (docs/balance-adjustment.md) — `Wallet.balance` is never overwritten directly.
+ */
 export async function updateWallet(formData: FormData): Promise<WalletActionResult> {
   const user = await requireUser();
   const id = String(formData.get("id") ?? "");
   if (!id) return { ok: false, error: "Missing wallet id" };
 
   try {
-    // Verify ownership before mutating.
-    const existing = await prisma.wallet.findUnique({ where: { id }, select: { userId: true } });
-    if (!existing || existing.userId !== user.id) {
-      return { ok: false, error: "Wallet not found" };
-    }
+    const { balance: target, ...fields } = parse(formData, user.currency);
+    const userNote = String(formData.get("adjustmentNote") ?? "").trim();
+    const dateRaw = String(formData.get("adjustmentDate") ?? "").trim();
+    const date = parseAdjustmentDate(dateRaw);
+    if (dateRaw && !date) return { ok: false, error: "Tanggal penyesuaian tidak valid" };
 
-    const data = parse(formData, user.currency);
-    await prisma.wallet.update({
-      where: { id },
-      data: { ...data, editedAt: new Date() },
+    const outcome = await prisma.$transaction(async (db) => {
+      // Ownership check inside the transaction; the delta is computed from the live balance.
+      const existing = await db.wallet.findUnique({ where: { id }, select: { userId: true } });
+      if (!existing || existing.userId !== user.id) return "not-found" as const;
+
+      await db.wallet.update({ where: { id }, data: { ...fields, editedAt: new Date() } });
+      // Balance changes become an adjustment transaction — never a direct overwrite.
+      await adjustWalletBalance(db, user.id, id, target, { currency: fields.currency, note: userNote, date });
+      return "ok" as const;
     });
+    if (outcome === "not-found") return { ok: false, error: "Wallet not found" };
   } catch (err) {
     if (err instanceof z.ZodError) {
       return { ok: false, error: err.issues[0]?.message ?? "Invalid data" };
@@ -73,7 +85,17 @@ export async function updateWallet(formData: FormData): Promise<WalletActionResu
     return { ok: false, error: "Failed to update wallet" };
   }
   revalidate();
+  revalidatePath("/transactions");
   return { ok: true };
+}
+
+/** "YYYY-MM-DD" (date input) → that day at the current local time; "" → null. */
+function parseAdjustmentDate(v: string): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+  if (!m) return null;
+  const now = new Date();
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), now.getHours(), now.getMinutes(), now.getSeconds());
+  return Number.isNaN(d.getTime()) ? null : d;
 }
 
 export async function deleteWallet(formData: FormData): Promise<WalletActionResult> {

@@ -12,7 +12,9 @@ export const ENTITY_FIELDS: Record<SyncEntity, readonly string[]> = {
     "color", "icon", "note", "active", "createdAt", "updatedAt",
   ],
   planned: ["id", "type", "amount", "note", "categoryId", "walletId", "date", "done", "createdAt", "updatedAt"],
-  prayers: ["id", "date", "prayer", "createdAt", "updatedAt"],
+  prayers: [
+    "id", "date", "prayer", "status", "qobliyah", "badiyah", "rakaat", "prayedAt", "note", "createdAt", "updatedAt",
+  ],
   health: ["id", "date", "weight", "systolic", "diastolic", "pulse", "note", "createdAt", "updatedAt"],
   food: ["id", "date", "name", "meal", "calories", "photoUrl", "note", "createdAt", "updatedAt"],
 };

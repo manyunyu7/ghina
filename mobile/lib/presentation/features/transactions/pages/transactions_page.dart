@@ -15,9 +15,14 @@ import '../../../shared/widgets/widgets.dart';
 import '../widgets/tx_visuals.dart';
 
 /// The Transaksi tab: month selector, month summary, filters, search, and the
-/// list grouped by day.
+/// list grouped by day. With [walletId] it's that wallet's "Riwayat" (pushed
+/// from the wallet screens): pre-filtered to the wallet, both sides of
+/// transfers and its balance adjustments included.
 class TransactionsPage extends ConsumerStatefulWidget {
-  const TransactionsPage({super.key});
+  const TransactionsPage({super.key, this.walletId});
+
+  /// Opens as the history of this wallet.
+  final String? walletId;
 
   @override
   ConsumerState<TransactionsPage> createState() => _TransactionsPageState();
@@ -37,6 +42,7 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
   void initState() {
     super.initState();
     _month = YearMonth.of(ref.read(clockProvider).now());
+    _walletId = widget.walletId;
   }
 
   @override
@@ -48,7 +54,7 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
 
   bool get _hasFilters =>
       _type != null ||
-      _walletId != null ||
+      (_walletId != null && _walletId != widget.walletId) ||
       _categoryId != null ||
       _search.trim().isNotEmpty;
 
@@ -65,7 +71,7 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
     _searchCtrl.clear();
     setState(() {
       _type = null;
-      _walletId = null;
+      _walletId = widget.walletId;
       _categoryId = null;
       _search = '';
     });
@@ -152,10 +158,10 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Center(
-            child: MoneyText(
+            child: TxAmount(
+              type: v.type,
               amount: v.amount,
               currency: v.wallet?.currency ?? currency,
-              tone: txTone(v.type),
               style: GhinaType.moneyL,
             ),
           ),
@@ -172,13 +178,15 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
             variant: ChunkyButtonVariant.secondary,
             onPressed: () => Navigator.of(c).pop('edit'),
           ),
-          const SizedBox(height: GhinaSpace.sm),
-          ChunkyButton(
-            label: 'Catat lagi',
-            icon: Icons.content_copy_rounded,
-            variant: ChunkyButtonVariant.outline,
-            onPressed: () => Navigator.of(c).pop('again'),
-          ),
+          if (v.type != TxType.adjustment) ...[
+            const SizedBox(height: GhinaSpace.sm),
+            ChunkyButton(
+              label: 'Catat lagi',
+              icon: Icons.content_copy_rounded,
+              variant: ChunkyButtonVariant.outline,
+              onPressed: () => Navigator.of(c).pop('again'),
+            ),
+          ],
           const SizedBox(height: GhinaSpace.sm),
           ChunkyButton(
             label: 'Hapus',
@@ -216,7 +224,9 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
     final categories =
         ref.watch(watchCategoriesProvider(null)).value ?? const [];
     final monthAll = ref.watch(
-      watchTransactionsByDayProvider(TransactionFilter(month: _month)),
+      watchTransactionsByDayProvider(
+        TransactionFilter(month: _month, walletId: widget.walletId),
+      ),
     );
     final groups = ref.watch(watchTransactionsByDayProvider(_filter));
 
@@ -225,9 +235,16 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
     final selCat = categories.where((c) => c.id == _categoryId).firstOrNull;
     final now = ref.read(clockProvider).now();
 
+    final history = widget.walletId == null
+        ? null
+        : walletList.where((w) => w.id == widget.walletId).firstOrNull;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Transaksi'),
+        title: Text(
+          widget.walletId == null
+              ? 'Transaksi'
+              : 'Riwayat ${history?.name ?? 'dompet'}',
+        ),
         centerTitle: false,
         actions: [
           IconButton(
@@ -261,6 +278,24 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
               ),
               sliver: SliverList.list(
                 children: [
+                  if (history != null) ...[
+                    ChunkyTile(
+                      key: const ValueKey('history-wallet'),
+                      leading: WalletAvatar(wallet: history, size: 40),
+                      title: 'Saldo sekarang',
+                      subtitle: history.name,
+                      dense: true,
+                      tinted: CategoryColors.swatch(history.color),
+                      trailing: MoneyText(
+                        amount: history.balance,
+                        currency: history.currency,
+                        tone: MoneyTone.neutral,
+                        style: GhinaType.moneyM,
+                      ),
+                      onTap: () => context.push('/wallets/${history.id}'),
+                    ),
+                    const SizedBox(height: GhinaSpace.md),
+                  ],
                   MonthSwitcher(
                     value: _month,
                     current: YearMonth.of(now),

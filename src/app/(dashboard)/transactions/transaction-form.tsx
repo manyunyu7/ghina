@@ -80,6 +80,9 @@ function TransactionFormBody({
   onClose: () => void;
 }) {
   const isEdit = Boolean(transaction);
+  // Balance adjustments are created from the wallet form; here they can only be edited
+  // (signed amount, no category, type fixed).
+  const isAdjustment = transaction?.type === "adjustment";
   const [type, setType] = React.useState<string>(transaction?.type ?? "expense");
   const [walletId, setWalletId] = React.useState<string>(transaction?.walletId ?? "");
   const [submitting, setSubmitting] = React.useState(false);
@@ -110,6 +113,16 @@ function TransactionFormBody({
         {isEdit && transaction && <input type="hidden" name="id" value={transaction.id} />}
 
         {/* Type toggle */}
+        {isAdjustment ? (
+          <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-slate-700">
+            <p className="font-medium text-sky-700">Penyesuaian saldo</p>
+            <p className="mt-0.5 text-xs">
+              Jumlah bertanda: positif menambah saldo, negatif mengurangi. Hapus transaksi ini untuk
+              mengembalikan saldo sebelumnya.
+            </p>
+            <input type="hidden" name="type" value="adjustment" />
+          </div>
+        ) : (
         <Field label="Type">
           <div className="grid grid-cols-3 gap-2">
             {TYPES.map((t) => (
@@ -134,14 +147,15 @@ function TransactionFormBody({
           </div>
           <input type="hidden" name="type" value={type} />
         </Field>
+        )}
 
-        <Field label="Amount">
+        <Field label={isAdjustment ? "Selisih (+/−)" : "Amount"}>
           <Input
             name="amount"
             type="number"
             inputMode="decimal"
             step="any"
-            min="0"
+            min={isAdjustment ? undefined : "0"}
             required
             placeholder="0"
             defaultValue={transaction ? String(transaction.amount) : ""}
@@ -183,7 +197,7 @@ function TransactionFormBody({
           </Field>
         )}
 
-        {type !== "transfer" && (
+        {type !== "transfer" && !isAdjustment && (
           <Field label="Category">
             <Select
               name="categoryId"

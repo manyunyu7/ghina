@@ -32,18 +32,34 @@ export const categorySchema = z.object({
   icon: z.enum(CATEGORY_ICONS as [string, ...string[]]),
 });
 
-export const transactionSchema = z.object({
-  type: z.enum(["expense", "income", "transfer"]),
-  amount: z.coerce.number().positive("Amount must be greater than 0"),
-  walletId: z.string().min(1, "Wallet is required"),
-  toWalletId: optionalId,
-  categoryId: optionalId,
-  note: z
-    .string()
-    .nullish()
-    .transform((v) => (v && v.trim().length > 0 ? v.trim() : null)),
-  date: z.coerce.date(),
-});
+export const TRANSACTION_TYPES = ["expense", "income", "transfer", "adjustment"] as const;
+/** Types that are real money in/out — the only ones summed in income/expense totals. */
+export const CASHFLOW_TYPES = ["income", "expense"] as const;
+
+/**
+ * amount > 0 for expense/income/transfer. A balance `adjustment` (docs/balance-adjustment.md)
+ * has a signed, non-zero amount (new balance − old balance).
+ */
+export const transactionSchema = z
+  .object({
+    type: z.enum(TRANSACTION_TYPES),
+    amount: z.coerce.number().finite("Amount must be a number"),
+    walletId: z.string().min(1, "Wallet is required"),
+    toWalletId: optionalId,
+    categoryId: optionalId,
+    note: z
+      .string()
+      .nullish()
+      .transform((v) => (v && v.trim().length > 0 ? v.trim() : null)),
+    date: z.coerce.date(),
+  })
+  .superRefine((t, ctx) => {
+    if (t.type === "adjustment") {
+      if (t.amount === 0) ctx.addIssue({ code: "custom", path: ["amount"], message: "Adjustment amount must not be 0" });
+    } else if (!(t.amount > 0)) {
+      ctx.addIssue({ code: "custom", path: ["amount"], message: "Amount must be greater than 0" });
+    }
+  });
 
 export const budgetSchema = z.object({
   categoryId: z.string().trim().min(1, "Category is required"),

@@ -6,9 +6,28 @@ abstract final class XpRules {
   /// Max transactions per day that earn XP / count toward the daily goal.
   static const transactionDailyCap = 15;
 
-  static const prayer = 5;
+  /// XP per fardhu = its quality points (spec `docs/prayer-quality.md`):
+  /// masjid 10, jamaah 8, ontime 6, late 3, qadha 1, missed/excused 0.
+  static const prayerStatusXp = <String, int>{
+    'masjid': 10,
+    'jamaah': 8,
+    'ontime': 6,
+    'late': 3,
+    'qadha': 1,
+    'missed': 0,
+    'excused': 0,
+  };
 
-  /// Bonus when all 5 prayers of a day are logged.
+  /// XP of one fardhu with [status] (unknown → 0).
+  static int prayerXp(String? status) => prayerStatusXp[status] ?? 0;
+
+  /// Each rawatib (qobliyah / ba'diyah) ticked.
+  static const rawatib = 2;
+
+  /// Each daily sunnah (dhuha / tahajud / witir).
+  static const sunnah = 3;
+
+  /// Bonus when all 5 fardhu of a day are prayed (masjid … qadha).
   static const allPrayersBonus = 15;
 
   static const health = 5;

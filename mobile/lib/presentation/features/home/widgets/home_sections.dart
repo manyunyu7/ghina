@@ -901,7 +901,14 @@ class TransactionRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = view;
-    final leading = t.type == TxType.transfer
+    final leading = t.type == TxType.adjustment
+        ? CategoryAvatar(
+            icon: Icons.tune_rounded,
+            color: GhinaColors.gray.base,
+            size: 40,
+            soft: true,
+          )
+        : t.type == TxType.transfer
         ? CategoryAvatar(
             icon: Icons.swap_horiz_rounded,
             color: GhinaColors.blue.base,
@@ -915,6 +922,7 @@ class TransactionRow extends StatelessWidget {
     final what = switch (t.type) {
       TxType.transfer =>
         '${t.wallet?.name ?? 'Dompet'} → ${t.toWallet?.name ?? 'Dompet'}',
+      TxType.adjustment => t.wallet?.name ?? 'Dompet',
       _ => t.category?.name ?? t.type.label,
     };
     return ChunkyTile(
@@ -924,16 +932,27 @@ class TransactionRow extends StatelessWidget {
       leading: leading,
       title: t.title,
       subtitle: '$what · ${Fmt.relativeDay(t.date, now: now)}',
-      trailing: MoneyText(
-        amount: t.amount,
-        currency: t.wallet?.currency ?? currency,
-        tone: switch (t.type) {
-          TxType.expense => MoneyTone.expense,
-          TxType.income => MoneyTone.income,
-          TxType.transfer => MoneyTone.transfer,
-        },
-        style: GhinaType.moneyS,
-      ),
+      trailing: t.type == TxType.adjustment
+          ? MoneyText(
+              text: GhinaMoney.format(
+                t.amount,
+                currency: t.wallet?.currency ?? currency,
+                showSign: true,
+              ),
+              tone: MoneyTone.neutral,
+              color: context.ghina.textSecondary,
+              style: GhinaType.moneyS,
+            )
+          : MoneyText(
+              amount: t.amount,
+              currency: t.wallet?.currency ?? currency,
+              tone: switch (t.type) {
+                TxType.expense => MoneyTone.expense,
+                TxType.income => MoneyTone.income,
+                _ => MoneyTone.transfer,
+              },
+              style: GhinaType.moneyS,
+            ),
     );
   }
 }

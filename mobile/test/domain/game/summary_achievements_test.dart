@@ -88,7 +88,122 @@ void main() {
       expect(a.byId('prayers_full_day')!.unlocked, isTrue);
       expect(a.byId('prayers_7_days')!.unlocked, isTrue);
       expect(a.byId('prayers_30_days')!.current, 7);
+      expect(a.byId('prayers_complete_30')!.current, 7);
     });
+
+    test('prayers: missed breaks a complete day; excused days are neutral', () {
+      final events = [
+        // Day -3: complete, -2: excused (neutral), -1: complete, 0: complete.
+        for (final d in [-3, -1, 0])
+          for (final p in prayerNames)
+            ActivityEvent.prayer(
+              date: today.addDays(d),
+              prayer: p,
+              status: 'ontime',
+            ),
+        for (final p in prayerNames)
+          ActivityEvent.prayer(
+            date: today.addDays(-2),
+            prayer: p,
+            status: p == 'dzuhur' ? 'excused' : 'jamaah',
+          ),
+        // Day -5: one missed → not complete.
+        for (final p in prayerNames)
+          ActivityEvent.prayer(
+            date: today.addDays(-5),
+            prayer: p,
+            status: p == 'isya' ? 'missed' : 'masjid',
+          ),
+      ];
+      final s = PrayerStats.compute({
+        for (final d in {for (final e in events) e.day})
+          d: {for (final e in events.where((e) => e.day == d)) e.prayer!: e},
+      });
+      expect(s.completeDays, 3);
+      expect(s.bestCompleteRun, 3);
+    });
+
+    test('prayers: subuh jamaah run, masjid week, tahajud, full rawatib', () {
+      final events = [
+        for (var i = 0; i < 7; i++) ...[
+          ActivityEvent.prayer(
+            date: today.addDays(-i),
+            prayer: 'subuh',
+            status: i.isEven ? 'masjid' : 'jamaah',
+          ),
+          ActivityEvent.prayer(
+            date: today.addDays(-i),
+            prayer: 'isya',
+            status: 'masjid',
+          ),
+        ],
+        for (var i = 0; i < 10; i++)
+          ActivityEvent.prayer(date: today.addDays(-i), prayer: 'tahajud'),
+        // A day with all 5 rawatib.
+        ActivityEvent.prayer(
+          date: today.addDays(-20),
+          prayer: 'subuh',
+          status: 'jamaah',
+          qobliyah: true,
+        ),
+        ActivityEvent.prayer(
+          date: today.addDays(-20),
+          prayer: 'dzuhur',
+          status: 'late',
+          qobliyah: true,
+          badiyah: true,
+        ),
+        ActivityEvent.prayer(
+          date: today.addDays(-20),
+          prayer: 'maghrib',
+          status: 'ontime',
+          badiyah: true,
+        ),
+        ActivityEvent.prayer(
+          date: today.addDays(-20),
+          prayer: 'isya',
+          status: 'qadha',
+          badiyah: true,
+        ),
+      ];
+      final a = snap(events).achievements;
+      expect(a.byId('subuh_jamaah_7')!.unlocked, isTrue);
+      expect(a.byId('masjid_week')!.unlocked, isTrue);
+      expect(a.byId('tahajud_10')!.unlocked, isTrue);
+      expect(a.byId('rawatib_full_day')!.unlocked, isTrue);
+    });
+
+    test(
+      'prayers: a late subuh breaks the jamaah run; 4 rawatib is not full',
+      () {
+        final events = [
+          for (var i = 0; i < 7; i++)
+            ActivityEvent.prayer(
+              date: today.addDays(-i),
+              prayer: 'subuh',
+              status: i == 3 ? 'late' : 'jamaah',
+              qobliyah: true,
+            ),
+          ActivityEvent.prayer(
+            date: today,
+            prayer: 'dzuhur',
+            status: 'jamaah',
+            qobliyah: true,
+            badiyah: true,
+          ),
+          ActivityEvent.prayer(
+            date: today,
+            prayer: 'maghrib',
+            status: 'jamaah',
+            badiyah: true,
+          ),
+        ];
+        final a = snap(events).achievements;
+        expect(a.byId('subuh_jamaah_7')!.current, 3);
+        expect(a.byId('rawatib_full_day')!.current, 0);
+        expect(a.byId('masjid_week')!.current, 0);
+      },
+    );
 
     test('budgets: first budget, clean past months only', () {
       BudgetStatus b(int month, double spent) => BudgetStatus(

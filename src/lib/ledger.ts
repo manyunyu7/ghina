@@ -1,12 +1,14 @@
 import type { Prisma } from "@prisma/client";
 import { writeTombstones } from "@/lib/tombstones";
+import { adjustmentNote } from "@/lib/adjustment";
 
 /**
  * The single implementation of how transactions move wallet balances.
  * Used by the web server actions and the mobile sync endpoint — never adjust
  * `wallet.balance` for a transaction anywhere else.
  *
- * income: +amount to wallet · expense: −amount · transfer: −amount from source, +amount to destination.
+ * income: +amount to wallet · expense: −amount · transfer: −amount from source, +amount to destination
+ * · adjustment: +amount (signed) to wallet — a balance correction (docs/balance-adjustment.md).
  * Editing reverses the old effect and applies the new one; deleting reverses it.
  */
 
@@ -28,6 +30,7 @@ export function effects(t: LedgerTx): Record<string, number> {
   };
   if (t.type === "income") add(t.walletId, t.amount);
   else if (t.type === "expense") add(t.walletId, -t.amount);
+  else if (t.type === "adjustment") add(t.walletId, t.amount);
   else if (t.type === "transfer" && t.toWalletId) {
     add(t.walletId, -t.amount);
     add(t.toWalletId, t.amount);
@@ -71,6 +74,12 @@ export async function validateTransactionRefs(
     return { toWalletId: p.toWalletId, categoryId: null };
   }
 
+  if (p.type === "adjustment") {
+    if (p.toWalletId) throw new Error("A balance adjustment has no destination wallet");
+    if (p.categoryId) throw new Error("A balance adjustment has no category");
+    return { toWalletId: null, categoryId: null };
+  }
+
   if (p.categoryId) {
     const category = await db.category.findFirst({ where: { id: p.categoryId, userId }, select: { id: true } });
     if (!category) throw new Error("Category not found");
@@ -100,4 +109,39 @@ export async function deleteLedgerTransaction(
   await db.transaction.delete({ where: { id: existing.id } });
   await applyDeltas(db, ledgerDeltas(existing, null));
   await writeTombstones(db, existing.userId, "transactions", [existing.id]);
+}
+
+/** Round to 2 decimals so float noise (0.1 + 0.2) never creates a phantom adjustment. */
+export function roundMoney(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+/**
+ * Set a wallet's balance to `target` by recording a balance `adjustment` transaction
+ * for the difference (docs/balance-adjustment.md). No row when nothing changed.
+ * Run inside the same DB transaction as any other wallet edit. Returns the
+ * created transaction or null.
+ */
+export async function adjustWalletBalance(
+  db: Db,
+  userId: string,
+  walletId: string,
+  target: number,
+  opts: { currency: string; note?: string | null; date?: Date | null },
+) {
+  const wallet = await db.wallet.findFirst({ where: { id: walletId, userId }, select: { balance: true } });
+  if (!wallet) throw new Error("Wallet not found");
+  const delta = roundMoney(target - wallet.balance);
+  if (delta === 0) return null;
+  const auto = adjustmentNote(wallet.balance, target, opts.currency);
+  const userNote = opts.note?.trim();
+  return createLedgerTransaction(db, userId, {
+    type: "adjustment",
+    amount: delta,
+    walletId,
+    toWalletId: null,
+    categoryId: null,
+    note: userNote ? `${auto} — ${userNote}` : auto,
+    date: opts.date ?? new Date(),
+  });
 }

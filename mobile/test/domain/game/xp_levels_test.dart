@@ -48,27 +48,111 @@ void main() {
       expect(ledger.dayOf(today)!.transactionsTotal, 1);
     });
 
-    test('prayers: 5 XP each, dedupe, bonus for all five', () {
+    test('prayers: legacy rows (no status) score as ontime, dedupe, bonus', () {
       final events = [
         for (final p in prayerNames)
           ActivityEvent.prayer(date: today, prayer: p),
         ActivityEvent.prayer(date: today, prayer: 'subuh'),
-        ActivityEvent.prayer(date: today, prayer: 'tahajud'),
       ];
       final day = compute(events).dayOf(today)!;
-      expect(day.breakdown[XpSource.prayer], 25);
+      expect(day.breakdown[XpSource.prayer], 5 * 6);
       expect(day.breakdown[XpSource.prayerBonus], XpRules.allPrayersBonus);
       expect(day.activities, 5);
+    });
+
+    test('prayers: XP = status points (spec table)', () {
+      final statuses = {
+        'masjid': 10,
+        'jamaah': 8,
+        'ontime': 6,
+        'late': 3,
+        'qadha': 1,
+        'missed': 0,
+        'excused': 0,
+      };
+      for (final MapEntry(key: s, value: xp) in statuses.entries) {
+        expect(XpRules.prayerXp(s), xp, reason: s);
+        final day = compute([
+          ActivityEvent.prayer(date: today, prayer: 'isya', status: s),
+        ]).dayOf(today)!;
+        expect(day.breakdown[XpSource.prayer] ?? 0, xp, reason: s);
+        // Missed / excused are recorded but are not "activity".
+        expect(day.activities, xp > 0 ? 1 : 0, reason: s);
+      }
+    });
+
+    test(
+      'prayers: rawatib +2 each, sunnah +3 each, bonus only when all 5 prayed',
+      () {
+        final events = [
+          ActivityEvent.prayer(
+            date: today,
+            prayer: 'subuh',
+            status: 'masjid',
+            qobliyah: true,
+          ),
+          ActivityEvent.prayer(
+            date: today,
+            prayer: 'dzuhur',
+            status: 'jamaah',
+            qobliyah: true,
+            badiyah: true,
+          ),
+          ActivityEvent.prayer(date: today, prayer: 'ashar', status: 'late'),
+          ActivityEvent.prayer(date: today, prayer: 'maghrib', status: 'qadha'),
+          ActivityEvent.prayer(date: today, prayer: 'isya', status: 'missed'),
+          ActivityEvent.prayer(date: today, prayer: 'tahajud'),
+          ActivityEvent.prayer(date: today, prayer: 'witir'),
+          ActivityEvent.prayer(date: today, prayer: 'witir'), // dupe
+        ];
+        final day = compute(events).dayOf(today)!;
+        expect(day.breakdown[XpSource.prayer], 10 + 8 + 3 + 1 + 0);
+        expect(day.breakdown[XpSource.rawatib], 3 * XpRules.rawatib);
+        expect(day.breakdown[XpSource.sunnah], 2 * XpRules.sunnah);
+        expect(day.breakdown[XpSource.prayerBonus], isNull);
+        expect(day.activities, 4 + 2);
+
+        final full = compute([
+          for (final p in prayerNames)
+            ActivityEvent.prayer(date: today, prayer: p, status: 'late'),
+        ]).dayOf(today)!;
+        expect(full.breakdown[XpSource.prayerBonus], XpRules.allPrayersBonus);
+        expect(full.breakdown[XpSource.prayer], 5 * 3);
+
+        final withExcused = compute([
+          for (final p in prayerNames)
+            ActivityEvent.prayer(
+              date: today,
+              prayer: p,
+              status: p == 'ashar' ? 'excused' : 'jamaah',
+            ),
+        ]).dayOf(today)!;
+        expect(withExcused.breakdown[XpSource.prayerBonus], isNull);
+      },
+    );
+
+    test('rawatib on a missed row earns nothing', () {
+      final day = compute([
+        ActivityEvent.prayer(
+          date: today,
+          prayer: 'subuh',
+          status: 'missed',
+          qobliyah: true,
+        ),
+      ]).dayOf(today)!;
+      expect(day.breakdown[XpSource.rawatib], isNull);
+      expect(day.total, 0);
     });
 
     test('prayer counts on its own date, not createdAt', () {
       final e = ActivityEvent.prayer(
         date: today.addDays(-1),
         prayer: 'isya',
+        status: 'jamaah',
         createdAt: at(10, 8),
       );
       final ledger = compute([e]);
-      expect(ledger.xpOn(today.addDays(-1)), XpRules.prayer);
+      expect(ledger.xpOn(today.addDays(-1)), XpRules.prayerXp('jamaah'));
     });
 
     test('health and food caps', () {

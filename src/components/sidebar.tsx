@@ -1,17 +1,23 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
   LayoutDashboard, ArrowLeftRight, Wallet, Target, Tags, PieChart,
-  Settings, Repeat, Moon, HeartPulse, Utensils, TrendingUp, Menu, X, Wallet as Logo,
+  Settings, Repeat, Moon, HeartPulse, Utensils, TrendingUp, BarChart3, Menu, X,
 } from "lucide-react";
 import { NAV_ITEMS } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { AppDownload } from "@/components/app-download";
 
-const ICONS = { LayoutDashboard, ArrowLeftRight, Wallet, Target, Tags, PieChart, Settings, Repeat, Moon, HeartPulse, Utensils, TrendingUp };
+const ICONS = { LayoutDashboard, ArrowLeftRight, Wallet, Target, Tags, PieChart, Settings, Repeat, Moon, HeartPulse, Utensils, TrendingUp, BarChart3 };
+
+/** Ghina's money-tree mascot, the brand mark next to the wordmark. */
+function Logo({ className }: { className?: string }) {
+  return <Image src="/logo.png" alt="" aria-hidden width={36} height={36} className={cn("shrink-0", className)} loading="eager" />;
+}
 
 export function Sidebar({ user }: { user: { name?: string | null; email?: string | null; image?: string | null } }) {
   const pathname = usePathname();
@@ -21,7 +27,10 @@ export function Sidebar({ user }: { user: { name?: string | null; email?: string
     <nav className="flex flex-1 flex-col gap-1">
       {NAV_ITEMS.map((item) => {
         const Icon = ICONS[item.icon as keyof typeof ICONS];
-        const active = pathname === item.href || pathname.startsWith(item.href + "/");
+        // Most specific match wins (/prayers/report must not also light up /prayers).
+        const matches = (href: string) => pathname === href || pathname.startsWith(href + "/");
+        const active =
+          matches(item.href) && !NAV_ITEMS.some((o) => o.href.length > item.href.length && matches(o.href));
         return (
           <Link
             key={item.href}
@@ -47,9 +56,7 @@ export function Sidebar({ user }: { user: { name?: string | null; email?: string
       {/* Mobile top bar */}
       <div className="flex items-center justify-between border-b border-border bg-surface px-4 py-3 lg:hidden">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-white">
-            <Logo className="h-5 w-5" />
-          </div>
+          <Logo className="h-8 w-8" />
           <span className="text-lg font-bold">Ghina</span>
         </div>
         <button onClick={() => setOpen(true)} className="rounded-lg p-2 hover:bg-accent" aria-label="Open menu">
@@ -64,9 +71,7 @@ export function Sidebar({ user }: { user: { name?: string | null; email?: string
           <aside className="absolute left-0 top-0 flex h-full w-72 flex-col bg-surface p-4 shadow-xl">
             <div className="mb-6 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-white">
-                  <Logo className="h-5 w-5" />
-                </div>
+                <Logo className="h-8 w-8" />
                 <span className="text-lg font-bold">Ghina</span>
               </div>
               <button onClick={() => setOpen(false)} className="rounded-lg p-2 hover:bg-accent" aria-label="Close menu">
@@ -82,9 +87,7 @@ export function Sidebar({ user }: { user: { name?: string | null; email?: string
       {/* Desktop sidebar */}
       <aside className="hidden w-64 shrink-0 flex-col border-r border-border bg-surface p-4 lg:flex">
         <div className="mb-8 flex items-center gap-2 px-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-white">
-            <Logo className="h-5 w-5" />
-          </div>
+          <Logo className="h-9 w-9" />
           <span className="text-xl font-bold tracking-tight">Ghina</span>
         </div>
         {nav}

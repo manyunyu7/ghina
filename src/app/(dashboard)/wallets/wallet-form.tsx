@@ -4,7 +4,7 @@ import * as React from "react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Field, Label } from "@/components/ui/input";
-import { cn, CURRENCIES } from "@/lib/utils";
+import { cn, CURRENCIES, formatCurrency } from "@/lib/utils";
 import { COLOR_PALETTE, WALLET_TYPES } from "@/lib/constants";
 import { Check } from "lucide-react";
 import { createWallet, updateWallet, type WalletActionResult } from "./actions";
@@ -36,6 +36,8 @@ export function WalletForm({
   const [color, setColor] = React.useState(wallet?.color ?? COLOR_PALETTE[0]);
   const [error, setError] = React.useState<string | null>(null);
   const [pending, setPending] = React.useState(false);
+  // Edit mode: the typed "current balance", to preview the adjustment it creates.
+  const [balanceInput, setBalanceInput] = React.useState(wallet ? String(wallet.balance) : "0");
 
   // Reset local state during render whenever the modal is (re)opened or the target
   // wallet changes — the React-recommended alternative to syncing via an effect.
@@ -47,11 +49,20 @@ export function WalletForm({
     setColor(wallet?.color ?? COLOR_PALETTE[0]);
     setError(null);
     setPending(false);
+    setBalanceInput(wallet ? String(wallet.balance) : "0");
   }
+
+  const typed = Number(balanceInput);
+  const delta =
+    isEdit && balanceInput.trim() !== "" && Number.isFinite(typed)
+      ? Math.round((typed - wallet!.balance) * 100) / 100
+      : 0;
 
   async function handleAction(formData: FormData) {
     setPending(true);
     setError(null);
+    // The adjustment date defaults to "now" on the server; only send a different day.
+    if (formData.get("adjustmentDate") === todayInput()) formData.delete("adjustmentDate");
     const action = isEdit ? updateWallet : createWallet;
     let result: WalletActionResult;
     try {
@@ -120,14 +131,15 @@ export function WalletForm({
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <Field label={isEdit ? "Balance" : "Initial balance"}>
+          <Field label={isEdit ? "Saldo sekarang" : "Initial balance"}>
             <Input
               name="balance"
               type="number"
               step="any"
               inputMode="decimal"
               placeholder="0"
-              defaultValue={wallet ? String(wallet.balance) : "0"}
+              value={balanceInput}
+              onChange={(e) => setBalanceInput(e.target.value)}
             />
           </Field>
           <Field label="Currency">
@@ -140,6 +152,27 @@ export function WalletForm({
             </Select>
           </Field>
         </div>
+
+        {isEdit && delta !== 0 && (
+          <div className="space-y-3 rounded-lg border border-sky-200 bg-sky-50 p-3">
+            <p className="text-sm text-slate-700">
+              Penyesuaian saldo{" "}
+              <span className={cn("font-semibold tabular-nums", delta > 0 ? "text-income" : "text-expense")}>
+                {delta > 0 ? "+" : "−"}
+                {formatCurrency(Math.abs(delta), wallet!.currency)}
+              </span>{" "}
+              akan dicatat sebagai transaksi, jadi riwayatnya tetap ada.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Catatan (opsional)">
+                <Input name="adjustmentNote" maxLength={200} placeholder="mis. selisih kas" />
+              </Field>
+              <Field label="Tanggal">
+                <Input name="adjustmentDate" type="date" defaultValue={todayInput()} required />
+              </Field>
+            </div>
+          </div>
+        )}
 
         <div>
           <Label>Color</Label>
@@ -179,4 +212,10 @@ export function WalletForm({
       </form>
     </Modal>
   );
+}
+
+/** Today as YYYY-MM-DD in local time (for the date input). */
+function todayInput(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }

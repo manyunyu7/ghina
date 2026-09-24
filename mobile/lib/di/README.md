@@ -37,14 +37,15 @@ runApp(ProviderScope(overrides: gameOverrides, child: App()));   // gameOverride
 | `watchForecastProvider(YearMonth?)` | `Forecast` (`null` = next month): `planned`, `subscriptionItems`, `averages`, `totals(ForecastSources(manual, subscriptions, history))` → `projectedExpense/Income/net`. History is off by default, as on the web. |
 | `watchPlannedProvider(id)` | `PlannedTransaction?` |
 | `watchReportProvider(ReportPeriod)` | `ReportData`: `months` (income vs expense, cashflow `net`), `spending`/`income` (`CategoryTotal`: name, color, total, pct), `totalIncome/Expense`, `netSavings`, `savingsRate`, `netWorth`, `wallets`, `label`, `hasData`. Periods: `ReportPeriod.thisMonth`, `.last6Months`, `.last12Months`, `ReportPeriod.year(2026)`. |
-| `watchPrayersProvider((from: d1, to: d2))` | `List<PrayerEntry>`. Group them with `prayersByDate(list)` → `Map<'YYYY-MM-DD', Set<Prayer>>`. |
+| `watchPrayersProvider((from: d1, to: d2))` | `List<PrayerEntry>` (fardhu + daily sunnah, each with `status`, rawatib, `rakaat`, `prayedAt`, `note`). `prayerEntriesByDate(list)` → `Map<'YYYY-MM-DD', Map<Prayer, PrayerEntry>>`; `prayersByDate(list)` → prayed fardhu per day. |
+| `watchPrayerReportProvider((from: d1, to: d2))` | `PrayerReport` (docs/prayer-quality.md): `score`, `pct(status)`, `jamaahPct`, `completeDays`, `breakdown`, `weakest`/`strongest`, `sunnahCounts`, `rawatibCount`, `days` (color-map rows, newest first). Ranges: `PrayerRangePreset.resolve(today)`, `customPrayerRange(a, b)`. |
 | `watchHealthEntriesProvider` / `watchHealthEntryProvider(id)` | newest first. `entry.bpCategory` gives the AHA level, Indonesian label and color. |
 | `watchFoodLogsProvider` / `watchFoodLogProvider(id)` | newest first. For the photo, use `localPhotoPath` (a `File`) if set, else `AppConfig.resolveUrl(photoUrl)`. |
 | `syncStatusProvider` | `SyncStatus`: `phase` (idle, syncing, offline, error), `lastSyncAt`, `pendingCount`, `lastError` |
 | `currentUserProvider` / `currencyProvider` | `AppUser?` / `'IDR'` … |
 
 `TransactionFilter(month: YearMonth(2026, 9), type: TxType.expense, walletId:, categoryId:, search: 'kopi', limit:)`.
-All fields are optional. `walletId` matches both sides of a transfer. `search` matches the note, category name and wallet name.
+All fields are optional. `walletId` matches both sides of a transfer (the wallet "Riwayat"). `TxType.adjustment` rows have a signed amount and are never income/expense; `TxType.loggable` = the types a user logs. Rows of unknown future types are skipped. `search` matches the note, category name and wallet name.
 
 ## Writing data: `await ref.read(provider)(args)` → `Result<T>`
 
@@ -54,13 +55,13 @@ Mutations never throw. `switch (r) { case Ok(:final value): …; case Err(:final
 
 | Area | Providers → call |
 |---|---|
-| Wallets | `createWalletProvider(WalletInput(name, type, currency, color, icon, initialBalance))`, `updateWalletProvider(id, WalletInput)` (balance ignored), `setWalletArchivedProvider(id, bool)`, `deleteWalletProvider(id)` (also deletes its transactions) |
+| Wallets | `createWalletProvider(WalletInput(name, type, currency, color, icon, initialBalance))`, `updateWalletProvider(id, WalletInput)` (balance ignored), `adjustWalletBalanceProvider(id, realBalance, note:)` → an `adjustment` transaction for the difference (docs/balance-adjustment.md), `setWalletArchivedProvider(id, bool)`, `deleteWalletProvider(id)` (also deletes its transactions) |
 | Categories | `createCategoryProvider(CategoryInput(name, type, color, icon))` (`icon` must be one of `categoryIcons`), `updateCategoryProvider(id, …)`, `deleteCategoryProvider(id)`, `seedDefaultCategoriesProvider()` → count created (new server accounts already have defaults) |
 | Transactions | `createTransactionProvider(TransactionInput(type, amount, walletId, toWalletId?, categoryId?, note?, date))`, `updateTransactionProvider(id, …)`, `deleteTransactionProvider(id)`, `transferBetweenWalletsProvider(fromWalletId:, toWalletId:, amount:, date:, note:)` |
 | Budgets | `setBudgetProvider(categoryId:, amount:, month: YearMonth)` (upsert; expense categories only), `updateBudgetAmountProvider(id, amount)`, `deleteBudgetProvider(id)` |
 | Subscriptions | `create/updateSubscriptionProvider(SubscriptionInput(...))`, `deleteSubscriptionProvider(id)`, `toggleSubscriptionProvider(id)` → new `active`, `paySubscriptionProvider(id)` → creates today's expense and advances `nextBilling` (quick pay) |
 | Forecast | `create/updatePlannedProvider(PlannedInput(type, amount, note, date, categoryId, walletId))`, `deletePlannedProvider(id)`, `togglePlannedDoneProvider(id)`, `convertPlannedProvider(id)` → the new `Transaction` |
-| Prayers | `togglePrayerProvider(day, Prayer.subuh)` → `true` when now marked done |
+| Prayers | `setPrayerStatusProvider(day, Prayer.subuh, PrayerStatus.quick)` (tap = jamaah; clears rawatib on missed/excused), `savePrayerDetailsProvider(day, prayer, PrayerDetailsInput(status, qobliyah, badiyah, prayedAt, note))`, `toggleRawatibProvider(day, prayer, RawatibSlot.qobliyah)`, `setSunnahProvider(day, Prayer.witir, done:, rakaat:)`, `clearPrayerProvider(day, prayer)`, `togglePrayerProvider(day, prayer)` (quick toggle) |
 | Health | `create/updateHealthEntryProvider(HealthInput(date, weight, systolic, diastolic, pulse, note))`, `deleteHealthEntryProvider(id)` |
 | Food | `createFoodLogProvider(FoodInput(date, name, meal, calories, note), photoPath: picked.path)`, `updateFoodLogProvider(id, input, photoPath:, removePhoto:)`, `deleteFoodLogProvider(id)`. Compress in `image_picker` (`maxWidth: 1600, imageQuality: 80`), because the server limit is 5 MB. The photo uploads on the next sync. |
 | Sync | `syncNowProvider()` (pull-to-refresh), `resetLocalDataProvider()` (Settings → reset: wipes local data, including unsynced changes, and downloads again) |

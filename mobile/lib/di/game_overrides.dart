@@ -24,7 +24,8 @@ List<ActivityEvent> activityEventsFrom(
   List<HealthEntry> health,
   List<FoodLog> food,
 ) => [
-  for (final x in transactions)
+  // Balance adjustments are not "logging a transaction": no XP/streak/goal.
+  for (final x in transactions.where((t) => !t.isAdjustment))
     ActivityEvent.transaction(
       id: x.id,
       createdAt: x.createdAt,
@@ -38,6 +39,9 @@ List<ActivityEvent> activityEventsFrom(
         id: x.id,
         date: d,
         prayer: x.prayer.wire,
+        status: x.status.wire,
+        qobliyah: x.qobliyah,
+        badiyah: x.badiyah,
         createdAt: x.createdAt,
       ),
   for (final x in health)

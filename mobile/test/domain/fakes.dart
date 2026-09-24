@@ -215,6 +215,38 @@ class FakeUnitOfWork implements UnitOfWork {
   }
 }
 
+class InMemoryPrayerRepository implements PrayerRepository {
+  final s = _Store<PrayerEntry>((e) => e.id);
+  int saves = 0;
+
+  @override
+  Stream<List<PrayerEntry>> watchRange(String fromKey, String toKey) => s.watch(
+    () =>
+        s.items.values
+            .where(
+              (e) =>
+                  e.date.compareTo(fromKey) >= 0 &&
+                  e.date.compareTo(toKey) <= 0,
+            )
+            .toList()
+          ..sort((a, b) => a.date.compareTo(b.date)),
+  );
+  @override
+  Future<PrayerEntry?> findByKey(String dateKey, Prayer prayer) async => s
+      .items
+      .values
+      .where((e) => e.date == dateKey && e.prayer == prayer)
+      .firstOrNull;
+  @override
+  Future<void> save(PrayerEntry entry) async {
+    saves++;
+    s.put(entry);
+  }
+
+  @override
+  Future<void> delete(String id) async => s.remove(id);
+}
+
 final t0 = DateTime(2026, 1, 1);
 
 Wallet wallet(

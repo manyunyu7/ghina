@@ -6,6 +6,7 @@ export const NAV_ITEMS = [
   { href: "/subscriptions", label: "Subscriptions", icon: "Repeat" },
   { href: "/forecast", label: "Forecast", icon: "TrendingUp" },
   { href: "/prayers", label: "Prayers", icon: "Moon" },
+  { href: "/prayers/report", label: "Laporan Shalat", icon: "BarChart3" },
   { href: "/health", label: "Health", icon: "HeartPulse" },
   { href: "/food", label: "Food Log", icon: "Utensils" },
   { href: "/categories", label: "Categories", icon: "Tags" },

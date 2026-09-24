@@ -21,7 +21,8 @@ final class Transaction {
   final String? categoryId;
   final TxType type;
 
-  /// Always positive.
+  /// Positive, except for [TxType.adjustment] where it is signed and non-zero
+  /// (new balance − old balance).
   final double amount;
   final String? note;
   final DateTime date;
@@ -29,6 +30,10 @@ final class Transaction {
   final DateTime updatedAt;
 
   bool get isTransfer => type == TxType.transfer;
+  bool get isAdjustment => type == TxType.adjustment;
+
+  /// Counts as income or expense (reports, budgets, dashboards, gamification).
+  bool get isIncomeOrExpense => type == TxType.income || type == TxType.expense;
 
   /// Net effect on wallet balances, keyed by wallet id (contract "Wallet balances"):
   /// income `+amount` to wallet; expense `−amount`; transfer `−amount` from source and
@@ -73,7 +78,9 @@ final class Transaction {
       'Transaction($id, ${type.wire} $amount, $walletId→$toWalletId)';
 }
 
-/// The ledger rule shared with the server's `src/lib/ledger.ts`.
+/// The ledger rule shared with the server's `src/lib/ledger.ts`: income
+/// `+amount`, expense `−amount`, transfer `−amount`/`+amount`, adjustment
+/// `+amount` (signed) to [walletId].
 Map<String, double> ledgerEffects({
   required TxType type,
   required double amount,
@@ -92,6 +99,8 @@ Map<String, double> ledgerEffects({
         add(walletId, -amount);
         add(toWalletId, amount);
       }
+    case TxType.adjustment:
+      add(walletId, amount);
   }
   return e;
 }

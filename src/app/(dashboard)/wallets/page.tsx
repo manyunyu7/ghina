@@ -1,4 +1,5 @@
-import { Wallet as WalletIcon } from "lucide-react";
+import Link from "next/link";
+import { History, Wallet as WalletIcon } from "lucide-react";
 import { requireUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency } from "@/lib/utils";
@@ -94,11 +95,20 @@ export default async function WalletsPage() {
                     </p>
                   </div>
 
-                  <div className="flex items-center justify-between">
-                    <Badge>
-                      {count} transaction{count === 1 ? "" : "s"}
-                    </Badge>
-                    <Badge variant="default">{w.currency}</Badge>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Badge>
+                        {count} transaction{count === 1 ? "" : "s"}
+                      </Badge>
+                      <Badge variant="default">{w.currency}</Badge>
+                    </div>
+                    <Link
+                      href={`/transactions?walletId=${encodeURIComponent(w.id)}`}
+                      className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-primary transition hover:bg-primary-soft"
+                    >
+                      <History className="h-3.5 w-3.5" />
+                      Riwayat
+                    </Link>
                   </div>
                 </CardContent>
               </Card>

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/failure.dart';
 import '../../../../core/formatters.dart';
@@ -11,6 +12,7 @@ import '../../../../domain/usecases/usecases.dart';
 import '../../../design_system/design_system.dart';
 import '../../../state/session_controller.dart';
 import '../../../shared/widgets/widgets.dart';
+import '../widgets/adjust_balance_sheet.dart';
 import '../widgets/wallet_visuals.dart';
 import 'wallets_page.dart' show WalletCard;
 
@@ -265,26 +267,67 @@ class _WalletFormPageState extends ConsumerState<WalletFormPage> {
                     },
                   ),
                   const SizedBox(height: GhinaSpace.lg),
-                ] else
+                ] else if (live != null)
                   Padding(
                     padding: const EdgeInsets.only(bottom: GhinaSpace.lg),
                     child: ChunkyCard(
+                      key: const ValueKey('wallet-balance-card'),
                       tinted: GhinaColors.blue,
                       padding: const EdgeInsets.all(GhinaSpace.md),
-                      child: Row(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Icon(
-                            Icons.info_rounded,
-                            color: GhinaColors.blue.base,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'Saldo berubah lewat transaksi. Mau koreksi? Catat pemasukan/pengeluaran penyesuaian.',
-                              style: GhinaType.bodyS.copyWith(
-                                color: g.textPrimary,
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  'Saldo sekarang',
+                                  style: GhinaType.bodyS
+                                      .w(800)
+                                      .copyWith(color: g.textSecondary),
+                                ),
                               ),
+                              MoneyText(
+                                amount: live.balance,
+                                currency: live.currency,
+                                tone: MoneyTone.neutral,
+                                style: GhinaType.moneyM,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Beda sama saldo aslinya? Sesuaikan aja. Selisihnya dicatat sebagai penyesuaian saldo, bukan pemasukan/pengeluaran.',
+                            style: GhinaType.caption.copyWith(
+                              color: g.textSecondary,
                             ),
+                          ),
+                          const SizedBox(height: GhinaSpace.md),
+                          ChunkyButton(
+                            key: const ValueKey('wallet-adjust'),
+                            label: 'Sesuaikan saldo',
+                            icon: Icons.tune_rounded,
+                            size: ChunkyButtonSize.medium,
+                            expand: true,
+                            color: GhinaColors.blue,
+                            onPressed: _deleted
+                                ? null
+                                : () => showAdjustBalanceSheet(
+                                    context,
+                                    ref,
+                                    live,
+                                  ),
+                          ),
+                          const SizedBox(height: GhinaSpace.sm),
+                          ChunkyButton(
+                            key: const ValueKey('wallet-history'),
+                            label: 'Riwayat transaksi',
+                            icon: Icons.history_rounded,
+                            size: ChunkyButtonSize.medium,
+                            expand: true,
+                            variant: ChunkyButtonVariant.outline,
+                            onPressed: () =>
+                                context.push('/wallets/${live.id}/history'),
                           ),
                         ],
                       ),

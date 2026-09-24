@@ -43,6 +43,14 @@ double requirePositiveAmount(double? v, {String field = 'amount'}) {
   return v;
 }
 
+/// Signed amounts (balance adjustments): finite and not zero.
+double requireNonZeroAmount(double? v, {String field = 'amount'}) {
+  if (v == null || !v.isFinite || v == 0) {
+    throw ValidationFailure('Jumlah nggak boleh 0', field: field);
+  }
+  return v;
+}
+
 String requireColor(String? v) {
   if (v == null || !_colorRe.hasMatch(v)) {
     throw const ValidationFailure('Warna tidak valid', field: 'color');
