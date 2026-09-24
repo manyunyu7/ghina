@@ -7,6 +7,7 @@ import '../../design_system/design_system.dart';
 import '../../state/notifications/notification_providers.dart';
 import '../../state/notifications/reminder_sync_controller.dart';
 import '../../state/sync_status_provider.dart';
+import 'share_intake_listener.dart';
 
 /// Bottom-navigation shell around the four tabs (Beranda, Transaksi, Tugas,
 /// Profil), with the big center "+" that opens the new-transaction flow. Shows a
@@ -15,6 +16,9 @@ import '../../state/sync_status_provider.dart';
 /// Also keeps the task reminders scheduled (`reminderSyncControllerProvider`,
 /// started once here) and refreshes the notification permission and the
 /// schedule when the app comes back to the foreground.
+///
+/// Hosts the Android share-target hook ([ShareIntakeListener]): shares become
+/// notes with the "Catatan dari share" sheet.
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key, required this.navigationShell});
 
@@ -48,24 +52,26 @@ class _AppShellState extends ConsumerState<AppShell> {
   Widget build(BuildContext context) {
     ref.watch(reminderSyncControllerProvider);
     final shell = widget.navigationShell;
-    return Scaffold(
-      body: Column(
-        children: [
-          Expanded(child: shell),
-          const OfflineBanner(),
-        ],
-      ),
-      bottomNavigationBar: ChunkyNavBar(
-        currentIndex: shell.currentIndex,
-        onTap: (i) =>
-            shell.goBranch(i, initialLocation: i == shell.currentIndex),
-        onCenterTap: () => context.push('/transactions/new'),
-        items: const [
-          ChunkyNavItem(icon: Icons.home_rounded, label: 'Beranda'),
-          ChunkyNavItem(icon: Icons.receipt_long_rounded, label: 'Transaksi'),
-          ChunkyNavItem(icon: Icons.checklist_rounded, label: 'Tugas'),
-          ChunkyNavItem(icon: Icons.person_rounded, label: 'Profil'),
-        ],
+    return ShareIntakeListener(
+      child: Scaffold(
+        body: Column(
+          children: [
+            Expanded(child: shell),
+            const OfflineBanner(),
+          ],
+        ),
+        bottomNavigationBar: ChunkyNavBar(
+          currentIndex: shell.currentIndex,
+          onTap: (i) =>
+              shell.goBranch(i, initialLocation: i == shell.currentIndex),
+          onCenterTap: () => context.push('/transactions/new'),
+          items: const [
+            ChunkyNavItem(icon: Icons.home_rounded, label: 'Beranda'),
+            ChunkyNavItem(icon: Icons.receipt_long_rounded, label: 'Transaksi'),
+            ChunkyNavItem(icon: Icons.checklist_rounded, label: 'Tugas'),
+            ChunkyNavItem(icon: Icons.person_rounded, label: 'Profil'),
+          ],
+        ),
       ),
     );
   }

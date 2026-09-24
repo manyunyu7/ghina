@@ -4,7 +4,7 @@ import * as React from "react";
 import type { Wallet, Category } from "@prisma/client";
 import { ChevronDown, Check } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
-import { Button } from "@/components/ui/button";
+import { SubmitButton, FormCancelButton } from "@/components/ui/submit-button";
 import { Input, Select, Field } from "@/components/ui/input";
 import { CategoryIcon } from "@/components/icon";
 import { COLOR_PALETTE, CATEGORY_ICONS } from "@/lib/constants";
@@ -91,7 +91,6 @@ function FormBody({
   const [icon, setIcon] = React.useState(subscription?.icon ?? "credit-card");
   const [active, setActive] = React.useState(subscription?.active ?? true);
   const [showMore, setShowMore] = React.useState(false);
-  const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
   function applyPreset(p: (typeof SUBSCRIPTION_PRESETS)[number]) {
@@ -102,14 +101,12 @@ function FormBody({
   }
 
   async function handleAction(formData: FormData) {
-    setSubmitting(true);
     setError(null);
     const res = isEdit ? await updateSubscription(formData) : await createSubscription(formData);
     if (res.ok) {
       onClose();
     } else {
       setError(res.error ?? "Something went wrong");
-      setSubmitting(false);
     }
   }
 
@@ -286,12 +283,12 @@ function FormBody({
       {error && <p className="text-sm text-expense">{error}</p>}
 
       <div className="flex justify-end gap-2 pt-1">
-        <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>
+        <FormCancelButton variant="outline" onClick={onClose}>
           Cancel
-        </Button>
-        <Button type="submit" disabled={submitting}>
-          {submitting ? "Saving…" : isEdit ? "Save changes" : "Add subscription"}
-        </Button>
+        </FormCancelButton>
+        <SubmitButton pendingText="Menyimpan…">
+          {isEdit ? "Save changes" : "Add subscription"}
+        </SubmitButton>
       </div>
     </form>
   );

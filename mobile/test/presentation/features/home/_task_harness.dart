@@ -25,6 +25,16 @@ class HomeTaskFixture {
 
   List<Override> get overrides => [
     taskRepositoryProvider.overrideWithValue(tasks),
+    // Notes/content sources (game events, merged reminders) in memory.
+    contentItemRepositoryProvider.overrideWithValue(
+      FakeContentItemRepository(),
+    ),
+    contentPostRepositoryProvider.overrideWithValue(
+      FakeContentPostRepository(),
+    ),
+    socialAccountRepositoryProvider.overrideWithValue(
+      FakeSocialAccountRepository(),
+    ),
     taskAreaRepositoryProvider.overrideWithValue(areas),
     walletRepositoryProvider.overrideWithValue(wallets),
     transactionRepositoryProvider.overrideWithValue(transactions),

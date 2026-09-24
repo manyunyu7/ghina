@@ -2,6 +2,8 @@ import type { User } from "@prisma/client";
 import type { SyncEntity } from "@/lib/tombstones";
 import { parsePhotos } from "@/lib/photos";
 import { parseRecurrence, parseSchedule } from "@/lib/tasks";
+import { parseAudio, parseChecklist, parseImageList, parseLabelIds, parseLinks } from "@/lib/notes";
+import { parseAssetLinks, parseMetrics, parseSponsor } from "@/lib/content";
 
 /** Wire fields per entity (Prisma field names minus userId) — see docs/mobile-sync.md. */
 export const ENTITY_FIELDS: Record<SyncEntity, readonly string[]> = {
@@ -26,6 +28,23 @@ export const ENTITY_FIELDS: Record<SyncEntity, readonly string[]> = {
     "id", "areaId", "title", "note", "bucket", "dueDate", "dueTime", "remindBefore", "recurrence", "seriesId",
     "done", "doneAt", "sortOrder", "amount", "walletId", "categoryId", "transactionId", "createdAt", "updatedAt",
   ],
+  noteLabels: ["id", "name", "color", "pinnedTab", "sortOrder", "createdAt", "updatedAt"],
+  notes: [
+    "id", "title", "body", "checklist", "labels", "color", "pinned", "archived", "photos", "audio", "links", "source",
+    "linkedTaskId", "linkedContentId", "linkedTransactionId", "createdAt", "updatedAt",
+  ],
+  socialAccounts: [
+    "id", "platform", "platformName", "handle", "color", "targetPerWeek", "archived", "sortOrder", "createdAt", "updatedAt",
+  ],
+  contentPillars: ["id", "name", "color", "sortOrder", "createdAt", "updatedAt"],
+  contentItems: [
+    "id", "title", "stage", "format", "pillar", "idea", "noteId", "checklist", "photos", "assetLinks", "sponsor",
+    "createdAt", "updatedAt",
+  ],
+  contentPosts: [
+    "id", "contentId", "accountId", "caption", "hashtags", "scheduledAt", "remindBefore", "status", "postedAt", "url",
+    "metrics", "metricsAt", "createdAt", "updatedAt",
+  ],
 };
 
 /** Columns stored as JSON text that travel as JSON values on the wire. */
@@ -33,6 +52,20 @@ const JSON_FIELDS: Partial<Record<SyncEntity, Record<string, (raw: unknown) => u
   transactions: { photos: (raw) => parsePhotos(raw as string | null) },
   taskAreas: { schedule: parseSchedule },
   tasks: { recurrence: parseRecurrence },
+  notes: {
+    checklist: parseChecklist,
+    labels: parseLabelIds,
+    photos: parseImageList,
+    audio: parseAudio,
+    links: parseLinks,
+  },
+  contentItems: {
+    checklist: parseChecklist,
+    photos: parseImageList,
+    assetLinks: parseAssetLinks,
+    sponsor: parseSponsor,
+  },
+  contentPosts: { metrics: parseMetrics },
 };
 
 /** Pick the wire fields of a row; Dates become ISO strings, missing values null. */

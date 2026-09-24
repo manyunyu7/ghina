@@ -113,6 +113,7 @@ class DriftTaskRepository implements TaskRepository {
   Future<void> delete(String id) => _s.write(() async {
     final n = await (_db.delete(_db.tasks)..where((t) => t.id.equals(id))).go();
     if (n == 0) return;
+    await _s.cascades.taskDeleted(id);
     await _s.outbox.enqueueDelete(
       entity: SyncEntity.tasks,
       entityId: id,

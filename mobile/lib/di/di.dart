@@ -9,4 +9,5 @@ export 'core_providers.dart'
         tickSourceProvider;
 export 'game_overrides.dart' show gameOverrides, buildGameOverrides;
 export 'notification_overrides.dart' show reminderOverrides;
+export 'notes_content_providers.dart';
 export 'usecase_providers.dart';

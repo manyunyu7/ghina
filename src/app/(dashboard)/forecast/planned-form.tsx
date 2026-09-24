@@ -3,7 +3,7 @@
 import * as React from "react";
 import type { Wallet, Category } from "@prisma/client";
 import { Modal } from "@/components/ui/modal";
-import { Button } from "@/components/ui/button";
+import { SubmitButton, FormCancelButton } from "@/components/ui/submit-button";
 import { Input, Select, Field } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { createPlanned, updatePlanned } from "./actions";
@@ -80,20 +80,17 @@ function FormBody({
 }) {
   const isEdit = Boolean(planned);
   const [type, setType] = React.useState<"expense" | "income">((planned?.type as "expense" | "income") ?? "expense");
-  const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
   const typedCategories = categories.filter((c) => c.type === type);
 
   async function handleAction(formData: FormData) {
-    setSubmitting(true);
     setError(null);
     const res = isEdit ? await updatePlanned(formData) : await createPlanned(formData);
     if (res.ok) {
       onClose();
     } else {
       setError(res.error ?? "Something went wrong");
-      setSubmitting(false);
     }
   }
 
@@ -181,12 +178,12 @@ function FormBody({
       {error && <p className="text-sm text-expense">{error}</p>}
 
       <div className="flex justify-end gap-2 pt-1">
-        <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>
+        <FormCancelButton variant="outline" onClick={onClose}>
           Cancel
-        </Button>
-        <Button type="submit" disabled={submitting}>
-          {submitting ? "Saving…" : isEdit ? "Save changes" : "Add item"}
-        </Button>
+        </FormCancelButton>
+        <SubmitButton pendingText="Menyimpan…">
+          {isEdit ? "Save changes" : "Add item"}
+        </SubmitButton>
       </div>
     </form>
   );

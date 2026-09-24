@@ -1,12 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { startOfMonth, endOfMonth, eachDayOfInterval, getDay } from "date-fns";
 import { Modal } from "@/components/ui/modal";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn, MONTHS } from "@/lib/utils";
+import { PendingBar } from "@/components/pending-bar";
+import { SavingHint } from "@/components/ui/saving-hint";
+import { useNavTransition } from "@/components/use-nav-transition";
 import { FARDHU, SUNNAH, dateKey, statusColor } from "@/lib/prayer-quality";
 import { PrayerDayEditor } from "./prayer-day-editor";
 import { StatusLegend } from "./status-legend";
@@ -25,7 +28,7 @@ export function PrayerCalendar({
   data: Record<string, Record<string, PrayerEntryDTO>>;
   today: string;
 }) {
-  const router = useRouter();
+  const { pending, replace } = useNavTransition();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [selected, setSelected] = React.useState<string | null>(null);
@@ -42,7 +45,7 @@ export function PrayerCalendar({
     const params = new URLSearchParams(searchParams.toString());
     params.set("month", String(m));
     params.set("year", String(y));
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    replace(`${pathname}?${params.toString()}`, { scroll: false });
   }
 
   return (
@@ -53,7 +56,9 @@ export function PrayerCalendar({
           <h3 className="font-semibold text-foreground">
             {MONTHS[month - 1]} {year}
           </h3>
-          <div className="flex gap-1">
+          <div className="flex items-center gap-1" aria-busy={pending || undefined}>
+            <PendingBar pending={pending} />
+            <SavingHint pending={pending} label={null} className="mr-1" />
             <button onClick={() => go(-1)} className="rounded-lg p-1.5 text-muted hover:bg-accent" aria-label="Bulan sebelumnya">
               <ChevronLeft className="h-5 w-5" />
             </button>

@@ -91,8 +91,8 @@ export function CategoryActions({
             <Button variant="ghost" onClick={() => setConfirming(false)} disabled={pending}>
               Cancel
             </Button>
-            <Button variant="danger" onClick={handleDelete} disabled={pending}>
-              {pending ? "Deleting…" : "Delete category"}
+            <Button variant="danger" onClick={handleDelete} loading={pending}>
+              {pending ? "Menghapus…" : "Delete category"}
             </Button>
           </div>
         </div>

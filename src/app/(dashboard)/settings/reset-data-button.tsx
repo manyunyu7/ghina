@@ -45,8 +45,8 @@ export function ResetDataButton() {
           <Button variant="outline" onClick={() => setOpen(false)} disabled={pending}>
             Cancel
           </Button>
-          <Button variant="danger" onClick={onConfirm} disabled={pending}>
-            {pending ? "Resetting…" : "Yes, reset everything"}
+          <Button variant="danger" onClick={onConfirm} loading={pending}>
+            {pending ? "Mereset…" : "Yes, reset everything"}
           </Button>
         </div>
       </Modal>

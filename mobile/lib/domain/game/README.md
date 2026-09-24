@@ -92,6 +92,41 @@ final gameOverrides = [
   (`MascotContext.withTasks`). With 3 or more overdue tasks it shows a worried nudge, and it
   adds lines for open FIRE tasks and for FIRE kosong.
 
+**Content planner milestones** (`docs/content.md` → Gamification) also come in through
+`activityEventsSourceProvider` (mapped by `contentActivityEventsFrom` in
+`lib/di/game_overrides.dart`), `kind == ActivityKind.content`. Everything is
+derived (removing the underlying state removes the event); `id`s are stable, so the
+engine's `kind:id` dedupe works. `contentType` (`ContentEventType`) tells them apart:
+
+| `contentType` | One event per | `id` | `at` (the XP day) | Other fields |
+|---|---|---|---|---|
+| `stage` | item × stage reached after `ide`, up to its current stage | `<itemId>:<stage>` | when the stage was first reached (`stageReachedAt`, see below) | `contentItemId`, `contentStage` (`naskah…tayang`), `contentStageXp` (3/4/5/6/10 — the shared table, `stageXp`), `occurredAt` = item `createdAt` |
+| `posted` | posted post with `postedAt` | post id | `postedAt` | `contentItemId`, `contentAccountId`, `contentPlatform` (wire id), `contentOnSchedule` (posted on/before the scheduled local day), `occurredAt` = `scheduledAt` |
+| `weeklyTarget` | account × ISO week where posted ≥ `targetPerWeek` | `<accountId>:<Monday YYYY-MM-DD>` | `postedAt` of the post that reached the target | `contentAccountId`, `contentPlatform`, `contentWeekStart` (`GameDate`), `contentTarget`; XP constant `weeklyTargetXp` = 20 |
+| `sponsorPaid` | item whose sponsor is paid | item id | the linked income transaction's `createdAt`, else the item's `updatedAt` | `contentItemId`, `amount` |
+
+Rules (`XpRules`, `XpCalculator._content`):
+- `stage`: its `contentStageXp` (naskah 3, produksi 4, siap 5, terjadwal 6, tayang 10;
+  `XpSource.contentStage`). `posted`: +5 when `contentOnSchedule`
+  (`XpSource.contentOnSchedule`). Stage + posted events count toward the daily goal, at
+  most 20 a day (`XpRules.contentDailyCap`, earliest first) — dummy items can't farm XP.
+- `weeklyTarget`: +20 (`XpSource.contentWeeklyTarget`); `sponsorPaid`: +15
+  (`XpSource.contentSponsor`). Bonuses: no daily-goal activity, no cap.
+- Never part of the (transaction) streak.
+- Achievements: `first_content_post` (Tayang Perdana, 1 posted), `content_consistency_4`
+  (Kreator Konsisten, 4 consecutive `contentWeekStart`s of one account),
+  `content_posts_50` (Mesin Konten), `first_sponsor` (Endorse Pertama).
+- Notes created are **not** XP (no event).
+
+Limitation — per-stage timestamps: the synced model has none, so the device keeps a local
+`stageReachedAt` log (drift `content_items.stage_log`, never synced). A stage reached on
+this device is stamped with the edit time; a stage first seen through a pull (another
+device / the web, a reinstall, a full re-pull after an epoch change) gets that row's
+`updatedAt` — so stages reached elsewhere land on the day the item was last updated there,
+and several stages skipped at once share one time. Once recorded, a stage's time never
+changes (moving back and forth can't re-farm XP); moving an item back hides the later
+stage events until it reaches them again (with their original time).
+
 The source streams should emit their current value on subscribe (drift `watch()` streams
 do this). Exclude soft-deleted rows. XP, the streak and the daily goal are counted on the
 **local day of `createdAt`**, not the transaction `date`, so backfilled history can't farm
@@ -150,6 +185,8 @@ can't be failed: mistakes only reduce XP.
 - Health: +5 XP, at most 3 per day.
 - Food: +5 XP, at most 6 per day.
 - Task: fire 10 / want 8 / should 5 XP by `doneAt` day, at most 20 per day.
+- Content: stage reached 3/4/5/6/10, posted on schedule +5 (≤ 20 milestones a day),
+  weekly target met +20, sponsor paid +15.
 - Lesson: 15 XP minus 2 per mistake, with a minimum of 5, plus a +5 bonus for a perfect lesson.
 - Practice replay: 5 XP, plus 5 for a perfect replay.
 - Daily goal met: +20 XP.

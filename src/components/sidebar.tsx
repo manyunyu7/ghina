@@ -7,12 +7,15 @@ import { useState } from "react";
 import {
   LayoutDashboard, ArrowLeftRight, Wallet, Target, Tags, PieChart,
   Settings, Repeat, Moon, HeartPulse, Utensils, TrendingUp, BarChart3, ListTodo, Menu, X,
+  StickyNote,
+  Clapperboard,
 } from "lucide-react";
 import { NAV_ITEMS } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { AppDownload } from "@/components/app-download";
+import { NavPending } from "@/components/nav-pending";
 
-const ICONS = { LayoutDashboard, ArrowLeftRight, Wallet, Target, Tags, PieChart, Settings, Repeat, Moon, HeartPulse, Utensils, TrendingUp, BarChart3, ListTodo };
+const ICONS = { LayoutDashboard, ArrowLeftRight, Wallet, Target, Tags, PieChart, Settings, Repeat, Moon, HeartPulse, Utensils, TrendingUp, BarChart3, ListTodo, StickyNote, Clapperboard };
 
 /** Ghina's money-tree mascot, the brand mark next to the wordmark. */
 function Logo({ className }: { className?: string }) {
@@ -45,6 +48,7 @@ export function Sidebar({ user }: { user: { name?: string | null; email?: string
           >
             <Icon className="h-[18px] w-[18px]" />
             {item.label}
+            <NavPending />
           </Link>
         );
       })}

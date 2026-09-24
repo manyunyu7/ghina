@@ -5,6 +5,8 @@ import { deleteSyncedRow } from "@/lib/sync-deletes";
 import { SYNC_ENTITIES, type SyncEntity } from "@/lib/tombstones";
 import { deleteUnreferencedUploads } from "@/lib/uploads";
 import { ensureDefaultTaskAreas } from "@/lib/tasks-server";
+import { ensureDefaultNoteLabel, queueNoteLinkTitles } from "@/lib/notes-server";
+import { ensureDefaultContentPillars } from "@/lib/content-server";
 import { ENTITY_DEFS, SyncRejection } from "@/lib/mobile/entities";
 import { serializeRow } from "@/lib/mobile/serialize";
 
@@ -22,6 +24,9 @@ export async function pull(user: User, sinceMs: number) {
 
   // Default task areas on first sync (deterministic ids → idempotent; docs/tasks.md).
   await ensureDefaultTaskAreas(prisma, user.id);
+  // Default `Ide Konten` label and content pillars (seeded once; docs/notes.md, content.md).
+  await ensureDefaultNoteLabel(prisma, user.id);
+  await ensureDefaultContentPillars(prisma, user.id);
 
   const changes = {} as Record<SyncEntity, Record<string, unknown>[]>;
   for (const entity of SYNC_ENTITIES) {
@@ -119,6 +124,8 @@ async function applyMutation(userId: string, raw: unknown): Promise<MutationResu
 
     // File cleanup only after the DB change is committed (skipping files still referenced).
     if (status === "applied") await deleteUnreferencedUploads(cleanup);
+    // Fill link titles in the background (never blocks the push).
+    if (status === "applied" && m.entity === "notes" && m.op === "upsert") queueNoteLinkTitles(m.entityId);
     return { id: m.id, status };
   } catch (err) {
     if (err instanceof DuplicateSignal) return { id: m.id, status: "duplicate" };

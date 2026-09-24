@@ -89,8 +89,8 @@ export function BudgetActions({
             <Button variant="ghost" onClick={() => setConfirming(false)} disabled={pending}>
               Cancel
             </Button>
-            <Button variant="danger" onClick={handleDelete} disabled={pending}>
-              {pending ? "Deleting…" : "Delete budget"}
+            <Button variant="danger" onClick={handleDelete} loading={pending}>
+              {pending ? "Menghapus…" : "Delete budget"}
             </Button>
           </div>
         </div>

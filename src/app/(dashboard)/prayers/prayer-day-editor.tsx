@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Check, Clock, X, StickyNote } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SavingHint } from "@/components/ui/saving-hint";
 import {
   FARDHU,
   SUNNAH,
@@ -39,7 +40,7 @@ export function PrayerDayEditor({
 }) {
   const [entries, setEntries] = React.useState<Entries>(initial);
   const [error, setError] = React.useState<string | null>(null);
-  const [, startTransition] = React.useTransition();
+  const [pending, startTransition] = React.useTransition();
 
   function commit(prayer: string, next: PrayerEntryDTO | null) {
     const prev = entries[prayer] ?? null;
@@ -150,7 +151,7 @@ export function PrayerDayEditor({
         <span>
           {recorded}/{FARDHU.length} fardhu diisi
         </span>
-        {error && <span className="text-expense">{error}</span>}
+        {error ? <span className="text-expense">{error}</span> : <SavingHint pending={pending} />}
       </div>
     </div>
   );

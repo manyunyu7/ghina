@@ -13,6 +13,12 @@ export const SYNC_ENTITIES = [
   "food",
   "taskAreas",
   "tasks",
+  "noteLabels",
+  "notes",
+  "socialAccounts",
+  "contentPillars",
+  "contentItems",
+  "contentPosts",
 ] as const;
 
 export type SyncEntity = (typeof SYNC_ENTITIES)[number];

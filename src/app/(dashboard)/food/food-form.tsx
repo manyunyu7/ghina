@@ -3,7 +3,7 @@
 import * as React from "react";
 import { ImagePlus, X } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
-import { Button } from "@/components/ui/button";
+import { SubmitButton, FormCancelButton } from "@/components/ui/submit-button";
 import { Input, Select, Field } from "@/components/ui/input";
 import { MEALS } from "./constants";
 import { createFood, updateFood } from "./actions";
@@ -43,7 +43,6 @@ export function FoodForm({
 
 function FormBody({ entry, onClose }: { entry?: FoodFormData; onClose: () => void }) {
   const isEdit = Boolean(entry);
-  const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [preview, setPreview] = React.useState<string | null>(entry?.photoUrl ?? null);
   const [removed, setRemoved] = React.useState(false);
@@ -63,13 +62,11 @@ function FormBody({ entry, onClose }: { entry?: FoodFormData; onClose: () => voi
   }
 
   async function handleAction(formData: FormData) {
-    setSubmitting(true);
     setError(null);
     const res = isEdit ? await updateFood(formData) : await createFood(formData);
     if (res.ok) onClose();
     else {
       setError(res.error ?? "Something went wrong");
-      setSubmitting(false);
     }
   }
 
@@ -142,12 +139,12 @@ function FormBody({ entry, onClose }: { entry?: FoodFormData; onClose: () => voi
       {error && <p className="text-sm text-expense">{error}</p>}
 
       <div className="flex justify-end gap-2 pt-1">
-        <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>
+        <FormCancelButton variant="outline" onClick={onClose}>
           Cancel
-        </Button>
-        <Button type="submit" disabled={submitting}>
-          {submitting ? "Saving…" : isEdit ? "Save changes" : "Log meal"}
-        </Button>
+        </FormCancelButton>
+        <SubmitButton pendingText="Menyimpan…">
+          {isEdit ? "Save changes" : "Log meal"}
+        </SubmitButton>
       </div>
     </form>
   );

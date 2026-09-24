@@ -21,7 +21,7 @@ valid 90 days. Missing/invalid/expired token → `401 {"error":"unauthorized"}`.
 | POST | `/api/mobile/auth/google` | `{idToken}` | `{token, user}` |
 | GET | `/api/mobile/me` | – | `{user}` |
 | PATCH | `/api/mobile/me` | `{name?, currency?}` | `{user}` |
-| POST | `/api/mobile/upload` | multipart, field `file` (JPEG/PNG/WebP/GIF/HEIC by file signature — the sent MIME type is ignored; SVG etc. → 400; ≤ 5 MB) | `{url}` e.g. `"/uploads/abc.jpg"` (extension from the detected type) |
+| POST | `/api/mobile/upload` | multipart, field `file`: an image (JPEG/PNG/WebP/GIF/HEIC, ≤ 5 MB) or an audio clip (M4A/MP4-AAC, raw AAC/ADTS, MP3, Ogg/Opus, WebM; ≤ 20 MB), detected by file signature — the sent MIME type and name are ignored; SVG, HTML, WAV etc. → 400 | `{url, kind}` e.g. `{"url":"/uploads/abc.jpg","kind":"image"}` / `{"url":"/uploads/def.m4a","kind":"audio"}` (extension from the detected type: jpg/png/webp/gif/heic/heif, m4a/aac/mp3/ogg/webm) |
 
 `user` = `{id, name, email, image, currency, syncEpoch}`.
 
@@ -36,7 +36,9 @@ configured on the server → 503.
 New users created by mobile register/Google get the same starter "Cash" wallet and
 default categories as a web sign-up. Google sign-in also links a Google `Account` row, so
 the web's Google login lands on the same user. `upload` returns a relative path —
-prefix it with the API base URL to display it.
+prefix it with the API base URL to display it. `kind` is new (older clients only read
+`url`); an image sent where audio was expected comes back as `kind: "image"` — the
+client must check `kind` (and the extension) before using the url as a voice clip.
 
 ## Entities
 
@@ -57,11 +59,19 @@ with UUID v4 ids, the server keeps its existing cuid ids — both are valid.
 | `food` | FoodLog | id, date, name, meal, calories, photoUrl, note, createdAt, updatedAt |
 | `taskAreas` | TaskArea | id, name, code, color, icon, schedule, sortOrder, archived, createdAt, updatedAt |
 | `tasks` | Task | id, areaId, title, note, bucket, dueDate, dueTime, remindBefore, recurrence, seriesId, done, doneAt, sortOrder, amount, walletId, categoryId, transactionId, createdAt, updatedAt |
+| `noteLabels` | NoteLabel | id, name, color, pinnedTab, sortOrder, createdAt, updatedAt |
+| `notes` | Note | id, title, body, checklist, labels, color, pinned, archived, photos, audio, links, source, linkedTaskId, linkedContentId, linkedTransactionId, createdAt, updatedAt |
+| `socialAccounts` | SocialAccount | id, platform, platformName, handle, color, targetPerWeek, archived, sortOrder, createdAt, updatedAt |
+| `contentPillars` | ContentPillar | id, name, color, sortOrder, createdAt, updatedAt |
+| `contentItems` | ContentItem | id, title, stage, format, pillar, idea, noteId, checklist, photos, assetLinks, sponsor, createdAt, updatedAt |
+| `contentPosts` | ContentPost | id, contentId, accountId, caption, hashtags, scheduledAt, remindBefore, status, postedAt, url, metrics, metricsAt, createdAt, updatedAt |
 
 `transactions.photos` is a JSON array of strings (docs/transaction-photos.md);
 `taskAreas.schedule` and `tasks.recurrence` are JSON objects or `null` (docs/tasks.md) —
-never JSON-encoded strings. Old app versions ignore the `taskAreas`/`tasks` keys and
-tombstones of entities they don't know.
+never JSON-encoded strings. The same holds for the notes/content JSON fields:
+`notes.checklist/labels/photos/audio/links`, `contentItems.checklist/photos/assetLinks`
+(arrays), `contentItems.sponsor` (object or null) and `contentPosts.metrics` (object).
+Old app versions ignore the keys and tombstones of entities they don't know.
 
 Schema changes the server makes for sync:
 - `PrayerEntry` gains `updatedAt DateTime @default(now()) @updatedAt`.
@@ -78,6 +88,16 @@ Schema changes the server makes for sync:
 - `Wallet` gains `editedAt DateTime` — server-only, **not** on the wire. It is the
   last-write-wins timestamp for wallets (see Push), because a wallet's `updatedAt`
   also moves every time a transaction changes its balance.
+- New models `Note`, `NoteLabel` (docs/notes.md) and `SocialAccount`, `ContentItem`,
+  `ContentPost`, `ContentPillar` (docs/content.md) — additive `CREATE TABLE`s only.
+  ContentPost → ContentItem and → SocialAccount cascade; Note.linkedTaskId /
+  linkedContentId / linkedTransactionId and ContentItem.noteId `SetNull`.
+  `@@unique([userId, name])` on NoteLabel and ContentPillar (the server additionally
+  enforces case-insensitive uniqueness). JSON columns are `String` with defaults (`"[]"`,
+  `"{}"`, sponsor `NULL`).
+- `Note` has `editedAt DateTime` — server-only, **not** on the wire: the last-write-wins
+  timestamp for notes, because `updatedAt` also moves when the server fills link titles
+  (see "Notes") or strips a deleted label.
 
 ## Wallet balances
 
@@ -110,10 +130,25 @@ Relations, mirrored on both sides:
 - Delete a category → transactions/subscriptions/planned/tasks get `categoryId = null`;
   budgets for it are deleted (tombstoned).
 - Delete a transaction → tasks with that `transactionId` get `transactionId = null`.
-- Delete a task area → its tasks are deleted (tombstoned).
+- Delete a task area → its tasks are deleted (tombstoned) (and their notes' `linkedTaskId` nulled).
+- Delete a task → notes with that `linkedTaskId` get `linkedTaskId = null`.
+- Delete a transaction (any path, incl. wallet cascade) → notes get
+  `linkedTransactionId = null`; a content item whose `sponsor.transactionId` is that
+  transaction gets `sponsor.transactionId = null` inside the JSON (`paid` unchanged).
+- Delete a note label → its id is removed from every note's `labels` (those notes are
+  updated, so they re-sync).
+- Delete a note → content items with that `noteId` get `noteId = null`; the note's photo
+  and audio files are deleted after commit (unless another row still references them).
+- Delete a social account → its posts are deleted (tombstoned).
+- Delete a content item → its posts are deleted (tombstoned); notes with that
+  `linkedContentId` get `null`; its photo files are deleted after commit (unless shared).
+- Delete a content pillar → content items whose `pillar` equals its name
+  (case-insensitive) get `pillar = null`. Renaming a pillar (sync upsert or web) renames
+  it on those items too (updated rows re-sync).
 - Deleting a transaction by any path (sync, web, wallet cascade, reset) deletes its photo
-  files after the DB change commits — unless another transaction/food row still
-  references the same file (best effort).
+  files after the DB change commits — unless another transaction/food/note/content row
+  still references the same file (best effort). A note converted to a transaction shares
+  its photo files with it, so this reference check matters.
 
 The server does the nulling with `updateMany` before the delete so those rows get a fresh
 `updatedAt` and reach other devices through the normal pull. The mobile app applies the
@@ -121,9 +156,11 @@ same rules locally when it deletes (and when it receives a tombstone).
 
 "Reset all data" on the web deletes the user's wallets, categories, transactions and
 budgets (subscriptions/planned stay, with `walletId`/`categoryId` nulled; task areas and
-tasks stay, with `walletId`/`categoryId`/`transactionId` nulled; prayers, health and food
-stay), removes the deleted transactions' photo files, drops all tombstones and assigns a
-new `syncEpoch`. Clients see the new
+tasks stay, with `walletId`/`categoryId`/`transactionId` nulled; notes, labels, social
+accounts, content items/posts/pillars stay, with `notes.linkedTransactionId` and
+`sponsor.transactionId` nulled — `paid` kept; prayers, health and food stay), removes the
+deleted transactions' photo files (except ones a note/content item still uses), drops
+all tombstones and assigns a new `syncEpoch`. Clients see the new
 epoch and do a full re-pull, so no tombstones are needed.
 
 Server implementation: `src/lib/sync-deletes.ts` (+ `deleteLedgerTransaction` in
@@ -141,20 +178,35 @@ models anywhere else.
   "changes": {
     "wallets": [ … ], "categories": [ … ], "transactions": [ … ], "budgets": [ … ],
     "subscriptions": [ … ], "planned": [ … ], "prayers": [ … ], "health": [ … ], "food": [ … ],
-    "taskAreas": [ … ], "tasks": [ … ]
+    "taskAreas": [ … ], "tasks": [ … ],
+    "noteLabels": [ … ], "notes": [ … ], "socialAccounts": [ … ],
+    "contentPillars": [ … ], "contentItems": [ … ], "contentPosts": [ … ]
   },
   "deleted": [ { "entity": "transactions", "id": "…", "deletedAt": "…" } ]
 }
 ```
 
 - `changes.X` = rows with `updatedAt >= since`; `deleted` = tombstones with `deletedAt >= since`.
-  All 11 keys are always present (possibly `[]`). Archived wallets and areas are included.
+  All 17 keys are always present (possibly `[]`). Archived wallets, areas, notes and
+  accounts are included.
 - Default task areas: before building the response, if the user has **no** `TaskArea`
   rows at all, the server creates Kerjaan (`area-kerjaan-<userId>`, code `KERJA`, Mon–Fri
   09:00–17:00) and Keseharian (`area-life-<userId>`, code `LIFE`, no schedule) and drops
   any old tombstones for those ids — so the first pull (full or incremental) carries them.
   The mobile app may seed the same rows locally (same ids and fields) if it has none;
   pushing them later is a normal upsert of the same id (LWW), never a duplicate.
+- Default note label and content pillars, seeded **once** (not re-seeded after the user
+  deletes them): before building the response the server creates the `Ide Konten` label
+  (`label-ide-konten-<userId>`, color `#CE82FF`, `pinnedTab` true, sortOrder 0) unless
+  that id exists, has a tombstone, or another label already has that name
+  (case-insensitive); and, if the user has **no** pillars and none of the default pillar
+  ids has a tombstone, the pillars Edukasi `#1CB0F6`, Hiburan `#FF9600`, Promo `#FF4B4B`,
+  Behind the scene `#CE82FF`, Personal `#58CC02` (ids `pillar-<edukasi|hiburan|promo|bts|personal>-<userId>`,
+  sortOrder 0–4). Mobile should **not** seed these itself once it has pulled
+  successfully (a tombstone it never saw would resurrect a deleted default); before the
+  first successful pull it may seed the same ids/fields locally (a later push is an
+  upsert of the same id). Reset drops tombstones, so after a reset a user without
+  pillars/that label gets them again.
 - A full pull (`since` 0/absent) always returns `deleted: []` — the client starts empty.
 - An id never appears in both `changes` and `deleted` of one response.
 - `serverTime` = the request start time minus 5 seconds; the client stores it as its next
@@ -202,11 +254,18 @@ Rules:
 - At most 1000 mutations per push (else 400).
 - Mutations are applied **in order**, each in its own DB transaction. One failing does not
   stop the rest.
+  Client order (Flutter outbox): referenced rows first (wallets, categories, areas,
+  transactions, other upserts, notes, content items, posts); deletes of unique-keyed rows
+  (labels, areas, budgets, prayers) before those upserts so a re-created name/slot is free;
+  pillar deletes then pillar upserts after the items; every other delete **last** — a
+  server delete cascade (nulling a link, a pillar, a sponsor's transaction) bumps the
+  affected rows' `updatedAt`, which would make the device's own queued edits of those rows
+  lose last-write-wins if they were sent after it.
 - `upsert` data holds the full row minus id/createdAt/updatedAt. Same validation as the
   web forms (zod), same ownership checks (referenced wallet/category must belong to the user).
-- Last write wins: if the server row's `updatedAt` (for wallets: `editedAt`) is later
-  than `clientUpdatedAt`, the mutation is `skipped` and the server row stays (the client
-  gets it on the next pull). This applies to `delete` too.
+- Last write wins: if the server row's `updatedAt` (for wallets and notes: `editedAt`) is
+  later than `clientUpdatedAt`, the mutation is `skipped` and the server row stays (the
+  client gets it on the next pull). This applies to `delete` too.
 - Upsert of an id that no longer exists but has a tombstone: if the tombstone is newer
   than `clientUpdatedAt` → `skipped` (the row stays deleted; the client gets the tombstone
   on the pull). Otherwise the row is re-created and the tombstone removed.
@@ -262,6 +321,12 @@ from a pull.
 | transactions (photos) | photos? | see `transactions.photos` above |
 | taskAreas | name, code, color?, icon?, schedule?, sortOrder?, archived? | see "Task areas" below |
 | tasks | areaId, title, note?, bucket?, dueDate?, dueTime?, remindBefore?, recurrence?, seriesId?, done?, doneAt?, sortOrder?, amount?, walletId?, categoryId?, transactionId? | see "Tasks" below |
+| noteLabels | name, color?, pinnedTab?, sortOrder? | see "Note labels" below |
+| notes | title?, body?, checklist?, labels?, color?, pinned?, archived?, photos?, audio?, links?, source?, linkedTaskId?, linkedContentId?, linkedTransactionId? | see "Notes" below |
+| socialAccounts | platform, platformName?, handle, color?, targetPerWeek?, archived?, sortOrder? | see "Social accounts" below |
+| contentPillars | name, color?, sortOrder? | see "Content pillars" below |
+| contentItems | title, stage?, format?, pillar?, idea?, noteId?, checklist?, photos?, assetLinks?, sponsor? | see "Content items" below |
+| contentPosts | contentId, accountId, caption?, hashtags?, scheduledAt?, remindBefore?, status?, postedAt?, url?, metrics?, metricsAt? | see "Content posts" below |
 
 Empty/whitespace `note` becomes `null`; `""` ids become `null`.
 
@@ -326,6 +391,104 @@ Empty/whitespace `note` becomes `null`; `""` ids become `null`.
   `clientUpdatedAt` wins, the other is `skipped`. Un-completing never deletes the next
   occurrence.
 
+#### Notes and content — common rules
+
+Pure rules: `src/lib/notes.ts`, `src/lib/content.ts` (unit-tested by
+`scripts/test-notes.mjs`, `scripts/test-content.mjs`; mobile mirrors them). Upserts carry
+the **full row**: a missing optional field gets its default (not the stored value).
+Validation error messages are Indonesian. Text hygiene: `\r\n` → `\n`, control
+characters (except tab/newline) removed; "one-line" fields (titles, names, checklist
+texts, brand, handle, labels) also turn newlines into spaces and are trimmed.
+Soft links are resolved leniently (they may point at rows deleted while the device was
+offline): `notes.labels` ids that aren't the user's labels are **dropped**;
+`notes.linkedTaskId/linkedContentId/linkedTransactionId`, `contentItems.noteId` and
+`sponsor.transactionId` that aren't the user's rows are stored as **null** — never
+`rejected`. Hard parents (`contentPosts.contentId/accountId`) must exist → else
+`rejected`. Checklists (notes and items): array of ≤ 200 `{id, text, done}`, `id`
+`^[A-Za-z0-9_-]{1,64}$` unique within the list, `text` one line ≤ 1000 (empty allowed),
+`done` default false. Photo lists: image upload paths only
+(`^/uploads/[A-Za-z0-9-]+\.(jpg|png|webp|gif|heic|heif)$`), duplicates dropped, order
+kept. Removing a photo/clip URL from a list (or deleting the row) deletes the file after
+commit unless another row still references it. Upload pending local files first.
+
+#### Note labels (docs/notes.md)
+
+- `name` one line 1–30. Unique per user **case-insensitively**: another id holding the
+  name → `duplicate` (client deletes its local label and moves its notes to the pulled
+  one). `color` `#rrggbb` (default `#58CC02`), `pinnedTab` bool (default false),
+  `sortOrder` integer (default 0).
+
+#### Notes (docs/notes.md)
+
+- `title` one line ≤ 200 or null (empty → null). `body` Markdown subset ≤ 50 000 chars
+  (not trimmed). `color` null or a palette id: red, orange, yellow, green, teal, blue,
+  darkblue, purple, pink, brown, gray (`NOTE_COLORS`; each platform maps the id to its
+  light/dark shade). `pinned`, `archived` bool (default false). `source`
+  share/quick/voice; anything else → null.
+- `labels`: array of ≤ 20 label ids, deduplicated; unknown/foreign ids dropped.
+- `photos`: ≤ 10 image paths. `audio`: ≤ 5 `{url, durationSec, transcript}` — `url`
+  an audio upload path (`^/uploads/[A-Za-z0-9-]+\.(m4a|aac|mp3|ogg|webm)$`),
+  `durationSec` number 0–610 (10 min + rounding slack), `transcript` ≤ 20 000 or null
+  (trimmed, empty → null); a repeated url keeps the first clip.
+- `links`: ≤ 20 `{url, title}` — `url` http(s) without credentials ≤ 2000, `title` one
+  line ≤ 300 or null. The server **appends every http(s) URL found in `body`** that
+  isn't in the list yet (order of appearance; trailing `.,;:!?'"` and unbalanced `)`/`]`
+  are not part of a URL — `extractUrls`), capped at 20 (sent entries first). A sent link
+  whose `title` is null keeps the title already stored for that url. Clients should run
+  the same merge locally (`mergeLinks`) so their copy matches.
+- After an applied note upsert the server fetches missing titles **in the background**
+  (og:title / `<title>`, SSRF-safe, 3 s, cached; never blocks the push) and updates only
+  `links` (+ `updatedAt`, not `editedAt`) — the client receives the titles on a later pull.
+- LWW compares `clientUpdatedAt` with `editedAt` (the last user edit), so a title fill or
+  label strip never makes a later device edit `skipped`.
+- Any array/object sent as a JSON **string** → `rejected`.
+
+#### Social accounts (docs/content.md)
+
+- `platform` ∈ instagram/tiktok/youtube/x/threads/linkedin/facebook/other (else
+  `rejected`). `platformName` one line ≤ 30 — required for `other`, forced to null for
+  the others. `handle` one line 1–60 (kept as typed, e.g. `@ghina`). `color` `#rrggbb`;
+  null/missing → the platform default (`PLATFORMS` in src/lib/content.ts).
+  `targetPerWeek` integer 0–50 or null; 0 is stored as null (= no target). `archived`
+  bool, `sortOrder` integer.
+
+#### Content pillars (docs/content.md)
+
+- `name` one line 1–30, unique per user case-insensitively (→ `duplicate`). `color`
+  `#rrggbb` (default `#58CC02`), `sortOrder` integer. Renaming renames `pillar` on the
+  user's items (server-side, those items re-sync); deleting nulls it (see Deletes).
+
+#### Content items (docs/content.md)
+
+- `title` one line 1–200. `stage` ∈ ide/naskah/produksi/siap/terjadwal/tayang (default
+  ide). `format` null or post/carousel/reel/story/video/short/thread/live/other.
+  `pillar` one line ≤ 30 or null — a pillar **name** (free text; not required to exist).
+  `idea` Markdown ≤ 50 000. `noteId` soft link. `photos` ≤ 10 image paths.
+  `assetLinks` ≤ 20 `{url (http/https), label (≤ 100 or null)}`.
+- `sponsor`: null or `{brand (1–100), amount (≥ 0, 0 = barter), currency (3 letters,
+  uppercased, default IDR), due (YYYY-MM-DD or null), paid (default false), transactionId
+  (soft link or null)}`. The server never records the income transaction itself from a
+  push: the client pushes the income `transactions` upsert first, then the item with
+  `sponsor.transactionId` set.
+- **Stage auto-advance** (`autoStage`): the client that changes posts applies it and
+  pushes the item: all non-skipped posts `posted` (≥ 1) → `tayang`; else any post
+  `scheduled` → `terjadwal` if the item is before it; never backwards. The sync endpoint
+  stores what it receives (the web actions apply the same rule).
+
+#### Content posts (docs/content.md)
+
+- `contentId`/`accountId`: the user's item/account, else `rejected` ("Konten/Akun tidak
+  ditemukan"). Push the item/account before its posts.
+- `caption` ≤ 5000 (not trimmed), `hashtags` ≤ 1000 (trimmed). `scheduledAt` ISO with
+  Z/offset or null. `remindBefore` integer 0–10080 or null. `status` ∈
+  draft/scheduled/posted/skipped (default draft); `scheduled` requires `scheduledAt`.
+  `postedAt` ISO or null — forced to null unless `posted`; a posted post without it is
+  stamped with server time (clients should send it). `url` http(s) or null (`""` → null).
+  `metrics` object with optional non-negative integer `views, likes, comments, shares,
+  saves, followers` (null = not entered; unknown keys dropped); `metricsAt` ISO or null.
+- The server does not enforce one post per (item, account); clients (and the web
+  actions) refuse adding the same account twice to an item.
+
 ### JSON conventions
 
 - Numbers are JSON numbers, never strings (`amount`, `balance`, `weight` may be
@@ -334,7 +497,11 @@ Empty/whitespace `note` becomes `null`; `""` ids become `null`.
   (`archived`, `active`, `done`, `qobliyah`, `badiyah`). Task `sortOrder`/`amount` may be
   fractional; area `sortOrder` and task `remindBefore` are integers.
 - JSON-typed fields are JSON values: `transactions.photos` (array, `[]` when none),
-  `taskAreas.schedule` and `tasks.recurrence` (object or null).
+  `taskAreas.schedule` and `tasks.recurrence` (object or null), the notes/content JSON
+  fields (arrays `[]` when empty, `metrics` `{}` when empty, `sponsor` object or null).
+  Pulled JSON values are re-validated leniently: invalid entries are left out.
+- Notes/content integers: `sortOrder`, `targetPerWeek`, `remindBefore`, metric values;
+  `durationSec` and `sponsor.amount` may be fractional.
 - Every wire field is always present in pulled rows; missing values are `null`.
 - Server dates are ISO-8601 UTC with milliseconds (`2026-09-23T10:00:00.000Z`). Send
   `DateTime` fields (`date`, `nextBilling`) as UTC ISO strings with `Z` too — a string
@@ -360,7 +527,13 @@ The API base URL defaults to production `https://ghina.tentrem.space`; override 
 deletes it afterwards. It covers prayer statuses/rawatib/sunnah validation and balance
 adjustments, task areas/tasks (validation, recurrence idempotency, cascades), transaction
 photos (validation + file cleanup) and the web task/transaction actions too.
-Flutter end-to-end (real data layer, two devices, v2→v3 upgrade): `GHINA_E2E_BASE_URL=http://localhost:3100 flutter test test/data/e2e_sync_test.dart test/data/e2e_tasks_photos_test.dart test/data/e2e_upgrade_test.dart` (uses `scripts/e2e-helper.mjs` for the web reset and cleanup). `node scripts/perf-sync.mjs` times pull/push at ~1500 transactions + 300 tasks.
+Flutter end-to-end (real data layer, two devices, v2→v4 and v3→v4 upgrades, notes/content): `GHINA_E2E_BASE_URL=http://localhost:3100 flutter test test/data/e2e_sync_test.dart test/data/e2e_tasks_photos_test.dart test/data/e2e_upgrade_test.dart test/data/e2e_upgrade_v3_test.dart test/data/e2e_notes_content_test.dart` (uses `scripts/e2e-helper.mjs` for the web reset, the link-title fill and cleanup; voice fixture `test/data/fixtures/voice.m4a`). `node scripts/perf-sync.mjs` times pull/push at ~1500 transactions + 300 tasks + 500 notes + 200 content items / 400 posts.
 `node scripts/test-tasks.mjs` unit-tests src/lib/tasks.ts and src/lib/photos.ts (no server).
+`node scripts/test-notes.mjs` unit-tests src/lib/notes.ts, audio/image sniffing and the
+SSRF-safe link-title fetcher (local HTTP servers, blocked address ranges, redirects,
+timeout, size cap); `node scripts/test-content.mjs` unit-tests src/lib/content.ts
+(platforms, schemas, auto-stage, weeks/consistency, reports, sponsorship). The e2e script
+also covers notes/labels/accounts/pillars/items/posts sync (validation, soft links,
+cascades, seeding, audio uploads, file cleanup, reset) and the notes/content web actions.
 `node scripts/test-prayer-quality.mjs` unit-tests the scoring module,
 report ranges and the ledger's adjustment effect (no server needed).

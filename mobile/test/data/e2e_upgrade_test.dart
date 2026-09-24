@@ -460,7 +460,7 @@ void main() {
         (await db.customSelect('PRAGMA user_version').getSingle()).read<int>(
           'user_version',
         ),
-        3,
+        4, // v2 → v3 → v4 in one open
       );
       final meta0 = await db.getMeta();
       expect(meta0.epoch, snap.epoch);

@@ -10,12 +10,17 @@ import '../../core/failure.dart';
 import '../../core/streams.dart';
 import '../../domain/entities/entities.dart';
 import '../../domain/repositories/repositories.dart';
+import '../../domain/usecases/content_rules.dart'
+    show autoStage, recordSponsorPaid, recordStage;
+import '../../domain/usecases/notes_rules.dart' show nameKey;
 import '../../domain/usecases/task_rules.dart' show defaultTaskAreas;
 import '../datasources/local/app_database.dart';
 import '../datasources/remote/sync_api.dart';
 import '../models/api_dto.dart';
 import '../models/entity_names.dart';
 import '../models/mappers.dart';
+import '../models/notes_content_mappers.dart';
+import '../models/notes_content_wire.dart';
 import '../models/wire.dart';
 import '../repositories/photo_store.dart';
 import 'local_cascades.dart';
@@ -277,6 +282,7 @@ class SyncEngine implements SyncService {
         rethrow;
       }
       await _db.transaction(() => _applyPushResults(batch, res, rejections));
+      await _requeueForwardRefs(batch, res);
       if (batch.length < batchSize) return;
     }
   }
@@ -326,6 +332,14 @@ class SyncEngine implements SyncService {
             )..where((a) => a.id.equals(entry.entityId))).getSingleOrNull();
             if (area != null) _areaRemaps[area.id] = area.code;
           }
+          if (entry.entity == SyncEntity.noteLabels) {
+            // Same label name created elsewhere: its notes move to the server's
+            // label once the pull brings it (see _applyLabelRemaps).
+            final label = await (_db.select(
+              _db.noteLabels,
+            )..where((l) => l.id.equals(entry.entityId))).getSingleOrNull();
+            if (label != null) await _rememberLabelRemap(label.id, label.name);
+          }
           await _deleteRow(entry.entity, entry.entityId);
         case PushStatus.rejected
             when entry.entity == SyncEntity.tasks &&
@@ -357,6 +371,171 @@ class SyncEngine implements SyncService {
 
   /// Local area id → its code, for areas the server answered `duplicate` to.
   final _areaRemaps = <String, String>{};
+
+  /// Local label id → its name and the notes carrying it, for labels that lost
+  /// a name clash (`duplicate` push, or a pulled label with the same name).
+  final _labelRemaps = <String, ({String name, Set<String> notes})>{};
+
+  Future<void> _rememberLabelRemap(String labelId, String name) async {
+    final rows = await (_db.select(
+      _db.notes,
+    )..where((n) => n.labels.like('%"$labelId"%'))).get();
+    _labelRemaps[labelId] = (
+      name: name,
+      notes: {...?_labelRemaps[labelId]?.notes, for (final r in rows) r.id},
+    );
+  }
+
+  /// Soft links the server resolves leniently (an unknown target is nulled
+  /// instead of rejected): a note pushed before the content item it links
+  /// (`linkedContentId`) created in the same batch — notes go first because
+  /// items reference notes (`noteId`) — would lose the link. Such rows are
+  /// queued once more after the batch (unless a newer change is queued anyway).
+  Future<void> _requeueForwardRefs(
+    List<OutboxRow> batch,
+    PushResponse res,
+  ) async {
+    final applied = {
+      for (final r in res.results)
+        if (r.status == PushStatus.applied) r.id,
+    };
+    final pos = <String, int>{
+      for (final (i, e) in batch.indexed)
+        if (e.op == MutationOp.upsert.name) '${e.entity}/${e.entityId}': i,
+    };
+    var queued = false;
+    for (final (i, e) in batch.indexed) {
+      if (!applied.contains(e.mutationId) ||
+          e.entity != SyncEntity.notes ||
+          e.op != MutationOp.upsert.name) {
+        continue;
+      }
+      final target = Outbox.decode(e.data)?['linkedContentId'];
+      if (target is! String) continue;
+      final at = pos['${SyncEntity.contentItems}/$target'];
+      if (at == null || at < i) continue;
+      await _db.transaction(() async {
+        if (await _outbox.pendingEntry(e.entity, e.entityId) != null) return;
+        final row = await (_db.select(
+          _db.notes,
+        )..where((n) => n.id.equals(e.entityId))).getSingleOrNull();
+        if (row == null) return;
+        await _outbox.enqueueUpsert(
+          entity: SyncEntity.notes,
+          entityId: e.entityId,
+          data: noteToWire(row.toEntity()),
+          clientUpdatedAt: _clock.now(),
+          isCreate: false,
+        );
+        queued = true;
+      });
+    }
+    if (queued) _outbox.notifyLocalWrite();
+  }
+
+  /// After a pull: notes that carried a label which lost a name clash get the
+  /// label now holding that name (queued, since the server dropped the unknown
+  /// id), or just lose it when there is none.
+  Future<void> _applyLabelRemaps() async {
+    if (_labelRemaps.isEmpty) return;
+    final remaps = Map.of(_labelRemaps);
+    _labelRemaps.clear();
+    var moved = false;
+    await _db.transaction(() async {
+      final labels = [
+        for (final l in await _db.select(_db.noteLabels).get()) l.toEntity(),
+      ];
+      for (final MapEntry(key: oldId, value: r) in remaps.entries) {
+        final target = labels
+            .where((l) => l.id != oldId && nameKey(l.name) == nameKey(r.name))
+            .firstOrNull;
+        for (final noteId in r.notes) {
+          final row = await (_db.select(
+            _db.notes,
+          )..where((n) => n.id.equals(noteId))).getSingleOrNull();
+          if (row == null) continue;
+          final n = row.toEntity();
+          final ids = [
+            for (final x in n.labelIds)
+              if (x != oldId) x,
+            if (target != null && !n.labelIds.contains(target.id)) target.id,
+          ];
+          if (ids.length == n.labelIds.length &&
+              ids.every(n.labelIds.contains)) {
+            continue;
+          }
+          final updated = n.copyWith(labelIds: ids, updatedAt: _clock.now());
+          await _db
+              .into(_db.notes)
+              .insertOnConflictUpdate(updated.toCompanion());
+          if (target == null) {
+            await _outbox.patchQueued(SyncEntity.notes, n.id, {'labels': ids});
+            continue;
+          }
+          await _outbox.enqueueUpsert(
+            entity: SyncEntity.notes,
+            entityId: n.id,
+            data: noteToWire(updated),
+            clientUpdatedAt: updated.updatedAt,
+            isCreate: false,
+          );
+          moved = true;
+        }
+      }
+    });
+    if (moved) _outbox.notifyLocalWrite();
+  }
+
+  /// Content items whose posts changed status in the pull being applied.
+  final _stageChecks = <String>{};
+  bool _fullPull = false;
+
+  /// After a pull: the stage auto-advance rule (`autoStage`, forward only) on
+  /// items whose posts changed status elsewhere. Each device applies it to the
+  /// posts it changes, so two devices posting different accounts offline
+  /// would otherwise both leave the item at `terjadwal` once everything is
+  /// posted. A moved item is queued (both devices computing it is harmless).
+  Future<void> _reconcileStages() async {
+    if (_stageChecks.isEmpty) return;
+    final ids = {..._stageChecks};
+    _stageChecks.clear();
+    var moved = false;
+    await _db.transaction(() async {
+      for (final id in ids) {
+        final row = await (_db.select(
+          _db.contentItems,
+        )..where((i) => i.id.equals(id))).getSingleOrNull();
+        if (row == null) continue;
+        final item = row.toEntity();
+        final posts = [
+          for (final p in await (_db.select(
+            _db.contentPosts,
+          )..where((p) => p.contentId.equals(id))).get())
+            p.toEntity(),
+        ];
+        final next = autoStage(item.stage, posts);
+        if (next == item.stage) continue;
+        final now = _clock.now();
+        final updated = item.copyWith(
+          stage: next,
+          stageReachedAt: recordStage(item.stageReachedAt, next, now),
+          updatedAt: now,
+        );
+        await _db
+            .into(_db.contentItems)
+            .insertOnConflictUpdate(updated.toCompanion());
+        await _outbox.enqueueUpsert(
+          entity: SyncEntity.contentItems,
+          entityId: id,
+          data: contentItemToWire(updated),
+          clientUpdatedAt: now,
+          isCreate: false,
+        );
+        moved = true;
+      }
+    });
+    if (moved) _outbox.notifyLocalWrite();
+  }
 
   Future<bool> _inRemappedArea(String taskId) async {
     if (_areaRemaps.isEmpty) return false;
@@ -420,6 +599,207 @@ class SyncEngine implements SyncService {
   Future<void> _uploadPendingPhotos(List<String> rejections) async {
     await _uploadFoodPhotos(rejections);
     await _uploadTransactionPhotos(rejections);
+    await _uploadNoteMedia(rejections);
+    await _uploadContentPhotos(rejections);
+  }
+
+  /// Uploads one pending file. Returns its URL, or null when it can never
+  /// upload (the server refused it with a 4xx, or the file is gone) — the error
+  /// is added to [rejections] and the caller drops it. Anything else (offline,
+  /// 5xx, expired session) is rethrown and retried with backoff.
+  ///
+  /// [accept]: the returned path must match it (the server answers with the
+  /// type it detected — e.g. an image sent as a voice clip comes back as
+  /// `.jpg`); a mismatch is dropped too.
+  Future<String?> _uploadOne(
+    String path,
+    String what,
+    List<String> rejections, {
+    RegExp? accept,
+  }) async {
+    if (!await _photos.exists(path)) {
+      rejections.add('$what hilang dari perangkat, dilewati');
+      return null;
+    }
+    try {
+      final url = await _api.upload(path);
+      if (accept != null && !accept.hasMatch(url)) {
+        rejections.add('$what gagal diunggah: jenis file tidak didukung');
+        return null;
+      }
+      return url;
+    } on Failure catch (f) {
+      if (!_isRejection(f)) rethrow;
+      rejections.add('$what gagal diunggah: ${f.message}');
+      return null;
+    }
+  }
+
+  /// Notes with pending photos / voice clips: upload each file, swap it for its
+  /// URL (a refused clip is dropped; its transcript is appended to the body so
+  /// the words survive), then patch the queued upsert — or queue one. Uploaded
+  /// files are deleted locally. On a retryable failure the files uploaded so far
+  /// are kept and the error rethrown.
+  Future<void> _uploadNoteMedia(List<String> rejections) async {
+    final rows =
+        await (_db.select(_db.notes)..where(
+              (n) =>
+                  n.photos.like('%"$localPhotoPrefix%') |
+                  n.audio.like('%"local"%'),
+            ))
+            .get();
+    for (final row in rows) {
+      final note = row.toEntity();
+      final pending = [
+        for (final p in note.photos)
+          if (p.isPending) (p.localPath!, 'Foto catatan', uploadImageRe),
+        for (final a in note.audio)
+          if (a.isPending) (a.localPath!, 'Rekaman suara', uploadAudioRe),
+      ];
+      if (pending.isEmpty) continue;
+      final done = <String, String?>{};
+      try {
+        for (final (path, what, accept) in pending) {
+          done[path] = await _uploadOne(path, what, rejections, accept: accept);
+        }
+      } finally {
+        if (done.isNotEmpty) await _applyUploadedNoteMedia(row.id, done);
+      }
+    }
+  }
+
+  Future<void> _applyUploadedNoteMedia(
+    String id,
+    Map<String, String?> done,
+  ) async {
+    await _db.transaction(() async {
+      final current = await (_db.select(
+        _db.notes,
+      )..where((n) => n.id.equals(id))).getSingleOrNull();
+      if (current == null) return;
+      final n = current.toEntity();
+      final lost = <String>[];
+      final photos = <TransactionPhoto>[
+        for (final p in n.photos)
+          if (!p.isPending || !done.containsKey(p.localPath))
+            p
+          else if (done[p.localPath] case final url?)
+            TransactionPhoto.remote(url),
+      ];
+      final audio = <NoteAudio>[];
+      for (final a in n.audio) {
+        if (!a.isPending || !done.containsKey(a.localPath)) {
+          audio.add(a);
+        } else if (done[a.localPath] case final url?) {
+          audio.add(
+            NoteAudio.remote(
+              url,
+              durationSec: a.durationSec,
+              transcript: a.transcript,
+            ),
+          );
+        } else if (a.hasTranscript) {
+          lost.add(a.transcript!.trim());
+        }
+      }
+      final body = lost.isEmpty
+          ? n.body
+          : [
+              if (n.body.trim().isNotEmpty) n.body.trimRight(),
+              ...lost,
+            ].join('\n\n');
+      final updated = n.copyWith(photos: photos, audio: audio, body: body);
+      await _db.into(_db.notes).insertOnConflictUpdate(updated.toCompanion());
+      final wire = noteToWire(updated);
+      if (await _outbox.pendingEntry(SyncEntity.notes, id) case final e?
+          when e.op == MutationOp.upsert.name) {
+        await _outbox.patchQueued(SyncEntity.notes, id, {
+          'photos': wire['photos'],
+          'audio': wire['audio'],
+          if (lost.isNotEmpty) 'body': body,
+        });
+      } else {
+        await _outbox.enqueueUpsert(
+          entity: SyncEntity.notes,
+          entityId: id,
+          data: wire,
+          clientUpdatedAt: _clock.now(),
+          isCreate: false,
+        );
+      }
+    });
+    for (final path in done.keys) {
+      await _photos.delete(path);
+    }
+  }
+
+  /// Content items with pending photos: same flow as transactions.
+  Future<void> _uploadContentPhotos(List<String> rejections) async {
+    final rows = await (_db.select(
+      _db.contentItems,
+    )..where((i) => i.photos.like('%"$localPhotoPrefix%'))).get();
+    for (final row in rows) {
+      final pending = [
+        for (final p in decodePhotos(row.photos))
+          if (p.isPending) p.localPath!,
+      ];
+      if (pending.isEmpty) continue;
+      final done = <String, String?>{};
+      try {
+        for (final path in pending) {
+          done[path] = await _uploadOne(
+            path,
+            'Foto konten',
+            rejections,
+            accept: uploadImageRe,
+          );
+        }
+      } finally {
+        if (done.isNotEmpty) await _applyUploadedContentPhotos(row.id, done);
+      }
+    }
+  }
+
+  Future<void> _applyUploadedContentPhotos(
+    String id,
+    Map<String, String?> done,
+  ) async {
+    await _db.transaction(() async {
+      final current = await (_db.select(
+        _db.contentItems,
+      )..where((i) => i.id.equals(id))).getSingleOrNull();
+      if (current == null) return;
+      final item = current.toEntity();
+      final photos = <TransactionPhoto>[
+        for (final p in item.photos)
+          if (!p.isPending || !done.containsKey(p.localPath))
+            p
+          else if (done[p.localPath] case final url?)
+            TransactionPhoto.remote(url),
+      ];
+      final updated = item.copyWith(photos: photos);
+      await _db
+          .into(_db.contentItems)
+          .insertOnConflictUpdate(updated.toCompanion());
+      final wire = contentItemToWire(updated);
+      if (await _outbox.pendingEntry(SyncEntity.contentItems, id) case final e?
+          when e.op == MutationOp.upsert.name) {
+        await _outbox.patchQueued(SyncEntity.contentItems, id, {
+          'photos': wire['photos'],
+        });
+      } else {
+        await _outbox.enqueueUpsert(
+          entity: SyncEntity.contentItems,
+          entityId: id,
+          data: wire,
+          clientUpdatedAt: _clock.now(),
+          isCreate: false,
+        );
+      }
+    });
+    for (final path in done.keys) {
+      await _photos.delete(path);
+    }
   }
 
   Future<void> _uploadFoodPhotos(List<String> rejections) async {
@@ -485,13 +865,7 @@ class SyncEngine implements SyncService {
       final done = <String, String?>{}; // local path → url (null = dropped)
       try {
         for (final path in pending) {
-          try {
-            done[path] = await _api.upload(path);
-          } on Failure catch (f) {
-            if (!_isRejection(f)) rethrow;
-            rejections.add('Foto transaksi gagal diunggah: ${f.message}');
-            done[path] = null;
-          }
+          done[path] = await _uploadOne(path, 'Foto transaksi', rejections);
         }
       } finally {
         if (done.isNotEmpty) await _applyUploadedTxPhotos(row.id, done);
@@ -574,6 +948,25 @@ class SyncEngine implements SyncService {
       await _applyAreaRemaps();
       await _seedTaskAreas();
     }
+    if (res.changes.containsKey(SyncEntity.noteLabels)) {
+      await _applyLabelRemaps();
+    }
+    await _reconcileStages();
+    // A notes/content-aware server seeds the default label and pillars itself
+    // (once — never again after the user deleted them), so from now on the app
+    // must not seed them locally (see SeedDefaultNoteLabel).
+    final notesAware = res.changes.containsKey(SyncEntity.noteLabels);
+    final contentAware = res.changes.containsKey(SyncEntity.contentPillars);
+    if (notesAware || contentAware) {
+      await _db.updateMeta(
+        SyncMetaCompanion(
+          notesSeeded: notesAware ? const Value(true) : const Value.absent(),
+          contentSeeded: contentAware
+              ? const Value(true)
+              : const Value.absent(),
+        ),
+      );
+    }
   }
 
   /// After the first pull from a server that knows tasks: when the user has no
@@ -610,6 +1003,7 @@ class SyncEngine implements SyncService {
   /// tombstones), so local rows missing from it are deleted unless they have pending
   /// mutations.
   Future<void> _applyPull(PullResponse res, {required bool full}) async {
+    _fullPull = full;
     final pending = <String, Set<String>>{
       for (final e in SyncEntity.all) e: await _outbox.idsWithEntries(e),
     };
@@ -640,6 +1034,17 @@ class SyncEngine implements SyncService {
       if (pending[t.entity]?.contains(t.id) ?? true) {
         continue; // pending local wins
       }
+      if (t.entity == SyncEntity.contentPosts) {
+        final post = await (_db.select(
+          _db.contentPosts,
+        )..where((p) => p.id.equals(t.id))).getSingleOrNull();
+        if (post != null) _stageChecks.add(post.contentId);
+      }
+      final pillarName = t.entity == SyncEntity.contentPillars
+          ? (await (_db.select(
+              _db.contentPillars,
+            )..where((p) => p.id.equals(t.id))).getSingleOrNull())?.name
+          : null;
       final n = await _deleteRow(t.entity, t.id);
       if (n == 0) continue;
       if (t.entity == SyncEntity.wallets) await _cascades.walletDeleted(t.id);
@@ -652,6 +1057,18 @@ class SyncEngine implements SyncService {
       if (t.entity == SyncEntity.taskAreas) {
         await _cascades.taskAreaDeleted(t.id);
       }
+      if (t.entity == SyncEntity.tasks) await _cascades.taskDeleted(t.id);
+      if (t.entity == SyncEntity.notes) await _cascades.noteDeleted(t.id);
+      if (t.entity == SyncEntity.noteLabels) {
+        await _cascades.noteLabelDeleted(t.id);
+      }
+      if (t.entity == SyncEntity.contentItems) {
+        await _cascades.contentItemDeleted(t.id);
+      }
+      if (t.entity == SyncEntity.socialAccounts) {
+        await _cascades.socialAccountDeleted(t.id);
+      }
+      if (pillarName != null) await _cascades.pillarDeleted(pillarName);
     }
 
     for (final entity in SyncEntity.all) {
@@ -744,6 +1161,98 @@ class SyncEngine implements SyncService {
             .insertOnConflictUpdate(taskAreaFromWire(j));
       case SyncEntity.tasks:
         await _db.into(_db.tasks).insertOnConflictUpdate(taskFromWire(j));
+      case SyncEntity.noteLabels:
+        final label = noteLabelFromWire(j);
+        // A local label with the same name but another id (created offline)
+        // can't be kept: its notes move to the pulled one.
+        for (final c in await _db.select(_db.noteLabels).get()) {
+          if (c.id != id && nameKey(c.name) == nameKey(label.name)) {
+            await _rememberLabelRemap(c.id, c.name);
+            await _outbox.dropQueued(SyncEntity.noteLabels, c.id);
+            await _deleteRow(SyncEntity.noteLabels, c.id);
+          }
+        }
+        await _db
+            .into(_db.noteLabels)
+            .insertOnConflictUpdate(label.toCompanion());
+      case SyncEntity.notes:
+        final pulled = noteFromWire(j);
+        final local = await (_db.select(
+          _db.notes,
+        )..where((n) => n.id.equals(id))).getSingleOrNull();
+        final keep = local?.toEntity();
+        // Never lose a photo/clip that hasn't been uploaded yet.
+        final note = keep == null
+            ? pulled
+            : pulled.copyWith(
+                photos: [
+                  ...pulled.photos,
+                  for (final p in keep.photos)
+                    if (p.isPending) p,
+                ],
+                audio: [
+                  ...pulled.audio,
+                  for (final a in keep.audio)
+                    if (a.isPending) a,
+                ],
+              );
+        await _db.into(_db.notes).insertOnConflictUpdate(note.toCompanion());
+      case SyncEntity.socialAccounts:
+        await _db
+            .into(_db.socialAccounts)
+            .insertOnConflictUpdate(socialAccountFromWire(j).toCompanion());
+      case SyncEntity.contentPillars:
+        final pillar = contentPillarFromWire(j);
+        for (final c in await _db.select(_db.contentPillars).get()) {
+          if (c.id != id && nameKey(c.name) == nameKey(pillar.name)) {
+            await _outbox.dropQueued(SyncEntity.contentPillars, c.id);
+            await _deleteRow(SyncEntity.contentPillars, c.id);
+          }
+        }
+        await _db
+            .into(_db.contentPillars)
+            .insertOnConflictUpdate(pillar.toCompanion());
+      case SyncEntity.contentItems:
+        final pulled = contentItemFromWire(j);
+        final keep = (await (_db.select(
+          _db.contentItems,
+        )..where((i) => i.id.equals(id))).getSingleOrNull())?.toEntity();
+        // Device-only stage log: stages first seen through a pull get the
+        // row's updatedAt (the model has no per-stage timestamps).
+        final item = pulled.copyWith(
+          photos: [
+            ...pulled.photos,
+            for (final p in keep?.photos ?? const <TransactionPhoto>[])
+              if (p.isPending) p,
+          ],
+          stageReachedAt: recordStage(
+            keep?.stageReachedAt ?? const {},
+            pulled.stage,
+            pulled.updatedAt,
+          ),
+          sponsorPaidAt: recordSponsorPaid(keep, pulled, pulled.updatedAt),
+        );
+        await _db
+            .into(_db.contentItems)
+            .insertOnConflictUpdate(item.toCompanion());
+      case SyncEntity.contentPosts:
+        final post = contentPostFromWire(j);
+        final before = await (_db.select(
+          _db.contentPosts,
+        )..where((p) => p.id.equals(id))).getSingleOrNull();
+        // A post new to this device counts only on incremental pulls: a full
+        // pull (sign-in, upgrade, reset) must not undo stages the user moved
+        // back by hand.
+        if (before == null
+            ? !_fullPull
+            : before.status != post.status.wire ||
+                  before.contentId != post.contentId) {
+          _stageChecks.add(post.contentId);
+          if (before != null) _stageChecks.add(before.contentId);
+        }
+        await _db
+            .into(_db.contentPosts)
+            .insertOnConflictUpdate(post.toCompanion());
       default:
         break; // unknown entity from a newer server: ignore
     }
@@ -773,6 +1282,12 @@ class SyncEngine implements SyncService {
     SyncEntity.food => _db.food,
     SyncEntity.taskAreas => _db.taskAreas,
     SyncEntity.tasks => _db.tasks,
+    SyncEntity.noteLabels => _db.noteLabels,
+    SyncEntity.notes => _db.notes,
+    SyncEntity.socialAccounts => _db.socialAccounts,
+    SyncEntity.contentPillars => _db.contentPillars,
+    SyncEntity.contentItems => _db.contentItems,
+    SyncEntity.contentPosts => _db.contentPosts,
     _ => null,
   };
 

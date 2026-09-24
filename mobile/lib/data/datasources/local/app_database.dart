@@ -21,6 +21,12 @@ part 'app_database.g.dart';
     Food,
     TaskAreas,
     Tasks,
+    Notes,
+    NoteLabels,
+    SocialAccounts,
+    ContentItems,
+    ContentPosts,
+    ContentPillars,
     Outbox,
     SyncMeta,
   ],
@@ -36,13 +42,14 @@ class AppDatabase extends _$AppDatabase {
 
   /// v1: initial schema. v2: prayer quality columns on `prayers`.
   /// v3: `task_areas`, `tasks`, `transactions.photos`, `sync_meta.tasks_seeded`.
+  /// v4: notes + content planner tables, `sync_meta.notes_seeded`/`content_seeded`.
   ///
   /// Bumping? Add a step below, run
   /// `dart run drift_dev schema dump lib/data/datasources/local/app_database.dart drift_schemas/`
   /// and `dart run drift_dev schema generate drift_schemas/ test/data/local/generated_migrations/`,
   /// then extend `test/data/local/migration_test.dart`.
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -73,6 +80,25 @@ class AppDatabase extends _$AppDatabase {
         // server's). Re-download everything once; pending outbox rows still win.
         await customStatement('UPDATE sync_meta SET full_pull_required = 1');
       }
+      if (from < 4 && to >= 4) {
+        // Additive only. Six new tables + two meta flags.
+        await m.addColumn(syncMeta, syncMeta.notesSeeded);
+        await m.addColumn(syncMeta, syncMeta.contentSeeded);
+        await m.createTable(notes);
+        await m.createTable(noteLabels);
+        await m.createTable(socialAccounts);
+        await m.createTable(contentItems);
+        await m.createTable(contentPosts);
+        await m.createTable(contentPillars);
+        await m.createIndex(idxNoteUpdated);
+        await m.createIndex(idxPostContent);
+        await m.createIndex(idxPostAccount);
+        await m.createIndex(idxPostScheduled);
+        // The web may already hold notes/content the v3 app pulled past without
+        // storing: re-download everything once (pending outbox rows still win),
+        // and only then decide whether to seed the default label/pillars.
+        await customStatement('UPDATE sync_meta SET full_pull_required = 1');
+      }
     },
     beforeOpen: (details) async {
       await customStatement('PRAGMA foreign_keys = OFF');
@@ -92,6 +118,12 @@ class AppDatabase extends _$AppDatabase {
     food,
     taskAreas,
     tasks,
+    notes,
+    noteLabels,
+    socialAccounts,
+    contentItems,
+    contentPosts,
+    contentPillars,
   ];
 
   /// Deletes all synced rows and the outbox. With [includeMeta] the sync meta

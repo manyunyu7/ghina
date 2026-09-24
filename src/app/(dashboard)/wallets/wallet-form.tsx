@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Modal } from "@/components/ui/modal";
-import { Button } from "@/components/ui/button";
+import { SubmitButton, FormCancelButton } from "@/components/ui/submit-button";
 import { Input, Select, Field, Label } from "@/components/ui/input";
 import { cn, CURRENCIES, formatCurrency } from "@/lib/utils";
 import { COLOR_PALETTE, WALLET_TYPES } from "@/lib/constants";
@@ -35,7 +35,6 @@ export function WalletForm({
   const [type, setType] = React.useState(wallet?.type ?? WALLET_TYPES[0].value);
   const [color, setColor] = React.useState(wallet?.color ?? COLOR_PALETTE[0]);
   const [error, setError] = React.useState<string | null>(null);
-  const [pending, setPending] = React.useState(false);
   // Edit mode: the typed "current balance", to preview the adjustment it creates.
   const [balanceInput, setBalanceInput] = React.useState(wallet ? String(wallet.balance) : "0");
 
@@ -48,7 +47,6 @@ export function WalletForm({
     setType(wallet?.type ?? WALLET_TYPES[0].value);
     setColor(wallet?.color ?? COLOR_PALETTE[0]);
     setError(null);
-    setPending(false);
     setBalanceInput(wallet ? String(wallet.balance) : "0");
   }
 
@@ -59,7 +57,6 @@ export function WalletForm({
       : 0;
 
   async function handleAction(formData: FormData) {
-    setPending(true);
     setError(null);
     // The adjustment date defaults to "now" on the server; only send a different day.
     if (formData.get("adjustmentDate") === todayInput()) formData.delete("adjustmentDate");
@@ -70,7 +67,6 @@ export function WalletForm({
     } catch {
       result = { ok: false, error: "Something went wrong" };
     }
-    setPending(false);
     if (result.ok) {
       onClose();
     } else {
@@ -202,12 +198,12 @@ export function WalletForm({
         {error && <p className="text-sm text-expense">{error}</p>}
 
         <div className="flex justify-end gap-2 pt-2">
-          <Button type="button" variant="ghost" onClick={onClose} disabled={pending}>
+          <FormCancelButton variant="ghost" onClick={onClose}>
             Cancel
-          </Button>
-          <Button type="submit" disabled={pending}>
-            {pending ? "Saving…" : isEdit ? "Save changes" : "Create wallet"}
-          </Button>
+          </FormCancelButton>
+          <SubmitButton pendingText="Menyimpan…">
+            {isEdit ? "Save changes" : "Create wallet"}
+          </SubmitButton>
         </div>
       </form>
     </Modal>

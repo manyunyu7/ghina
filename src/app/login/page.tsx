@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { signIn, googleEnabled } from "@/auth";
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { AuthShell, GoogleIcon } from "@/components/auth-shell";
-import { AuthForm } from "./auth-form";
+import { AuthForm, GoogleSubmitButton } from "./auth-form";
 
 export default async function LoginPage() {
   if (await getCurrentUser()) redirect("/dashboard");
@@ -29,13 +29,9 @@ export default async function LoginPage() {
             <div className="h-px flex-1 bg-border" />
           </div>
           <form action={signInWithGoogle}>
-            <button
-              type="submit"
-              className="flex w-full items-center justify-center gap-3 rounded-lg border border-border bg-surface px-4 py-3 text-sm font-semibold text-foreground shadow-sm transition hover:bg-accent"
-            >
+            <GoogleSubmitButton>
               <GoogleIcon />
-              Continue with Google
-            </button>
+            </GoogleSubmitButton>
           </form>
         </>
       )}

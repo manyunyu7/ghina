@@ -78,6 +78,24 @@ void main() {
     expect(find.text('ROUTE:/prayers'), findsOneWidget);
   });
 
+  testWidgets('quick actions include Konten', (tester) async {
+    await pumpPage(
+      tester,
+      const HomePage(),
+      overrides: withTasks(pageOverrides()),
+    );
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('qa-/content')),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.ensureVisible(find.byKey(const ValueKey('qa-/content')));
+    await settle(tester, 3);
+    await tester.tap(find.byKey(const ValueKey('qa-/content')));
+    await settle(tester);
+    expect(find.text('ROUTE:/content'), findsOneWidget);
+  });
+
   testWidgets('empty account invites the first transaction', (tester) async {
     await pumpPage(
       tester,

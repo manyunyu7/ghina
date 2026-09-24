@@ -108,3 +108,47 @@ From a note (keeps the note, sets the link both ways where the target has a fiel
 
 Entities `notes` and `noteLabels`; JSON fields travel as JSON values. Validation mirrors
 the model limits. Photo/audio files cleaned up when removed or when the note is deleted.
+
+## Clarifications (backend implementation)
+
+Decided while building the backend; the web and mobile follow these.
+
+- **Colors**: `color` stores a palette **id** — red, orange, yellow, green, teal, blue,
+  darkblue, purple, pink, brown, gray (`NOTE_COLORS` in `src/lib/notes.ts`, with light and
+  dark hex per id) — not a hex value, so each platform can theme it.
+- **Limits** besides the model's: checklist text one line ≤ 1000; ≤ 20 labels per note;
+  transcript ≤ 20 000; `durationSec` ≤ 610 (10 min + encoder slack). Titles/names/checklist
+  texts are single-line; bodies keep newlines; control characters are stripped.
+- **Labels** are unique per user case-insensitively (sync: `duplicate`). Notes store label
+  ids, so a rename changes nothing on notes. Label ids a note references that the user
+  doesn't have are dropped on save (offline races), never rejected.
+- **Default label** `Ide Konten` (`label-ide-konten-<userId>`, `#CE82FF`, pinned tab) is
+  seeded **once** by the server (first pull / first web visit) — not re-created after the
+  user deletes it (tombstone), and skipped if a label with that name already exists.
+- **Links**: `links` = the sent list + every body URL not yet in it (`extractUrls`,
+  `mergeLinks`), ≤ 20. Titles are fetched by the server after save (fire-and-forget;
+  `src/lib/link-titles.ts`): http/https only, every resolved address must be public
+  (private, loopback, link-local/metadata, CGNAT, multicast, reserved, IPv4-mapped/NAT64/
+  6to4 forms refused, checked at connect time), ≤ 3 validated redirects, 3 s, ≤ 256 KB,
+  `text/html` only, og:title → `<title>`, cached per URL (24 h; failures 1 h). A sent link
+  without a title keeps the stored one.
+- **LWW**: notes carry a server-only `editedAt` (last user edit) used for sync
+  last-write-wins, because title fills and label strips also bump `updatedAt`.
+- **Soft links** (`linked*Id`) pointing at rows that no longer exist / aren't the user's
+  are stored as null instead of rejecting the note.
+- **Convert**: → Tugas: title = note title / first body line (markdown stripped) /
+  first checklist item / "Catatan"; task note = body as plain text ≤ 2000; sets
+  `linkedTaskId`. → Konten: item at `ide` with title, `idea` = body, checklist and photos
+  copied, `noteId` = note; sets `linkedContentId`. → Transaksi: amount from `parseAmount`
+  (the single distinct `Rp …` amount — `Rp 25.000`, `Rp 25rb`, `Rp1,5jt` — else the single
+  distinct plain number ≥ 1000 or with a k/rb/jt suffix; dates/times ignored; several →
+  none); note = title; the first 5 note photos are attached (files shared, reference-
+  counted); sets `linkedTransactionId`.
+- **Deleting** a task / content item / transaction nulls the matching `linked*Id` on notes
+  (rows re-sync). Deleting a note nulls `ContentItem.noteId` and removes its files.
+- **Reset all data** keeps notes and labels (only `linkedTransactionId` is nulled).
+
+Server implementation: `src/lib/notes.ts` (pure; `scripts/test-notes.mjs`),
+`src/lib/notes-server.ts` (save/seed/title refresh/queries), `src/lib/link-titles.ts`,
+`src/lib/media.ts` (audio sniffing), `src/lib/sync-links.ts` + `src/lib/sync-deletes.ts`
+(cascades), `src/app/(dashboard)/notes/actions.ts` (web server actions).

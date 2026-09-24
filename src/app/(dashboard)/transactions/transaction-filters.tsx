@@ -1,12 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Search, X } from "lucide-react";
 import type { Wallet, Category } from "@prisma/client";
 import { Input, Select } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { MONTHS } from "@/lib/utils";
+import { PendingBar } from "@/components/pending-bar";
+import { SavingHint } from "@/components/ui/saving-hint";
+import { useNavTransition } from "@/components/use-nav-transition";
 
 export function TransactionFilters({
   wallets,
@@ -17,29 +20,45 @@ export function TransactionFilters({
   categories: Category[];
   currentYear: number;
 }) {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { pending, replace } = useNavTransition();
 
-  const get = (key: string) => searchParams.get(key) ?? "";
+  // The URL only updates once the filtered list has loaded, so keep the chosen filters in
+  // local state meanwhile (selects don't snap back) and re-sync when the URL changes.
+  const urlQs = searchParams.toString();
+  const [view, setView] = React.useState({ qs: urlQs, urlQs });
+  if (view.urlQs !== urlQs && !pending) {
+    setView({ qs: urlQs, urlQs });
+  }
+  const current = React.useMemo(() => new URLSearchParams(view.qs), [view.qs]);
+  const get = (key: string) => current.get(key) ?? "";
+
+  const navigate = React.useCallback(
+    (qs: string) => {
+      setView((v) => ({ ...v, qs }));
+      replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [replace, pathname],
+  );
 
   const setParam = React.useCallback(
     (key: string, value: string) => {
-      const params = new URLSearchParams(searchParams.toString());
+      const params = new URLSearchParams(current.toString());
       if (value) params.set(key, value);
       else params.delete(key);
-      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+      navigate(params.toString());
     },
-    [router, pathname, searchParams],
+    [current, navigate],
   );
 
   // Debounced search on note. Uncontrolled input + ref timer so we never
-  // call setState inside an effect; external changes (Clear) remount via key.
+  // call setState inside an effect; Clear remounts it via key.
   const debounceRef = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const onSearchChange = (value: string) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      if ((searchParams.get("q") ?? "") !== value) setParam("q", value);
+      if ((current.get("q") ?? "") !== value) setParam("q", value);
     }, 300);
   };
 
@@ -52,20 +71,30 @@ export function TransactionFilters({
   const hasFilters =
     Boolean(get("type") || get("walletId") || get("categoryId") || get("month") || get("year") || get("q"));
 
+  // Remount the (uncontrolled) search box only when filters are cleared.
+  const [searchKey, setSearchKey] = React.useState(0);
   function clearAll() {
-    router.replace(pathname, { scroll: false });
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    setSearchKey((k) => k + 1);
+    navigate("");
   }
 
   return (
-    <div className="mb-6 space-y-3">
+    <div className="mb-6 space-y-3" aria-busy={pending || undefined}>
+      <PendingBar pending={pending} />
       <div className="relative">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-soft" />
         <Input
-          key={get("q")}
-          className="pl-9"
+          key={searchKey}
+          className="pl-9 pr-24"
           placeholder="Search notes…"
           defaultValue={get("q")}
           onChange={(e) => onSearchChange(e.target.value)}
+        />
+        <SavingHint
+          pending={pending}
+          label="Memuat…"
+          className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2"
         />
       </div>
 

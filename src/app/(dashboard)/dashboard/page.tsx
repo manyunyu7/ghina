@@ -34,19 +34,23 @@ import { SpendingDonut, IncomeExpenseBars, type MonthlyBar } from "./dashboard-c
 import { ADJUSTMENT_LABEL } from "@/lib/adjustment";
 import { getFireTasks } from "../tasks/data";
 import { FireTodayCard } from "../tasks/fire-today-card";
+import { getTodayContentPosts } from "../content/data";
+import { ContentTodayCard } from "../content/today-card";
+import { LinkPendingIcon } from "@/components/link-pending";
 
 export default async function DashboardPage() {
   const user = await requireUser();
   const cm = currentMonth();
   const range = monthRange(cm.year, cm.month);
 
-  const [totalBalance, totals, spending, recent, wallets, fire] = await Promise.all([
+  const [totalBalance, totals, spending, recent, wallets, fire, contentToday] = await Promise.all([
     getTotalBalance(user.id),
     getMonthlyTotals(user.id, range),
     getSpendingByCategory(user.id, range),
     getRecentTransactions(user.id, 6),
     getWallets(user.id),
     getFireTasks(user.id),
+    getTodayContentPosts(user.id),
   ]);
 
   // Onboarding: no wallets and no transactions.
@@ -62,11 +66,16 @@ export default async function DashboardPage() {
             <div className="flex flex-wrap items-center justify-center gap-3">
               <Link href="/wallets">
                 <Button>
-                  <WalletIcon className="h-4 w-4" /> Create a wallet
+                  <LinkPendingIcon>
+                    <WalletIcon className="h-4 w-4" />
+                  </LinkPendingIcon>{" "}
+                  Create a wallet
                 </Button>
               </Link>
               <Link href="/categories">
-                <Button variant="outline">Add categories</Button>
+                <Button variant="outline">
+                  <LinkPendingIcon /> Add categories
+                </Button>
               </Link>
             </div>
           }
@@ -158,6 +167,9 @@ export default async function DashboardPage() {
 
       {/* Focus-area FIRE tasks (docs/tasks.md) */}
       {fire.areas.length > 0 && <FireTodayCard areas={fire.areas} tasks={fire.tasks} />}
+
+      {/* Content posts scheduled today (docs/content.md) */}
+      {contentToday.length > 0 && <ContentTodayCard posts={contentToday} />}
 
       {/* Charts row */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -338,7 +350,10 @@ function Greeting({ name }: { name: string | null }) {
       </div>
       <Link href="/transactions">
         <Button>
-          <Plus className="h-4 w-4" /> Add Transaction
+          <LinkPendingIcon>
+            <Plus className="h-4 w-4" />
+          </LinkPendingIcon>{" "}
+          Add Transaction
         </Button>
       </Link>
     </div>
@@ -387,7 +402,10 @@ function ViewAll({ href }: { href: string }) {
       href={href}
       className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
     >
-      View all <ArrowRight className="h-3.5 w-3.5" />
+      View all{" "}
+      <LinkPendingIcon className="h-3.5 w-3.5">
+        <ArrowRight className="h-3.5 w-3.5" />
+      </LinkPendingIcon>
     </Link>
   );
 }

@@ -224,6 +224,16 @@ class TasksHarness {
     clockProvider.overrideWithValue(clock),
     tickSourceProvider.overrideWithValue(() => Stream.value(tasksNow)),
     taskRepositoryProvider.overrideWithValue(tasks),
+    // Notes/content sources (game events, merged reminders) in memory.
+    contentItemRepositoryProvider.overrideWithValue(
+      FakeContentItemRepository(),
+    ),
+    contentPostRepositoryProvider.overrideWithValue(
+      FakeContentPostRepository(),
+    ),
+    socialAccountRepositoryProvider.overrideWithValue(
+      FakeSocialAccountRepository(),
+    ),
     taskAreaRepositoryProvider.overrideWithValue(areas),
     walletRepositoryProvider.overrideWithValue(wallets),
     categoryRepositoryProvider.overrideWithValue(categories),

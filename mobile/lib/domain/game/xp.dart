@@ -24,6 +24,18 @@ enum XpSource {
 
   /// Completed tasks (by bucket, `docs/tasks.md`).
   task,
+
+  /// Content items reaching a pipeline stage (`docs/content.md`).
+  contentStage,
+
+  /// Posts marked posted on schedule (bonus).
+  contentOnSchedule,
+
+  /// An account met its weekly posting target.
+  contentWeeklyTarget,
+
+  /// Sponsor paid.
+  contentSponsor,
   dailyGoal,
   streakMilestone,
 }
@@ -54,6 +66,15 @@ class DayXp {
   /// Completed tasks that earned XP (≤ [XpRules.taskDailyCap]) / all completed.
   int tasksCounted = 0;
   int tasksTotal = 0;
+
+  /// Content milestones (stages + posts) that earned XP (≤
+  /// [XpRules.contentDailyCap]) / all of them.
+  int contentCounted = 0;
+  int contentTotal = 0;
+
+  /// Content bonuses (weekly target / sponsor) that earned XP (≤
+  /// [XpRules.contentBonusDailyCap]).
+  int contentBonuses = 0;
 
   int get total => breakdown.values.fold(0, (a, b) => a + b);
   bool get goalMet => activities >= goal.target;
@@ -155,6 +176,8 @@ abstract final class XpCalculator {
         case ActivityKind.lesson:
           // Lessons come from local completions below.
           break;
+        case ActivityKind.content:
+          _content(day, e);
         case ActivityKind.task:
           // By doneAt's local day; never part of the (transaction) streak.
           day.tasksTotal++;
@@ -194,5 +217,38 @@ abstract final class XpCalculator {
     dayOf(today).goal = goalLevelOn(today, goalHistory);
 
     return XpLedger(today: today, days: days);
+  }
+
+  /// Content planner rules (`docs/content.md` → Gamification): stage reached =
+  /// its stage XP, posted = counted (+ an on-schedule bonus); both count
+  /// toward the daily goal up to [XpRules.contentDailyCap] a day. Weekly
+  /// target met / sponsor paid are bonuses (no daily-goal activity), capped at
+  /// [XpRules.contentBonusDailyCap] a day.
+  static void _content(DayXp day, ActivityEvent e) {
+    switch (e.contentType) {
+      case ContentEventType.stage:
+      case ContentEventType.posted:
+        day.contentTotal++;
+        if (day.contentCounted >= XpRules.contentDailyCap) return;
+        day.contentCounted++;
+        day.activities++;
+        if (e.contentType == ContentEventType.stage) {
+          final given = e.contentStageXp ?? 0;
+          final xp = given > 0 ? given : XpRules.contentStage(e.contentStage);
+          if (xp > 0) day.add(XpSource.contentStage, xp);
+        } else if (e.contentOnSchedule) {
+          day.add(XpSource.contentOnSchedule, XpRules.contentOnSchedule);
+        }
+      case ContentEventType.weeklyTarget:
+        if (day.contentBonuses >= XpRules.contentBonusDailyCap) return;
+        day.contentBonuses++;
+        day.add(XpSource.contentWeeklyTarget, XpRules.contentWeeklyTarget);
+      case ContentEventType.sponsorPaid:
+        if (day.contentBonuses >= XpRules.contentBonusDailyCap) return;
+        day.contentBonuses++;
+        day.add(XpSource.contentSponsor, XpRules.contentSponsorPaid);
+      case null:
+        break;
+    }
   }
 }

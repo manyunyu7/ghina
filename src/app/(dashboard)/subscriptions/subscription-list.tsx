@@ -55,7 +55,10 @@ function SubscriptionCard({
   const [editing, setEditing] = React.useState(false);
   const [confirming, setConfirming] = React.useState(false);
   const [payError, setPayError] = React.useState<string | null>(null);
+  const [paying, startPay] = React.useTransition();
+  const [toggling, startToggle] = React.useTransition();
   const [pending, startTransition] = React.useTransition();
+  const busy = paying || toggling || pending;
 
   const wallet = wallets.find((w) => w.id === sub.walletId);
   const upcoming = sub.active ? nextOccurrence(sub.nextBilling, sub.cycle) : new Date(sub.nextBilling);
@@ -64,7 +67,7 @@ function SubscriptionCard({
   function runToggle() {
     const fd = new FormData();
     fd.set("id", sub.id);
-    startTransition(async () => {
+    startToggle(async () => {
       await toggleSubscription(fd);
     });
   }
@@ -80,7 +83,7 @@ function SubscriptionCard({
     const fd = new FormData();
     fd.set("id", sub.id);
     setPayError(null);
-    startTransition(async () => {
+    startPay(async () => {
       const res = await markSubscriptionPaid(fd);
       if (!res.ok) setPayError(res.error ?? "Failed to record payment");
     });
@@ -131,21 +134,21 @@ function SubscriptionCard({
 
       <div className="mt-3 flex items-center gap-1 border-t border-border-soft pt-3">
         {sub.active && (
-          <Button variant="secondary" size="sm" onClick={runMarkPaid} disabled={pending}>
-            <Check className="h-4 w-4" />
-            {pending ? "Recording…" : "Mark paid"}
+          <Button variant="secondary" size="sm" onClick={runMarkPaid} loading={paying} disabled={busy}>
+            {!paying && <Check className="h-4 w-4" />}
+            {paying ? "Menyimpan…" : "Mark paid"}
           </Button>
         )}
         <div className="ml-auto flex items-center gap-1">
-          <Button variant="ghost" size="sm" onClick={runToggle} disabled={pending}>
-            {sub.active ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+          <Button variant="ghost" size="sm" onClick={runToggle} loading={toggling} disabled={busy}>
+            {toggling ? null : sub.active ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
             {sub.active ? "Pause" : "Resume"}
           </Button>
           <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
             <Pencil className="h-4 w-4" />
             Edit
           </Button>
-          <Button variant="ghost" size="icon" onClick={() => setConfirming(true)} aria-label="Delete">
+          <Button variant="ghost" size="icon" onClick={() => setConfirming(true)} aria-label="Delete" disabled={busy}>
             <Trash2 className="h-4 w-4 text-expense" />
           </Button>
         </div>
@@ -171,8 +174,8 @@ function SubscriptionCard({
           <Button variant="outline" onClick={() => setConfirming(false)} disabled={pending}>
             Cancel
           </Button>
-          <Button variant="danger" onClick={runDelete} disabled={pending}>
-            {pending ? "Deleting…" : "Delete"}
+          <Button variant="danger" onClick={runDelete} loading={pending}>
+            {pending ? "Menghapus…" : "Delete"}
           </Button>
         </div>
       </Modal>

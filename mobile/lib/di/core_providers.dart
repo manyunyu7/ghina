@@ -16,9 +16,11 @@ import '../data/datasources/remote/auth_api.dart';
 import '../data/datasources/remote/sync_api.dart';
 import '../data/datasources/remote/token_store.dart';
 import '../data/repositories/auth_repository_impl.dart';
+import '../data/repositories/content_repositories.dart';
 import '../data/repositories/finance_repositories.dart';
 import '../data/repositories/life_repositories.dart';
 import '../data/repositories/local_store.dart';
+import '../data/repositories/notes_repositories.dart';
 import '../data/repositories/photo_store.dart';
 import '../data/repositories/task_repositories.dart';
 import '../data/sync/outbox.dart';
@@ -154,4 +156,31 @@ final taskAreaRepositoryProvider = Provider<TaskAreaRepository>(
 );
 final taskRepositoryProvider = Provider<TaskRepository>(
   (ref) => DriftTaskRepository(ref.watch(localStoreProvider)),
+);
+final noteRepositoryProvider = Provider<NoteRepository>(
+  (ref) => DriftNoteRepository(
+    ref.watch(localStoreProvider),
+    ref.watch(photoStoreProvider),
+  ),
+);
+final noteLabelRepositoryProvider = Provider<NoteLabelRepository>(
+  (ref) => DriftNoteLabelRepository(ref.watch(localStoreProvider)),
+);
+final socialAccountRepositoryProvider = Provider<SocialAccountRepository>(
+  (ref) => DriftSocialAccountRepository(ref.watch(localStoreProvider)),
+);
+final contentItemRepositoryProvider = Provider<ContentItemRepository>(
+  (ref) => DriftContentItemRepository(
+    ref.watch(localStoreProvider),
+    ref.watch(photoStoreProvider),
+  ),
+);
+final contentPostRepositoryProvider = Provider<ContentPostRepository>(
+  (ref) => DriftContentPostRepository(ref.watch(localStoreProvider)),
+);
+final contentPillarRepositoryProvider = Provider<ContentPillarRepository>(
+  (ref) => DriftContentPillarRepository(ref.watch(localStoreProvider)),
+);
+final defaultsSeedStateProvider = Provider<DefaultsSeedState>(
+  (ref) => DriftDefaultsSeedState(ref.watch(appDatabaseProvider)),
 );

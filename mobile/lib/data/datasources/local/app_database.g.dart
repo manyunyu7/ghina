@@ -6996,6 +6996,4076 @@ class TasksCompanion extends UpdateCompanion<TaskRow> {
   }
 }
 
+class $NotesTable extends Notes with TableInfo<$NotesTable, NoteRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $NotesTable(this.attachedDatabase, [this._alias]);
+  @override
+  late final GeneratedColumnWithTypeConverter<DateTime, int> createdAt =
+      GeneratedColumn<int>(
+        'created_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: true,
+      ).withConverter<DateTime>($NotesTable.$convertercreatedAt);
+  @override
+  late final GeneratedColumnWithTypeConverter<DateTime, int> updatedAt =
+      GeneratedColumn<int>(
+        'updated_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: true,
+      ).withConverter<DateTime>($NotesTable.$converterupdatedAt);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _bodyMeta = const VerificationMeta('body');
+  @override
+  late final GeneratedColumn<String> body = GeneratedColumn<String>(
+    'body',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _checklistMeta = const VerificationMeta(
+    'checklist',
+  );
+  @override
+  late final GeneratedColumn<String> checklist = GeneratedColumn<String>(
+    'checklist',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
+  static const VerificationMeta _labelsMeta = const VerificationMeta('labels');
+  @override
+  late final GeneratedColumn<String> labels = GeneratedColumn<String>(
+    'labels',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
+  static const VerificationMeta _colorMeta = const VerificationMeta('color');
+  @override
+  late final GeneratedColumn<String> color = GeneratedColumn<String>(
+    'color',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _pinnedMeta = const VerificationMeta('pinned');
+  @override
+  late final GeneratedColumn<bool> pinned = GeneratedColumn<bool>(
+    'pinned',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("pinned" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _archivedMeta = const VerificationMeta(
+    'archived',
+  );
+  @override
+  late final GeneratedColumn<bool> archived = GeneratedColumn<bool>(
+    'archived',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("archived" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _photosMeta = const VerificationMeta('photos');
+  @override
+  late final GeneratedColumn<String> photos = GeneratedColumn<String>(
+    'photos',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
+  static const VerificationMeta _audioMeta = const VerificationMeta('audio');
+  @override
+  late final GeneratedColumn<String> audio = GeneratedColumn<String>(
+    'audio',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
+  static const VerificationMeta _linksMeta = const VerificationMeta('links');
+  @override
+  late final GeneratedColumn<String> links = GeneratedColumn<String>(
+    'links',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
+  static const VerificationMeta _sourceMeta = const VerificationMeta('source');
+  @override
+  late final GeneratedColumn<String> source = GeneratedColumn<String>(
+    'source',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _linkedTaskIdMeta = const VerificationMeta(
+    'linkedTaskId',
+  );
+  @override
+  late final GeneratedColumn<String> linkedTaskId = GeneratedColumn<String>(
+    'linked_task_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _linkedContentIdMeta = const VerificationMeta(
+    'linkedContentId',
+  );
+  @override
+  late final GeneratedColumn<String> linkedContentId = GeneratedColumn<String>(
+    'linked_content_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _linkedTransactionIdMeta =
+      const VerificationMeta('linkedTransactionId');
+  @override
+  late final GeneratedColumn<String> linkedTransactionId =
+      GeneratedColumn<String>(
+        'linked_transaction_id',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _searchTextMeta = const VerificationMeta(
+    'searchText',
+  );
+  @override
+  late final GeneratedColumn<String> searchText = GeneratedColumn<String>(
+    'search_text',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    createdAt,
+    updatedAt,
+    id,
+    title,
+    body,
+    checklist,
+    labels,
+    color,
+    pinned,
+    archived,
+    photos,
+    audio,
+    links,
+    source,
+    linkedTaskId,
+    linkedContentId,
+    linkedTransactionId,
+    searchText,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'notes';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<NoteRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    }
+    if (data.containsKey('body')) {
+      context.handle(
+        _bodyMeta,
+        body.isAcceptableOrUnknown(data['body']!, _bodyMeta),
+      );
+    }
+    if (data.containsKey('checklist')) {
+      context.handle(
+        _checklistMeta,
+        checklist.isAcceptableOrUnknown(data['checklist']!, _checklistMeta),
+      );
+    }
+    if (data.containsKey('labels')) {
+      context.handle(
+        _labelsMeta,
+        labels.isAcceptableOrUnknown(data['labels']!, _labelsMeta),
+      );
+    }
+    if (data.containsKey('color')) {
+      context.handle(
+        _colorMeta,
+        color.isAcceptableOrUnknown(data['color']!, _colorMeta),
+      );
+    }
+    if (data.containsKey('pinned')) {
+      context.handle(
+        _pinnedMeta,
+        pinned.isAcceptableOrUnknown(data['pinned']!, _pinnedMeta),
+      );
+    }
+    if (data.containsKey('archived')) {
+      context.handle(
+        _archivedMeta,
+        archived.isAcceptableOrUnknown(data['archived']!, _archivedMeta),
+      );
+    }
+    if (data.containsKey('photos')) {
+      context.handle(
+        _photosMeta,
+        photos.isAcceptableOrUnknown(data['photos']!, _photosMeta),
+      );
+    }
+    if (data.containsKey('audio')) {
+      context.handle(
+        _audioMeta,
+        audio.isAcceptableOrUnknown(data['audio']!, _audioMeta),
+      );
+    }
+    if (data.containsKey('links')) {
+      context.handle(
+        _linksMeta,
+        links.isAcceptableOrUnknown(data['links']!, _linksMeta),
+      );
+    }
+    if (data.containsKey('source')) {
+      context.handle(
+        _sourceMeta,
+        source.isAcceptableOrUnknown(data['source']!, _sourceMeta),
+      );
+    }
+    if (data.containsKey('linked_task_id')) {
+      context.handle(
+        _linkedTaskIdMeta,
+        linkedTaskId.isAcceptableOrUnknown(
+          data['linked_task_id']!,
+          _linkedTaskIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('linked_content_id')) {
+      context.handle(
+        _linkedContentIdMeta,
+        linkedContentId.isAcceptableOrUnknown(
+          data['linked_content_id']!,
+          _linkedContentIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('linked_transaction_id')) {
+      context.handle(
+        _linkedTransactionIdMeta,
+        linkedTransactionId.isAcceptableOrUnknown(
+          data['linked_transaction_id']!,
+          _linkedTransactionIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('search_text')) {
+      context.handle(
+        _searchTextMeta,
+        searchText.isAcceptableOrUnknown(data['search_text']!, _searchTextMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  NoteRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return NoteRow(
+      createdAt: $NotesTable.$convertercreatedAt.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}created_at'],
+        )!,
+      ),
+      updatedAt: $NotesTable.$converterupdatedAt.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}updated_at'],
+        )!,
+      ),
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      ),
+      body: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}body'],
+      )!,
+      checklist: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}checklist'],
+      )!,
+      labels: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}labels'],
+      )!,
+      color: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}color'],
+      ),
+      pinned: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}pinned'],
+      )!,
+      archived: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}archived'],
+      )!,
+      photos: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}photos'],
+      )!,
+      audio: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}audio'],
+      )!,
+      links: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}links'],
+      )!,
+      source: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source'],
+      ),
+      linkedTaskId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}linked_task_id'],
+      ),
+      linkedContentId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}linked_content_id'],
+      ),
+      linkedTransactionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}linked_transaction_id'],
+      ),
+      searchText: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}search_text'],
+      )!,
+    );
+  }
+
+  @override
+  $NotesTable createAlias(String alias) {
+    return $NotesTable(attachedDatabase, alias);
+  }
+
+  static TypeConverter<DateTime, int> $convertercreatedAt = epochMs;
+  static TypeConverter<DateTime, int> $converterupdatedAt = epochMs;
+}
+
+class NoteRow extends DataClass implements Insertable<NoteRow> {
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final String id;
+  final String? title;
+  final String body;
+
+  /// JSON `[{id, text, done}]`.
+  final String checklist;
+
+  /// JSON array of label ids.
+  final String labels;
+  final String? color;
+  final bool pinned;
+  final bool archived;
+
+  /// JSON array: `/uploads/…` paths and `local:<path>` markers.
+  final String photos;
+
+  /// JSON `[{url, durationSec, transcript?}]`; pending clips `{local, …}`.
+  final String audio;
+
+  /// JSON `[{url, title?}]`.
+  final String links;
+
+  /// `share | quick | voice`
+  final String? source;
+  final String? linkedTaskId;
+  final String? linkedContentId;
+  final String? linkedTransactionId;
+
+  /// Device-only: lowercased title + body + checklist + transcripts (search).
+  final String searchText;
+  const NoteRow({
+    required this.createdAt,
+    required this.updatedAt,
+    required this.id,
+    this.title,
+    required this.body,
+    required this.checklist,
+    required this.labels,
+    this.color,
+    required this.pinned,
+    required this.archived,
+    required this.photos,
+    required this.audio,
+    required this.links,
+    this.source,
+    this.linkedTaskId,
+    this.linkedContentId,
+    this.linkedTransactionId,
+    required this.searchText,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    {
+      map['created_at'] = Variable<int>(
+        $NotesTable.$convertercreatedAt.toSql(createdAt),
+      );
+    }
+    {
+      map['updated_at'] = Variable<int>(
+        $NotesTable.$converterupdatedAt.toSql(updatedAt),
+      );
+    }
+    map['id'] = Variable<String>(id);
+    if (!nullToAbsent || title != null) {
+      map['title'] = Variable<String>(title);
+    }
+    map['body'] = Variable<String>(body);
+    map['checklist'] = Variable<String>(checklist);
+    map['labels'] = Variable<String>(labels);
+    if (!nullToAbsent || color != null) {
+      map['color'] = Variable<String>(color);
+    }
+    map['pinned'] = Variable<bool>(pinned);
+    map['archived'] = Variable<bool>(archived);
+    map['photos'] = Variable<String>(photos);
+    map['audio'] = Variable<String>(audio);
+    map['links'] = Variable<String>(links);
+    if (!nullToAbsent || source != null) {
+      map['source'] = Variable<String>(source);
+    }
+    if (!nullToAbsent || linkedTaskId != null) {
+      map['linked_task_id'] = Variable<String>(linkedTaskId);
+    }
+    if (!nullToAbsent || linkedContentId != null) {
+      map['linked_content_id'] = Variable<String>(linkedContentId);
+    }
+    if (!nullToAbsent || linkedTransactionId != null) {
+      map['linked_transaction_id'] = Variable<String>(linkedTransactionId);
+    }
+    map['search_text'] = Variable<String>(searchText);
+    return map;
+  }
+
+  NotesCompanion toCompanion(bool nullToAbsent) {
+    return NotesCompanion(
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      id: Value(id),
+      title: title == null && nullToAbsent
+          ? const Value.absent()
+          : Value(title),
+      body: Value(body),
+      checklist: Value(checklist),
+      labels: Value(labels),
+      color: color == null && nullToAbsent
+          ? const Value.absent()
+          : Value(color),
+      pinned: Value(pinned),
+      archived: Value(archived),
+      photos: Value(photos),
+      audio: Value(audio),
+      links: Value(links),
+      source: source == null && nullToAbsent
+          ? const Value.absent()
+          : Value(source),
+      linkedTaskId: linkedTaskId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(linkedTaskId),
+      linkedContentId: linkedContentId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(linkedContentId),
+      linkedTransactionId: linkedTransactionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(linkedTransactionId),
+      searchText: Value(searchText),
+    );
+  }
+
+  factory NoteRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return NoteRow(
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      id: serializer.fromJson<String>(json['id']),
+      title: serializer.fromJson<String?>(json['title']),
+      body: serializer.fromJson<String>(json['body']),
+      checklist: serializer.fromJson<String>(json['checklist']),
+      labels: serializer.fromJson<String>(json['labels']),
+      color: serializer.fromJson<String?>(json['color']),
+      pinned: serializer.fromJson<bool>(json['pinned']),
+      archived: serializer.fromJson<bool>(json['archived']),
+      photos: serializer.fromJson<String>(json['photos']),
+      audio: serializer.fromJson<String>(json['audio']),
+      links: serializer.fromJson<String>(json['links']),
+      source: serializer.fromJson<String?>(json['source']),
+      linkedTaskId: serializer.fromJson<String?>(json['linkedTaskId']),
+      linkedContentId: serializer.fromJson<String?>(json['linkedContentId']),
+      linkedTransactionId: serializer.fromJson<String?>(
+        json['linkedTransactionId'],
+      ),
+      searchText: serializer.fromJson<String>(json['searchText']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'id': serializer.toJson<String>(id),
+      'title': serializer.toJson<String?>(title),
+      'body': serializer.toJson<String>(body),
+      'checklist': serializer.toJson<String>(checklist),
+      'labels': serializer.toJson<String>(labels),
+      'color': serializer.toJson<String?>(color),
+      'pinned': serializer.toJson<bool>(pinned),
+      'archived': serializer.toJson<bool>(archived),
+      'photos': serializer.toJson<String>(photos),
+      'audio': serializer.toJson<String>(audio),
+      'links': serializer.toJson<String>(links),
+      'source': serializer.toJson<String?>(source),
+      'linkedTaskId': serializer.toJson<String?>(linkedTaskId),
+      'linkedContentId': serializer.toJson<String?>(linkedContentId),
+      'linkedTransactionId': serializer.toJson<String?>(linkedTransactionId),
+      'searchText': serializer.toJson<String>(searchText),
+    };
+  }
+
+  NoteRow copyWith({
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    String? id,
+    Value<String?> title = const Value.absent(),
+    String? body,
+    String? checklist,
+    String? labels,
+    Value<String?> color = const Value.absent(),
+    bool? pinned,
+    bool? archived,
+    String? photos,
+    String? audio,
+    String? links,
+    Value<String?> source = const Value.absent(),
+    Value<String?> linkedTaskId = const Value.absent(),
+    Value<String?> linkedContentId = const Value.absent(),
+    Value<String?> linkedTransactionId = const Value.absent(),
+    String? searchText,
+  }) => NoteRow(
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    id: id ?? this.id,
+    title: title.present ? title.value : this.title,
+    body: body ?? this.body,
+    checklist: checklist ?? this.checklist,
+    labels: labels ?? this.labels,
+    color: color.present ? color.value : this.color,
+    pinned: pinned ?? this.pinned,
+    archived: archived ?? this.archived,
+    photos: photos ?? this.photos,
+    audio: audio ?? this.audio,
+    links: links ?? this.links,
+    source: source.present ? source.value : this.source,
+    linkedTaskId: linkedTaskId.present ? linkedTaskId.value : this.linkedTaskId,
+    linkedContentId: linkedContentId.present
+        ? linkedContentId.value
+        : this.linkedContentId,
+    linkedTransactionId: linkedTransactionId.present
+        ? linkedTransactionId.value
+        : this.linkedTransactionId,
+    searchText: searchText ?? this.searchText,
+  );
+  NoteRow copyWithCompanion(NotesCompanion data) {
+    return NoteRow(
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      id: data.id.present ? data.id.value : this.id,
+      title: data.title.present ? data.title.value : this.title,
+      body: data.body.present ? data.body.value : this.body,
+      checklist: data.checklist.present ? data.checklist.value : this.checklist,
+      labels: data.labels.present ? data.labels.value : this.labels,
+      color: data.color.present ? data.color.value : this.color,
+      pinned: data.pinned.present ? data.pinned.value : this.pinned,
+      archived: data.archived.present ? data.archived.value : this.archived,
+      photos: data.photos.present ? data.photos.value : this.photos,
+      audio: data.audio.present ? data.audio.value : this.audio,
+      links: data.links.present ? data.links.value : this.links,
+      source: data.source.present ? data.source.value : this.source,
+      linkedTaskId: data.linkedTaskId.present
+          ? data.linkedTaskId.value
+          : this.linkedTaskId,
+      linkedContentId: data.linkedContentId.present
+          ? data.linkedContentId.value
+          : this.linkedContentId,
+      linkedTransactionId: data.linkedTransactionId.present
+          ? data.linkedTransactionId.value
+          : this.linkedTransactionId,
+      searchText: data.searchText.present
+          ? data.searchText.value
+          : this.searchText,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('NoteRow(')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('id: $id, ')
+          ..write('title: $title, ')
+          ..write('body: $body, ')
+          ..write('checklist: $checklist, ')
+          ..write('labels: $labels, ')
+          ..write('color: $color, ')
+          ..write('pinned: $pinned, ')
+          ..write('archived: $archived, ')
+          ..write('photos: $photos, ')
+          ..write('audio: $audio, ')
+          ..write('links: $links, ')
+          ..write('source: $source, ')
+          ..write('linkedTaskId: $linkedTaskId, ')
+          ..write('linkedContentId: $linkedContentId, ')
+          ..write('linkedTransactionId: $linkedTransactionId, ')
+          ..write('searchText: $searchText')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    createdAt,
+    updatedAt,
+    id,
+    title,
+    body,
+    checklist,
+    labels,
+    color,
+    pinned,
+    archived,
+    photos,
+    audio,
+    links,
+    source,
+    linkedTaskId,
+    linkedContentId,
+    linkedTransactionId,
+    searchText,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is NoteRow &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.id == this.id &&
+          other.title == this.title &&
+          other.body == this.body &&
+          other.checklist == this.checklist &&
+          other.labels == this.labels &&
+          other.color == this.color &&
+          other.pinned == this.pinned &&
+          other.archived == this.archived &&
+          other.photos == this.photos &&
+          other.audio == this.audio &&
+          other.links == this.links &&
+          other.source == this.source &&
+          other.linkedTaskId == this.linkedTaskId &&
+          other.linkedContentId == this.linkedContentId &&
+          other.linkedTransactionId == this.linkedTransactionId &&
+          other.searchText == this.searchText);
+}
+
+class NotesCompanion extends UpdateCompanion<NoteRow> {
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<String> id;
+  final Value<String?> title;
+  final Value<String> body;
+  final Value<String> checklist;
+  final Value<String> labels;
+  final Value<String?> color;
+  final Value<bool> pinned;
+  final Value<bool> archived;
+  final Value<String> photos;
+  final Value<String> audio;
+  final Value<String> links;
+  final Value<String?> source;
+  final Value<String?> linkedTaskId;
+  final Value<String?> linkedContentId;
+  final Value<String?> linkedTransactionId;
+  final Value<String> searchText;
+  final Value<int> rowid;
+  const NotesCompanion({
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.id = const Value.absent(),
+    this.title = const Value.absent(),
+    this.body = const Value.absent(),
+    this.checklist = const Value.absent(),
+    this.labels = const Value.absent(),
+    this.color = const Value.absent(),
+    this.pinned = const Value.absent(),
+    this.archived = const Value.absent(),
+    this.photos = const Value.absent(),
+    this.audio = const Value.absent(),
+    this.links = const Value.absent(),
+    this.source = const Value.absent(),
+    this.linkedTaskId = const Value.absent(),
+    this.linkedContentId = const Value.absent(),
+    this.linkedTransactionId = const Value.absent(),
+    this.searchText = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  NotesCompanion.insert({
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    required String id,
+    this.title = const Value.absent(),
+    this.body = const Value.absent(),
+    this.checklist = const Value.absent(),
+    this.labels = const Value.absent(),
+    this.color = const Value.absent(),
+    this.pinned = const Value.absent(),
+    this.archived = const Value.absent(),
+    this.photos = const Value.absent(),
+    this.audio = const Value.absent(),
+    this.links = const Value.absent(),
+    this.source = const Value.absent(),
+    this.linkedTaskId = const Value.absent(),
+    this.linkedContentId = const Value.absent(),
+    this.linkedTransactionId = const Value.absent(),
+    this.searchText = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt),
+       id = Value(id);
+  static Insertable<NoteRow> custom({
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<String>? id,
+    Expression<String>? title,
+    Expression<String>? body,
+    Expression<String>? checklist,
+    Expression<String>? labels,
+    Expression<String>? color,
+    Expression<bool>? pinned,
+    Expression<bool>? archived,
+    Expression<String>? photos,
+    Expression<String>? audio,
+    Expression<String>? links,
+    Expression<String>? source,
+    Expression<String>? linkedTaskId,
+    Expression<String>? linkedContentId,
+    Expression<String>? linkedTransactionId,
+    Expression<String>? searchText,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (id != null) 'id': id,
+      if (title != null) 'title': title,
+      if (body != null) 'body': body,
+      if (checklist != null) 'checklist': checklist,
+      if (labels != null) 'labels': labels,
+      if (color != null) 'color': color,
+      if (pinned != null) 'pinned': pinned,
+      if (archived != null) 'archived': archived,
+      if (photos != null) 'photos': photos,
+      if (audio != null) 'audio': audio,
+      if (links != null) 'links': links,
+      if (source != null) 'source': source,
+      if (linkedTaskId != null) 'linked_task_id': linkedTaskId,
+      if (linkedContentId != null) 'linked_content_id': linkedContentId,
+      if (linkedTransactionId != null)
+        'linked_transaction_id': linkedTransactionId,
+      if (searchText != null) 'search_text': searchText,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  NotesCompanion copyWith({
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<String>? id,
+    Value<String?>? title,
+    Value<String>? body,
+    Value<String>? checklist,
+    Value<String>? labels,
+    Value<String?>? color,
+    Value<bool>? pinned,
+    Value<bool>? archived,
+    Value<String>? photos,
+    Value<String>? audio,
+    Value<String>? links,
+    Value<String?>? source,
+    Value<String?>? linkedTaskId,
+    Value<String?>? linkedContentId,
+    Value<String?>? linkedTransactionId,
+    Value<String>? searchText,
+    Value<int>? rowid,
+  }) {
+    return NotesCompanion(
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      id: id ?? this.id,
+      title: title ?? this.title,
+      body: body ?? this.body,
+      checklist: checklist ?? this.checklist,
+      labels: labels ?? this.labels,
+      color: color ?? this.color,
+      pinned: pinned ?? this.pinned,
+      archived: archived ?? this.archived,
+      photos: photos ?? this.photos,
+      audio: audio ?? this.audio,
+      links: links ?? this.links,
+      source: source ?? this.source,
+      linkedTaskId: linkedTaskId ?? this.linkedTaskId,
+      linkedContentId: linkedContentId ?? this.linkedContentId,
+      linkedTransactionId: linkedTransactionId ?? this.linkedTransactionId,
+      searchText: searchText ?? this.searchText,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(
+        $NotesTable.$convertercreatedAt.toSql(createdAt.value),
+      );
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(
+        $NotesTable.$converterupdatedAt.toSql(updatedAt.value),
+      );
+    }
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (body.present) {
+      map['body'] = Variable<String>(body.value);
+    }
+    if (checklist.present) {
+      map['checklist'] = Variable<String>(checklist.value);
+    }
+    if (labels.present) {
+      map['labels'] = Variable<String>(labels.value);
+    }
+    if (color.present) {
+      map['color'] = Variable<String>(color.value);
+    }
+    if (pinned.present) {
+      map['pinned'] = Variable<bool>(pinned.value);
+    }
+    if (archived.present) {
+      map['archived'] = Variable<bool>(archived.value);
+    }
+    if (photos.present) {
+      map['photos'] = Variable<String>(photos.value);
+    }
+    if (audio.present) {
+      map['audio'] = Variable<String>(audio.value);
+    }
+    if (links.present) {
+      map['links'] = Variable<String>(links.value);
+    }
+    if (source.present) {
+      map['source'] = Variable<String>(source.value);
+    }
+    if (linkedTaskId.present) {
+      map['linked_task_id'] = Variable<String>(linkedTaskId.value);
+    }
+    if (linkedContentId.present) {
+      map['linked_content_id'] = Variable<String>(linkedContentId.value);
+    }
+    if (linkedTransactionId.present) {
+      map['linked_transaction_id'] = Variable<String>(
+        linkedTransactionId.value,
+      );
+    }
+    if (searchText.present) {
+      map['search_text'] = Variable<String>(searchText.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('NotesCompanion(')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('id: $id, ')
+          ..write('title: $title, ')
+          ..write('body: $body, ')
+          ..write('checklist: $checklist, ')
+          ..write('labels: $labels, ')
+          ..write('color: $color, ')
+          ..write('pinned: $pinned, ')
+          ..write('archived: $archived, ')
+          ..write('photos: $photos, ')
+          ..write('audio: $audio, ')
+          ..write('links: $links, ')
+          ..write('source: $source, ')
+          ..write('linkedTaskId: $linkedTaskId, ')
+          ..write('linkedContentId: $linkedContentId, ')
+          ..write('linkedTransactionId: $linkedTransactionId, ')
+          ..write('searchText: $searchText, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $NoteLabelsTable extends NoteLabels
+    with TableInfo<$NoteLabelsTable, NoteLabelRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $NoteLabelsTable(this.attachedDatabase, [this._alias]);
+  @override
+  late final GeneratedColumnWithTypeConverter<DateTime, int> createdAt =
+      GeneratedColumn<int>(
+        'created_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: true,
+      ).withConverter<DateTime>($NoteLabelsTable.$convertercreatedAt);
+  @override
+  late final GeneratedColumnWithTypeConverter<DateTime, int> updatedAt =
+      GeneratedColumn<int>(
+        'updated_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: true,
+      ).withConverter<DateTime>($NoteLabelsTable.$converterupdatedAt);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _colorMeta = const VerificationMeta('color');
+  @override
+  late final GeneratedColumn<String> color = GeneratedColumn<String>(
+    'color',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('#58CC02'),
+  );
+  static const VerificationMeta _pinnedTabMeta = const VerificationMeta(
+    'pinnedTab',
+  );
+  @override
+  late final GeneratedColumn<bool> pinnedTab = GeneratedColumn<bool>(
+    'pinned_tab',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("pinned_tab" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _sortOrderMeta = const VerificationMeta(
+    'sortOrder',
+  );
+  @override
+  late final GeneratedColumn<int> sortOrder = GeneratedColumn<int>(
+    'sort_order',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    createdAt,
+    updatedAt,
+    id,
+    name,
+    color,
+    pinnedTab,
+    sortOrder,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'note_labels';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<NoteLabelRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('color')) {
+      context.handle(
+        _colorMeta,
+        color.isAcceptableOrUnknown(data['color']!, _colorMeta),
+      );
+    }
+    if (data.containsKey('pinned_tab')) {
+      context.handle(
+        _pinnedTabMeta,
+        pinnedTab.isAcceptableOrUnknown(data['pinned_tab']!, _pinnedTabMeta),
+      );
+    }
+    if (data.containsKey('sort_order')) {
+      context.handle(
+        _sortOrderMeta,
+        sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  NoteLabelRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return NoteLabelRow(
+      createdAt: $NoteLabelsTable.$convertercreatedAt.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}created_at'],
+        )!,
+      ),
+      updatedAt: $NoteLabelsTable.$converterupdatedAt.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}updated_at'],
+        )!,
+      ),
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      color: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}color'],
+      )!,
+      pinnedTab: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}pinned_tab'],
+      )!,
+      sortOrder: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sort_order'],
+      )!,
+    );
+  }
+
+  @override
+  $NoteLabelsTable createAlias(String alias) {
+    return $NoteLabelsTable(attachedDatabase, alias);
+  }
+
+  static TypeConverter<DateTime, int> $convertercreatedAt = epochMs;
+  static TypeConverter<DateTime, int> $converterupdatedAt = epochMs;
+}
+
+class NoteLabelRow extends DataClass implements Insertable<NoteLabelRow> {
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final String id;
+  final String name;
+  final String color;
+  final bool pinnedTab;
+  final int sortOrder;
+  const NoteLabelRow({
+    required this.createdAt,
+    required this.updatedAt,
+    required this.id,
+    required this.name,
+    required this.color,
+    required this.pinnedTab,
+    required this.sortOrder,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    {
+      map['created_at'] = Variable<int>(
+        $NoteLabelsTable.$convertercreatedAt.toSql(createdAt),
+      );
+    }
+    {
+      map['updated_at'] = Variable<int>(
+        $NoteLabelsTable.$converterupdatedAt.toSql(updatedAt),
+      );
+    }
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['color'] = Variable<String>(color);
+    map['pinned_tab'] = Variable<bool>(pinnedTab);
+    map['sort_order'] = Variable<int>(sortOrder);
+    return map;
+  }
+
+  NoteLabelsCompanion toCompanion(bool nullToAbsent) {
+    return NoteLabelsCompanion(
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      id: Value(id),
+      name: Value(name),
+      color: Value(color),
+      pinnedTab: Value(pinnedTab),
+      sortOrder: Value(sortOrder),
+    );
+  }
+
+  factory NoteLabelRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return NoteLabelRow(
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      color: serializer.fromJson<String>(json['color']),
+      pinnedTab: serializer.fromJson<bool>(json['pinnedTab']),
+      sortOrder: serializer.fromJson<int>(json['sortOrder']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'color': serializer.toJson<String>(color),
+      'pinnedTab': serializer.toJson<bool>(pinnedTab),
+      'sortOrder': serializer.toJson<int>(sortOrder),
+    };
+  }
+
+  NoteLabelRow copyWith({
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    String? id,
+    String? name,
+    String? color,
+    bool? pinnedTab,
+    int? sortOrder,
+  }) => NoteLabelRow(
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    id: id ?? this.id,
+    name: name ?? this.name,
+    color: color ?? this.color,
+    pinnedTab: pinnedTab ?? this.pinnedTab,
+    sortOrder: sortOrder ?? this.sortOrder,
+  );
+  NoteLabelRow copyWithCompanion(NoteLabelsCompanion data) {
+    return NoteLabelRow(
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      color: data.color.present ? data.color.value : this.color,
+      pinnedTab: data.pinnedTab.present ? data.pinnedTab.value : this.pinnedTab,
+      sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('NoteLabelRow(')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('color: $color, ')
+          ..write('pinnedTab: $pinnedTab, ')
+          ..write('sortOrder: $sortOrder')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(createdAt, updatedAt, id, name, color, pinnedTab, sortOrder);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is NoteLabelRow &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.color == this.color &&
+          other.pinnedTab == this.pinnedTab &&
+          other.sortOrder == this.sortOrder);
+}
+
+class NoteLabelsCompanion extends UpdateCompanion<NoteLabelRow> {
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<String> id;
+  final Value<String> name;
+  final Value<String> color;
+  final Value<bool> pinnedTab;
+  final Value<int> sortOrder;
+  final Value<int> rowid;
+  const NoteLabelsCompanion({
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.color = const Value.absent(),
+    this.pinnedTab = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  NoteLabelsCompanion.insert({
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    required String id,
+    required String name,
+    this.color = const Value.absent(),
+    this.pinnedTab = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt),
+       id = Value(id),
+       name = Value(name);
+  static Insertable<NoteLabelRow> custom({
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<String>? color,
+    Expression<bool>? pinnedTab,
+    Expression<int>? sortOrder,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (color != null) 'color': color,
+      if (pinnedTab != null) 'pinned_tab': pinnedTab,
+      if (sortOrder != null) 'sort_order': sortOrder,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  NoteLabelsCompanion copyWith({
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<String>? id,
+    Value<String>? name,
+    Value<String>? color,
+    Value<bool>? pinnedTab,
+    Value<int>? sortOrder,
+    Value<int>? rowid,
+  }) {
+    return NoteLabelsCompanion(
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      id: id ?? this.id,
+      name: name ?? this.name,
+      color: color ?? this.color,
+      pinnedTab: pinnedTab ?? this.pinnedTab,
+      sortOrder: sortOrder ?? this.sortOrder,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(
+        $NoteLabelsTable.$convertercreatedAt.toSql(createdAt.value),
+      );
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(
+        $NoteLabelsTable.$converterupdatedAt.toSql(updatedAt.value),
+      );
+    }
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (color.present) {
+      map['color'] = Variable<String>(color.value);
+    }
+    if (pinnedTab.present) {
+      map['pinned_tab'] = Variable<bool>(pinnedTab.value);
+    }
+    if (sortOrder.present) {
+      map['sort_order'] = Variable<int>(sortOrder.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('NoteLabelsCompanion(')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('color: $color, ')
+          ..write('pinnedTab: $pinnedTab, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $SocialAccountsTable extends SocialAccounts
+    with TableInfo<$SocialAccountsTable, SocialAccountRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SocialAccountsTable(this.attachedDatabase, [this._alias]);
+  @override
+  late final GeneratedColumnWithTypeConverter<DateTime, int> createdAt =
+      GeneratedColumn<int>(
+        'created_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: true,
+      ).withConverter<DateTime>($SocialAccountsTable.$convertercreatedAt);
+  @override
+  late final GeneratedColumnWithTypeConverter<DateTime, int> updatedAt =
+      GeneratedColumn<int>(
+        'updated_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: true,
+      ).withConverter<DateTime>($SocialAccountsTable.$converterupdatedAt);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _platformMeta = const VerificationMeta(
+    'platform',
+  );
+  @override
+  late final GeneratedColumn<String> platform = GeneratedColumn<String>(
+    'platform',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _platformNameMeta = const VerificationMeta(
+    'platformName',
+  );
+  @override
+  late final GeneratedColumn<String> platformName = GeneratedColumn<String>(
+    'platform_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _handleMeta = const VerificationMeta('handle');
+  @override
+  late final GeneratedColumn<String> handle = GeneratedColumn<String>(
+    'handle',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _colorMeta = const VerificationMeta('color');
+  @override
+  late final GeneratedColumn<String> color = GeneratedColumn<String>(
+    'color',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _targetPerWeekMeta = const VerificationMeta(
+    'targetPerWeek',
+  );
+  @override
+  late final GeneratedColumn<int> targetPerWeek = GeneratedColumn<int>(
+    'target_per_week',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _archivedMeta = const VerificationMeta(
+    'archived',
+  );
+  @override
+  late final GeneratedColumn<bool> archived = GeneratedColumn<bool>(
+    'archived',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("archived" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _sortOrderMeta = const VerificationMeta(
+    'sortOrder',
+  );
+  @override
+  late final GeneratedColumn<int> sortOrder = GeneratedColumn<int>(
+    'sort_order',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    createdAt,
+    updatedAt,
+    id,
+    platform,
+    platformName,
+    handle,
+    color,
+    targetPerWeek,
+    archived,
+    sortOrder,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'social_accounts';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SocialAccountRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('platform')) {
+      context.handle(
+        _platformMeta,
+        platform.isAcceptableOrUnknown(data['platform']!, _platformMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_platformMeta);
+    }
+    if (data.containsKey('platform_name')) {
+      context.handle(
+        _platformNameMeta,
+        platformName.isAcceptableOrUnknown(
+          data['platform_name']!,
+          _platformNameMeta,
+        ),
+      );
+    }
+    if (data.containsKey('handle')) {
+      context.handle(
+        _handleMeta,
+        handle.isAcceptableOrUnknown(data['handle']!, _handleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_handleMeta);
+    }
+    if (data.containsKey('color')) {
+      context.handle(
+        _colorMeta,
+        color.isAcceptableOrUnknown(data['color']!, _colorMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_colorMeta);
+    }
+    if (data.containsKey('target_per_week')) {
+      context.handle(
+        _targetPerWeekMeta,
+        targetPerWeek.isAcceptableOrUnknown(
+          data['target_per_week']!,
+          _targetPerWeekMeta,
+        ),
+      );
+    }
+    if (data.containsKey('archived')) {
+      context.handle(
+        _archivedMeta,
+        archived.isAcceptableOrUnknown(data['archived']!, _archivedMeta),
+      );
+    }
+    if (data.containsKey('sort_order')) {
+      context.handle(
+        _sortOrderMeta,
+        sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  SocialAccountRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SocialAccountRow(
+      createdAt: $SocialAccountsTable.$convertercreatedAt.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}created_at'],
+        )!,
+      ),
+      updatedAt: $SocialAccountsTable.$converterupdatedAt.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}updated_at'],
+        )!,
+      ),
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      platform: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}platform'],
+      )!,
+      platformName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}platform_name'],
+      ),
+      handle: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}handle'],
+      )!,
+      color: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}color'],
+      )!,
+      targetPerWeek: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}target_per_week'],
+      ),
+      archived: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}archived'],
+      )!,
+      sortOrder: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sort_order'],
+      )!,
+    );
+  }
+
+  @override
+  $SocialAccountsTable createAlias(String alias) {
+    return $SocialAccountsTable(attachedDatabase, alias);
+  }
+
+  static TypeConverter<DateTime, int> $convertercreatedAt = epochMs;
+  static TypeConverter<DateTime, int> $converterupdatedAt = epochMs;
+}
+
+class SocialAccountRow extends DataClass
+    implements Insertable<SocialAccountRow> {
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final String id;
+
+  /// `instagram | tiktok | youtube | x | threads | linkedin | facebook | other`
+  final String platform;
+  final String? platformName;
+  final String handle;
+  final String color;
+  final int? targetPerWeek;
+  final bool archived;
+  final int sortOrder;
+  const SocialAccountRow({
+    required this.createdAt,
+    required this.updatedAt,
+    required this.id,
+    required this.platform,
+    this.platformName,
+    required this.handle,
+    required this.color,
+    this.targetPerWeek,
+    required this.archived,
+    required this.sortOrder,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    {
+      map['created_at'] = Variable<int>(
+        $SocialAccountsTable.$convertercreatedAt.toSql(createdAt),
+      );
+    }
+    {
+      map['updated_at'] = Variable<int>(
+        $SocialAccountsTable.$converterupdatedAt.toSql(updatedAt),
+      );
+    }
+    map['id'] = Variable<String>(id);
+    map['platform'] = Variable<String>(platform);
+    if (!nullToAbsent || platformName != null) {
+      map['platform_name'] = Variable<String>(platformName);
+    }
+    map['handle'] = Variable<String>(handle);
+    map['color'] = Variable<String>(color);
+    if (!nullToAbsent || targetPerWeek != null) {
+      map['target_per_week'] = Variable<int>(targetPerWeek);
+    }
+    map['archived'] = Variable<bool>(archived);
+    map['sort_order'] = Variable<int>(sortOrder);
+    return map;
+  }
+
+  SocialAccountsCompanion toCompanion(bool nullToAbsent) {
+    return SocialAccountsCompanion(
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      id: Value(id),
+      platform: Value(platform),
+      platformName: platformName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(platformName),
+      handle: Value(handle),
+      color: Value(color),
+      targetPerWeek: targetPerWeek == null && nullToAbsent
+          ? const Value.absent()
+          : Value(targetPerWeek),
+      archived: Value(archived),
+      sortOrder: Value(sortOrder),
+    );
+  }
+
+  factory SocialAccountRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SocialAccountRow(
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      id: serializer.fromJson<String>(json['id']),
+      platform: serializer.fromJson<String>(json['platform']),
+      platformName: serializer.fromJson<String?>(json['platformName']),
+      handle: serializer.fromJson<String>(json['handle']),
+      color: serializer.fromJson<String>(json['color']),
+      targetPerWeek: serializer.fromJson<int?>(json['targetPerWeek']),
+      archived: serializer.fromJson<bool>(json['archived']),
+      sortOrder: serializer.fromJson<int>(json['sortOrder']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'id': serializer.toJson<String>(id),
+      'platform': serializer.toJson<String>(platform),
+      'platformName': serializer.toJson<String?>(platformName),
+      'handle': serializer.toJson<String>(handle),
+      'color': serializer.toJson<String>(color),
+      'targetPerWeek': serializer.toJson<int?>(targetPerWeek),
+      'archived': serializer.toJson<bool>(archived),
+      'sortOrder': serializer.toJson<int>(sortOrder),
+    };
+  }
+
+  SocialAccountRow copyWith({
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    String? id,
+    String? platform,
+    Value<String?> platformName = const Value.absent(),
+    String? handle,
+    String? color,
+    Value<int?> targetPerWeek = const Value.absent(),
+    bool? archived,
+    int? sortOrder,
+  }) => SocialAccountRow(
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    id: id ?? this.id,
+    platform: platform ?? this.platform,
+    platformName: platformName.present ? platformName.value : this.platformName,
+    handle: handle ?? this.handle,
+    color: color ?? this.color,
+    targetPerWeek: targetPerWeek.present
+        ? targetPerWeek.value
+        : this.targetPerWeek,
+    archived: archived ?? this.archived,
+    sortOrder: sortOrder ?? this.sortOrder,
+  );
+  SocialAccountRow copyWithCompanion(SocialAccountsCompanion data) {
+    return SocialAccountRow(
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      id: data.id.present ? data.id.value : this.id,
+      platform: data.platform.present ? data.platform.value : this.platform,
+      platformName: data.platformName.present
+          ? data.platformName.value
+          : this.platformName,
+      handle: data.handle.present ? data.handle.value : this.handle,
+      color: data.color.present ? data.color.value : this.color,
+      targetPerWeek: data.targetPerWeek.present
+          ? data.targetPerWeek.value
+          : this.targetPerWeek,
+      archived: data.archived.present ? data.archived.value : this.archived,
+      sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SocialAccountRow(')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('id: $id, ')
+          ..write('platform: $platform, ')
+          ..write('platformName: $platformName, ')
+          ..write('handle: $handle, ')
+          ..write('color: $color, ')
+          ..write('targetPerWeek: $targetPerWeek, ')
+          ..write('archived: $archived, ')
+          ..write('sortOrder: $sortOrder')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    createdAt,
+    updatedAt,
+    id,
+    platform,
+    platformName,
+    handle,
+    color,
+    targetPerWeek,
+    archived,
+    sortOrder,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SocialAccountRow &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.id == this.id &&
+          other.platform == this.platform &&
+          other.platformName == this.platformName &&
+          other.handle == this.handle &&
+          other.color == this.color &&
+          other.targetPerWeek == this.targetPerWeek &&
+          other.archived == this.archived &&
+          other.sortOrder == this.sortOrder);
+}
+
+class SocialAccountsCompanion extends UpdateCompanion<SocialAccountRow> {
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<String> id;
+  final Value<String> platform;
+  final Value<String?> platformName;
+  final Value<String> handle;
+  final Value<String> color;
+  final Value<int?> targetPerWeek;
+  final Value<bool> archived;
+  final Value<int> sortOrder;
+  final Value<int> rowid;
+  const SocialAccountsCompanion({
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.id = const Value.absent(),
+    this.platform = const Value.absent(),
+    this.platformName = const Value.absent(),
+    this.handle = const Value.absent(),
+    this.color = const Value.absent(),
+    this.targetPerWeek = const Value.absent(),
+    this.archived = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SocialAccountsCompanion.insert({
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    required String id,
+    required String platform,
+    this.platformName = const Value.absent(),
+    required String handle,
+    required String color,
+    this.targetPerWeek = const Value.absent(),
+    this.archived = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt),
+       id = Value(id),
+       platform = Value(platform),
+       handle = Value(handle),
+       color = Value(color);
+  static Insertable<SocialAccountRow> custom({
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<String>? id,
+    Expression<String>? platform,
+    Expression<String>? platformName,
+    Expression<String>? handle,
+    Expression<String>? color,
+    Expression<int>? targetPerWeek,
+    Expression<bool>? archived,
+    Expression<int>? sortOrder,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (id != null) 'id': id,
+      if (platform != null) 'platform': platform,
+      if (platformName != null) 'platform_name': platformName,
+      if (handle != null) 'handle': handle,
+      if (color != null) 'color': color,
+      if (targetPerWeek != null) 'target_per_week': targetPerWeek,
+      if (archived != null) 'archived': archived,
+      if (sortOrder != null) 'sort_order': sortOrder,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SocialAccountsCompanion copyWith({
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<String>? id,
+    Value<String>? platform,
+    Value<String?>? platformName,
+    Value<String>? handle,
+    Value<String>? color,
+    Value<int?>? targetPerWeek,
+    Value<bool>? archived,
+    Value<int>? sortOrder,
+    Value<int>? rowid,
+  }) {
+    return SocialAccountsCompanion(
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      id: id ?? this.id,
+      platform: platform ?? this.platform,
+      platformName: platformName ?? this.platformName,
+      handle: handle ?? this.handle,
+      color: color ?? this.color,
+      targetPerWeek: targetPerWeek ?? this.targetPerWeek,
+      archived: archived ?? this.archived,
+      sortOrder: sortOrder ?? this.sortOrder,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(
+        $SocialAccountsTable.$convertercreatedAt.toSql(createdAt.value),
+      );
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(
+        $SocialAccountsTable.$converterupdatedAt.toSql(updatedAt.value),
+      );
+    }
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (platform.present) {
+      map['platform'] = Variable<String>(platform.value);
+    }
+    if (platformName.present) {
+      map['platform_name'] = Variable<String>(platformName.value);
+    }
+    if (handle.present) {
+      map['handle'] = Variable<String>(handle.value);
+    }
+    if (color.present) {
+      map['color'] = Variable<String>(color.value);
+    }
+    if (targetPerWeek.present) {
+      map['target_per_week'] = Variable<int>(targetPerWeek.value);
+    }
+    if (archived.present) {
+      map['archived'] = Variable<bool>(archived.value);
+    }
+    if (sortOrder.present) {
+      map['sort_order'] = Variable<int>(sortOrder.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SocialAccountsCompanion(')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('id: $id, ')
+          ..write('platform: $platform, ')
+          ..write('platformName: $platformName, ')
+          ..write('handle: $handle, ')
+          ..write('color: $color, ')
+          ..write('targetPerWeek: $targetPerWeek, ')
+          ..write('archived: $archived, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ContentItemsTable extends ContentItems
+    with TableInfo<$ContentItemsTable, ContentItemRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ContentItemsTable(this.attachedDatabase, [this._alias]);
+  @override
+  late final GeneratedColumnWithTypeConverter<DateTime, int> createdAt =
+      GeneratedColumn<int>(
+        'created_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: true,
+      ).withConverter<DateTime>($ContentItemsTable.$convertercreatedAt);
+  @override
+  late final GeneratedColumnWithTypeConverter<DateTime, int> updatedAt =
+      GeneratedColumn<int>(
+        'updated_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: true,
+      ).withConverter<DateTime>($ContentItemsTable.$converterupdatedAt);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _stageMeta = const VerificationMeta('stage');
+  @override
+  late final GeneratedColumn<String> stage = GeneratedColumn<String>(
+    'stage',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('ide'),
+  );
+  static const VerificationMeta _formatMeta = const VerificationMeta('format');
+  @override
+  late final GeneratedColumn<String> format = GeneratedColumn<String>(
+    'format',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _pillarMeta = const VerificationMeta('pillar');
+  @override
+  late final GeneratedColumn<String> pillar = GeneratedColumn<String>(
+    'pillar',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _ideaMeta = const VerificationMeta('idea');
+  @override
+  late final GeneratedColumn<String> idea = GeneratedColumn<String>(
+    'idea',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _noteIdMeta = const VerificationMeta('noteId');
+  @override
+  late final GeneratedColumn<String> noteId = GeneratedColumn<String>(
+    'note_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _checklistMeta = const VerificationMeta(
+    'checklist',
+  );
+  @override
+  late final GeneratedColumn<String> checklist = GeneratedColumn<String>(
+    'checklist',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
+  static const VerificationMeta _photosMeta = const VerificationMeta('photos');
+  @override
+  late final GeneratedColumn<String> photos = GeneratedColumn<String>(
+    'photos',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
+  static const VerificationMeta _assetLinksMeta = const VerificationMeta(
+    'assetLinks',
+  );
+  @override
+  late final GeneratedColumn<String> assetLinks = GeneratedColumn<String>(
+    'asset_links',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
+  static const VerificationMeta _sponsorMeta = const VerificationMeta(
+    'sponsor',
+  );
+  @override
+  late final GeneratedColumn<String> sponsor = GeneratedColumn<String>(
+    'sponsor',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _stageLogMeta = const VerificationMeta(
+    'stageLog',
+  );
+  @override
+  late final GeneratedColumn<String> stageLog = GeneratedColumn<String>(
+    'stage_log',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('{}'),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    createdAt,
+    updatedAt,
+    id,
+    title,
+    stage,
+    format,
+    pillar,
+    idea,
+    noteId,
+    checklist,
+    photos,
+    assetLinks,
+    sponsor,
+    stageLog,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'content_items';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ContentItemRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('stage')) {
+      context.handle(
+        _stageMeta,
+        stage.isAcceptableOrUnknown(data['stage']!, _stageMeta),
+      );
+    }
+    if (data.containsKey('format')) {
+      context.handle(
+        _formatMeta,
+        format.isAcceptableOrUnknown(data['format']!, _formatMeta),
+      );
+    }
+    if (data.containsKey('pillar')) {
+      context.handle(
+        _pillarMeta,
+        pillar.isAcceptableOrUnknown(data['pillar']!, _pillarMeta),
+      );
+    }
+    if (data.containsKey('idea')) {
+      context.handle(
+        _ideaMeta,
+        idea.isAcceptableOrUnknown(data['idea']!, _ideaMeta),
+      );
+    }
+    if (data.containsKey('note_id')) {
+      context.handle(
+        _noteIdMeta,
+        noteId.isAcceptableOrUnknown(data['note_id']!, _noteIdMeta),
+      );
+    }
+    if (data.containsKey('checklist')) {
+      context.handle(
+        _checklistMeta,
+        checklist.isAcceptableOrUnknown(data['checklist']!, _checklistMeta),
+      );
+    }
+    if (data.containsKey('photos')) {
+      context.handle(
+        _photosMeta,
+        photos.isAcceptableOrUnknown(data['photos']!, _photosMeta),
+      );
+    }
+    if (data.containsKey('asset_links')) {
+      context.handle(
+        _assetLinksMeta,
+        assetLinks.isAcceptableOrUnknown(data['asset_links']!, _assetLinksMeta),
+      );
+    }
+    if (data.containsKey('sponsor')) {
+      context.handle(
+        _sponsorMeta,
+        sponsor.isAcceptableOrUnknown(data['sponsor']!, _sponsorMeta),
+      );
+    }
+    if (data.containsKey('stage_log')) {
+      context.handle(
+        _stageLogMeta,
+        stageLog.isAcceptableOrUnknown(data['stage_log']!, _stageLogMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ContentItemRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ContentItemRow(
+      createdAt: $ContentItemsTable.$convertercreatedAt.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}created_at'],
+        )!,
+      ),
+      updatedAt: $ContentItemsTable.$converterupdatedAt.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}updated_at'],
+        )!,
+      ),
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      stage: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}stage'],
+      )!,
+      format: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}format'],
+      ),
+      pillar: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}pillar'],
+      ),
+      idea: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}idea'],
+      )!,
+      noteId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note_id'],
+      ),
+      checklist: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}checklist'],
+      )!,
+      photos: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}photos'],
+      )!,
+      assetLinks: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}asset_links'],
+      )!,
+      sponsor: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sponsor'],
+      ),
+      stageLog: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}stage_log'],
+      )!,
+    );
+  }
+
+  @override
+  $ContentItemsTable createAlias(String alias) {
+    return $ContentItemsTable(attachedDatabase, alias);
+  }
+
+  static TypeConverter<DateTime, int> $convertercreatedAt = epochMs;
+  static TypeConverter<DateTime, int> $converterupdatedAt = epochMs;
+}
+
+class ContentItemRow extends DataClass implements Insertable<ContentItemRow> {
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final String id;
+  final String title;
+
+  /// `ide | naskah | produksi | siap | terjadwal | tayang`
+  final String stage;
+  final String? format;
+
+  /// Pillar name.
+  final String? pillar;
+  final String idea;
+  final String? noteId;
+  final String checklist;
+  final String photos;
+
+  /// JSON `[{url, label}]`.
+  final String assetLinks;
+
+  /// JSON `{brand, amount, currency, due?, paid, transactionId?}` or null.
+  final String? sponsor;
+
+  /// Device-only: JSON `{stage: epochMs}` — when this device first saw each
+  /// stage reached (gamification, see `lib/domain/game/README.md`).
+  final String stageLog;
+  const ContentItemRow({
+    required this.createdAt,
+    required this.updatedAt,
+    required this.id,
+    required this.title,
+    required this.stage,
+    this.format,
+    this.pillar,
+    required this.idea,
+    this.noteId,
+    required this.checklist,
+    required this.photos,
+    required this.assetLinks,
+    this.sponsor,
+    required this.stageLog,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    {
+      map['created_at'] = Variable<int>(
+        $ContentItemsTable.$convertercreatedAt.toSql(createdAt),
+      );
+    }
+    {
+      map['updated_at'] = Variable<int>(
+        $ContentItemsTable.$converterupdatedAt.toSql(updatedAt),
+      );
+    }
+    map['id'] = Variable<String>(id);
+    map['title'] = Variable<String>(title);
+    map['stage'] = Variable<String>(stage);
+    if (!nullToAbsent || format != null) {
+      map['format'] = Variable<String>(format);
+    }
+    if (!nullToAbsent || pillar != null) {
+      map['pillar'] = Variable<String>(pillar);
+    }
+    map['idea'] = Variable<String>(idea);
+    if (!nullToAbsent || noteId != null) {
+      map['note_id'] = Variable<String>(noteId);
+    }
+    map['checklist'] = Variable<String>(checklist);
+    map['photos'] = Variable<String>(photos);
+    map['asset_links'] = Variable<String>(assetLinks);
+    if (!nullToAbsent || sponsor != null) {
+      map['sponsor'] = Variable<String>(sponsor);
+    }
+    map['stage_log'] = Variable<String>(stageLog);
+    return map;
+  }
+
+  ContentItemsCompanion toCompanion(bool nullToAbsent) {
+    return ContentItemsCompanion(
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      id: Value(id),
+      title: Value(title),
+      stage: Value(stage),
+      format: format == null && nullToAbsent
+          ? const Value.absent()
+          : Value(format),
+      pillar: pillar == null && nullToAbsent
+          ? const Value.absent()
+          : Value(pillar),
+      idea: Value(idea),
+      noteId: noteId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(noteId),
+      checklist: Value(checklist),
+      photos: Value(photos),
+      assetLinks: Value(assetLinks),
+      sponsor: sponsor == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sponsor),
+      stageLog: Value(stageLog),
+    );
+  }
+
+  factory ContentItemRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ContentItemRow(
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      id: serializer.fromJson<String>(json['id']),
+      title: serializer.fromJson<String>(json['title']),
+      stage: serializer.fromJson<String>(json['stage']),
+      format: serializer.fromJson<String?>(json['format']),
+      pillar: serializer.fromJson<String?>(json['pillar']),
+      idea: serializer.fromJson<String>(json['idea']),
+      noteId: serializer.fromJson<String?>(json['noteId']),
+      checklist: serializer.fromJson<String>(json['checklist']),
+      photos: serializer.fromJson<String>(json['photos']),
+      assetLinks: serializer.fromJson<String>(json['assetLinks']),
+      sponsor: serializer.fromJson<String?>(json['sponsor']),
+      stageLog: serializer.fromJson<String>(json['stageLog']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'id': serializer.toJson<String>(id),
+      'title': serializer.toJson<String>(title),
+      'stage': serializer.toJson<String>(stage),
+      'format': serializer.toJson<String?>(format),
+      'pillar': serializer.toJson<String?>(pillar),
+      'idea': serializer.toJson<String>(idea),
+      'noteId': serializer.toJson<String?>(noteId),
+      'checklist': serializer.toJson<String>(checklist),
+      'photos': serializer.toJson<String>(photos),
+      'assetLinks': serializer.toJson<String>(assetLinks),
+      'sponsor': serializer.toJson<String?>(sponsor),
+      'stageLog': serializer.toJson<String>(stageLog),
+    };
+  }
+
+  ContentItemRow copyWith({
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    String? id,
+    String? title,
+    String? stage,
+    Value<String?> format = const Value.absent(),
+    Value<String?> pillar = const Value.absent(),
+    String? idea,
+    Value<String?> noteId = const Value.absent(),
+    String? checklist,
+    String? photos,
+    String? assetLinks,
+    Value<String?> sponsor = const Value.absent(),
+    String? stageLog,
+  }) => ContentItemRow(
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    id: id ?? this.id,
+    title: title ?? this.title,
+    stage: stage ?? this.stage,
+    format: format.present ? format.value : this.format,
+    pillar: pillar.present ? pillar.value : this.pillar,
+    idea: idea ?? this.idea,
+    noteId: noteId.present ? noteId.value : this.noteId,
+    checklist: checklist ?? this.checklist,
+    photos: photos ?? this.photos,
+    assetLinks: assetLinks ?? this.assetLinks,
+    sponsor: sponsor.present ? sponsor.value : this.sponsor,
+    stageLog: stageLog ?? this.stageLog,
+  );
+  ContentItemRow copyWithCompanion(ContentItemsCompanion data) {
+    return ContentItemRow(
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      id: data.id.present ? data.id.value : this.id,
+      title: data.title.present ? data.title.value : this.title,
+      stage: data.stage.present ? data.stage.value : this.stage,
+      format: data.format.present ? data.format.value : this.format,
+      pillar: data.pillar.present ? data.pillar.value : this.pillar,
+      idea: data.idea.present ? data.idea.value : this.idea,
+      noteId: data.noteId.present ? data.noteId.value : this.noteId,
+      checklist: data.checklist.present ? data.checklist.value : this.checklist,
+      photos: data.photos.present ? data.photos.value : this.photos,
+      assetLinks: data.assetLinks.present
+          ? data.assetLinks.value
+          : this.assetLinks,
+      sponsor: data.sponsor.present ? data.sponsor.value : this.sponsor,
+      stageLog: data.stageLog.present ? data.stageLog.value : this.stageLog,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ContentItemRow(')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('id: $id, ')
+          ..write('title: $title, ')
+          ..write('stage: $stage, ')
+          ..write('format: $format, ')
+          ..write('pillar: $pillar, ')
+          ..write('idea: $idea, ')
+          ..write('noteId: $noteId, ')
+          ..write('checklist: $checklist, ')
+          ..write('photos: $photos, ')
+          ..write('assetLinks: $assetLinks, ')
+          ..write('sponsor: $sponsor, ')
+          ..write('stageLog: $stageLog')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    createdAt,
+    updatedAt,
+    id,
+    title,
+    stage,
+    format,
+    pillar,
+    idea,
+    noteId,
+    checklist,
+    photos,
+    assetLinks,
+    sponsor,
+    stageLog,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ContentItemRow &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.id == this.id &&
+          other.title == this.title &&
+          other.stage == this.stage &&
+          other.format == this.format &&
+          other.pillar == this.pillar &&
+          other.idea == this.idea &&
+          other.noteId == this.noteId &&
+          other.checklist == this.checklist &&
+          other.photos == this.photos &&
+          other.assetLinks == this.assetLinks &&
+          other.sponsor == this.sponsor &&
+          other.stageLog == this.stageLog);
+}
+
+class ContentItemsCompanion extends UpdateCompanion<ContentItemRow> {
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<String> id;
+  final Value<String> title;
+  final Value<String> stage;
+  final Value<String?> format;
+  final Value<String?> pillar;
+  final Value<String> idea;
+  final Value<String?> noteId;
+  final Value<String> checklist;
+  final Value<String> photos;
+  final Value<String> assetLinks;
+  final Value<String?> sponsor;
+  final Value<String> stageLog;
+  final Value<int> rowid;
+  const ContentItemsCompanion({
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.id = const Value.absent(),
+    this.title = const Value.absent(),
+    this.stage = const Value.absent(),
+    this.format = const Value.absent(),
+    this.pillar = const Value.absent(),
+    this.idea = const Value.absent(),
+    this.noteId = const Value.absent(),
+    this.checklist = const Value.absent(),
+    this.photos = const Value.absent(),
+    this.assetLinks = const Value.absent(),
+    this.sponsor = const Value.absent(),
+    this.stageLog = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ContentItemsCompanion.insert({
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    required String id,
+    required String title,
+    this.stage = const Value.absent(),
+    this.format = const Value.absent(),
+    this.pillar = const Value.absent(),
+    this.idea = const Value.absent(),
+    this.noteId = const Value.absent(),
+    this.checklist = const Value.absent(),
+    this.photos = const Value.absent(),
+    this.assetLinks = const Value.absent(),
+    this.sponsor = const Value.absent(),
+    this.stageLog = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt),
+       id = Value(id),
+       title = Value(title);
+  static Insertable<ContentItemRow> custom({
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<String>? id,
+    Expression<String>? title,
+    Expression<String>? stage,
+    Expression<String>? format,
+    Expression<String>? pillar,
+    Expression<String>? idea,
+    Expression<String>? noteId,
+    Expression<String>? checklist,
+    Expression<String>? photos,
+    Expression<String>? assetLinks,
+    Expression<String>? sponsor,
+    Expression<String>? stageLog,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (id != null) 'id': id,
+      if (title != null) 'title': title,
+      if (stage != null) 'stage': stage,
+      if (format != null) 'format': format,
+      if (pillar != null) 'pillar': pillar,
+      if (idea != null) 'idea': idea,
+      if (noteId != null) 'note_id': noteId,
+      if (checklist != null) 'checklist': checklist,
+      if (photos != null) 'photos': photos,
+      if (assetLinks != null) 'asset_links': assetLinks,
+      if (sponsor != null) 'sponsor': sponsor,
+      if (stageLog != null) 'stage_log': stageLog,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ContentItemsCompanion copyWith({
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<String>? id,
+    Value<String>? title,
+    Value<String>? stage,
+    Value<String?>? format,
+    Value<String?>? pillar,
+    Value<String>? idea,
+    Value<String?>? noteId,
+    Value<String>? checklist,
+    Value<String>? photos,
+    Value<String>? assetLinks,
+    Value<String?>? sponsor,
+    Value<String>? stageLog,
+    Value<int>? rowid,
+  }) {
+    return ContentItemsCompanion(
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      id: id ?? this.id,
+      title: title ?? this.title,
+      stage: stage ?? this.stage,
+      format: format ?? this.format,
+      pillar: pillar ?? this.pillar,
+      idea: idea ?? this.idea,
+      noteId: noteId ?? this.noteId,
+      checklist: checklist ?? this.checklist,
+      photos: photos ?? this.photos,
+      assetLinks: assetLinks ?? this.assetLinks,
+      sponsor: sponsor ?? this.sponsor,
+      stageLog: stageLog ?? this.stageLog,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(
+        $ContentItemsTable.$convertercreatedAt.toSql(createdAt.value),
+      );
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(
+        $ContentItemsTable.$converterupdatedAt.toSql(updatedAt.value),
+      );
+    }
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (stage.present) {
+      map['stage'] = Variable<String>(stage.value);
+    }
+    if (format.present) {
+      map['format'] = Variable<String>(format.value);
+    }
+    if (pillar.present) {
+      map['pillar'] = Variable<String>(pillar.value);
+    }
+    if (idea.present) {
+      map['idea'] = Variable<String>(idea.value);
+    }
+    if (noteId.present) {
+      map['note_id'] = Variable<String>(noteId.value);
+    }
+    if (checklist.present) {
+      map['checklist'] = Variable<String>(checklist.value);
+    }
+    if (photos.present) {
+      map['photos'] = Variable<String>(photos.value);
+    }
+    if (assetLinks.present) {
+      map['asset_links'] = Variable<String>(assetLinks.value);
+    }
+    if (sponsor.present) {
+      map['sponsor'] = Variable<String>(sponsor.value);
+    }
+    if (stageLog.present) {
+      map['stage_log'] = Variable<String>(stageLog.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ContentItemsCompanion(')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('id: $id, ')
+          ..write('title: $title, ')
+          ..write('stage: $stage, ')
+          ..write('format: $format, ')
+          ..write('pillar: $pillar, ')
+          ..write('idea: $idea, ')
+          ..write('noteId: $noteId, ')
+          ..write('checklist: $checklist, ')
+          ..write('photos: $photos, ')
+          ..write('assetLinks: $assetLinks, ')
+          ..write('sponsor: $sponsor, ')
+          ..write('stageLog: $stageLog, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ContentPostsTable extends ContentPosts
+    with TableInfo<$ContentPostsTable, ContentPostRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ContentPostsTable(this.attachedDatabase, [this._alias]);
+  @override
+  late final GeneratedColumnWithTypeConverter<DateTime, int> createdAt =
+      GeneratedColumn<int>(
+        'created_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: true,
+      ).withConverter<DateTime>($ContentPostsTable.$convertercreatedAt);
+  @override
+  late final GeneratedColumnWithTypeConverter<DateTime, int> updatedAt =
+      GeneratedColumn<int>(
+        'updated_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: true,
+      ).withConverter<DateTime>($ContentPostsTable.$converterupdatedAt);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _contentIdMeta = const VerificationMeta(
+    'contentId',
+  );
+  @override
+  late final GeneratedColumn<String> contentId = GeneratedColumn<String>(
+    'content_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _accountIdMeta = const VerificationMeta(
+    'accountId',
+  );
+  @override
+  late final GeneratedColumn<String> accountId = GeneratedColumn<String>(
+    'account_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _captionMeta = const VerificationMeta(
+    'caption',
+  );
+  @override
+  late final GeneratedColumn<String> caption = GeneratedColumn<String>(
+    'caption',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _hashtagsMeta = const VerificationMeta(
+    'hashtags',
+  );
+  @override
+  late final GeneratedColumn<String> hashtags = GeneratedColumn<String>(
+    'hashtags',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  @override
+  late final GeneratedColumnWithTypeConverter<DateTime?, int> scheduledAt =
+      GeneratedColumn<int>(
+        'scheduled_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+      ).withConverter<DateTime?>($ContentPostsTable.$converterscheduledAtn);
+  static const VerificationMeta _remindBeforeMeta = const VerificationMeta(
+    'remindBefore',
+  );
+  @override
+  late final GeneratedColumn<int> remindBefore = GeneratedColumn<int>(
+    'remind_before',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('draft'),
+  );
+  @override
+  late final GeneratedColumnWithTypeConverter<DateTime?, int> postedAt =
+      GeneratedColumn<int>(
+        'posted_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+      ).withConverter<DateTime?>($ContentPostsTable.$converterpostedAtn);
+  static const VerificationMeta _urlMeta = const VerificationMeta('url');
+  @override
+  late final GeneratedColumn<String> url = GeneratedColumn<String>(
+    'url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _metricsMeta = const VerificationMeta(
+    'metrics',
+  );
+  @override
+  late final GeneratedColumn<String> metrics = GeneratedColumn<String>(
+    'metrics',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('{}'),
+  );
+  @override
+  late final GeneratedColumnWithTypeConverter<DateTime?, int> metricsAt =
+      GeneratedColumn<int>(
+        'metrics_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+      ).withConverter<DateTime?>($ContentPostsTable.$convertermetricsAtn);
+  @override
+  List<GeneratedColumn> get $columns => [
+    createdAt,
+    updatedAt,
+    id,
+    contentId,
+    accountId,
+    caption,
+    hashtags,
+    scheduledAt,
+    remindBefore,
+    status,
+    postedAt,
+    url,
+    metrics,
+    metricsAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'content_posts';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ContentPostRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('content_id')) {
+      context.handle(
+        _contentIdMeta,
+        contentId.isAcceptableOrUnknown(data['content_id']!, _contentIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_contentIdMeta);
+    }
+    if (data.containsKey('account_id')) {
+      context.handle(
+        _accountIdMeta,
+        accountId.isAcceptableOrUnknown(data['account_id']!, _accountIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_accountIdMeta);
+    }
+    if (data.containsKey('caption')) {
+      context.handle(
+        _captionMeta,
+        caption.isAcceptableOrUnknown(data['caption']!, _captionMeta),
+      );
+    }
+    if (data.containsKey('hashtags')) {
+      context.handle(
+        _hashtagsMeta,
+        hashtags.isAcceptableOrUnknown(data['hashtags']!, _hashtagsMeta),
+      );
+    }
+    if (data.containsKey('remind_before')) {
+      context.handle(
+        _remindBeforeMeta,
+        remindBefore.isAcceptableOrUnknown(
+          data['remind_before']!,
+          _remindBeforeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    }
+    if (data.containsKey('url')) {
+      context.handle(
+        _urlMeta,
+        url.isAcceptableOrUnknown(data['url']!, _urlMeta),
+      );
+    }
+    if (data.containsKey('metrics')) {
+      context.handle(
+        _metricsMeta,
+        metrics.isAcceptableOrUnknown(data['metrics']!, _metricsMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ContentPostRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ContentPostRow(
+      createdAt: $ContentPostsTable.$convertercreatedAt.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}created_at'],
+        )!,
+      ),
+      updatedAt: $ContentPostsTable.$converterupdatedAt.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}updated_at'],
+        )!,
+      ),
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      contentId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content_id'],
+      )!,
+      accountId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}account_id'],
+      )!,
+      caption: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}caption'],
+      )!,
+      hashtags: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}hashtags'],
+      )!,
+      scheduledAt: $ContentPostsTable.$converterscheduledAtn.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}scheduled_at'],
+        ),
+      ),
+      remindBefore: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}remind_before'],
+      ),
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      postedAt: $ContentPostsTable.$converterpostedAtn.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}posted_at'],
+        ),
+      ),
+      url: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}url'],
+      ),
+      metrics: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}metrics'],
+      )!,
+      metricsAt: $ContentPostsTable.$convertermetricsAtn.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}metrics_at'],
+        ),
+      ),
+    );
+  }
+
+  @override
+  $ContentPostsTable createAlias(String alias) {
+    return $ContentPostsTable(attachedDatabase, alias);
+  }
+
+  static TypeConverter<DateTime, int> $convertercreatedAt = epochMs;
+  static TypeConverter<DateTime, int> $converterupdatedAt = epochMs;
+  static TypeConverter<DateTime, int> $converterscheduledAt = epochMs;
+  static TypeConverter<DateTime?, int?> $converterscheduledAtn =
+      NullAwareTypeConverter.wrap($converterscheduledAt);
+  static TypeConverter<DateTime, int> $converterpostedAt = epochMs;
+  static TypeConverter<DateTime?, int?> $converterpostedAtn =
+      NullAwareTypeConverter.wrap($converterpostedAt);
+  static TypeConverter<DateTime, int> $convertermetricsAt = epochMs;
+  static TypeConverter<DateTime?, int?> $convertermetricsAtn =
+      NullAwareTypeConverter.wrap($convertermetricsAt);
+}
+
+class ContentPostRow extends DataClass implements Insertable<ContentPostRow> {
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final String id;
+  final String contentId;
+  final String accountId;
+  final String caption;
+  final String hashtags;
+  final DateTime? scheduledAt;
+  final int? remindBefore;
+
+  /// `draft | scheduled | posted | skipped`
+  final String status;
+  final DateTime? postedAt;
+  final String? url;
+
+  /// JSON `{views, likes, comments, shares, saves, followers}`.
+  final String metrics;
+  final DateTime? metricsAt;
+  const ContentPostRow({
+    required this.createdAt,
+    required this.updatedAt,
+    required this.id,
+    required this.contentId,
+    required this.accountId,
+    required this.caption,
+    required this.hashtags,
+    this.scheduledAt,
+    this.remindBefore,
+    required this.status,
+    this.postedAt,
+    this.url,
+    required this.metrics,
+    this.metricsAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    {
+      map['created_at'] = Variable<int>(
+        $ContentPostsTable.$convertercreatedAt.toSql(createdAt),
+      );
+    }
+    {
+      map['updated_at'] = Variable<int>(
+        $ContentPostsTable.$converterupdatedAt.toSql(updatedAt),
+      );
+    }
+    map['id'] = Variable<String>(id);
+    map['content_id'] = Variable<String>(contentId);
+    map['account_id'] = Variable<String>(accountId);
+    map['caption'] = Variable<String>(caption);
+    map['hashtags'] = Variable<String>(hashtags);
+    if (!nullToAbsent || scheduledAt != null) {
+      map['scheduled_at'] = Variable<int>(
+        $ContentPostsTable.$converterscheduledAtn.toSql(scheduledAt),
+      );
+    }
+    if (!nullToAbsent || remindBefore != null) {
+      map['remind_before'] = Variable<int>(remindBefore);
+    }
+    map['status'] = Variable<String>(status);
+    if (!nullToAbsent || postedAt != null) {
+      map['posted_at'] = Variable<int>(
+        $ContentPostsTable.$converterpostedAtn.toSql(postedAt),
+      );
+    }
+    if (!nullToAbsent || url != null) {
+      map['url'] = Variable<String>(url);
+    }
+    map['metrics'] = Variable<String>(metrics);
+    if (!nullToAbsent || metricsAt != null) {
+      map['metrics_at'] = Variable<int>(
+        $ContentPostsTable.$convertermetricsAtn.toSql(metricsAt),
+      );
+    }
+    return map;
+  }
+
+  ContentPostsCompanion toCompanion(bool nullToAbsent) {
+    return ContentPostsCompanion(
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      id: Value(id),
+      contentId: Value(contentId),
+      accountId: Value(accountId),
+      caption: Value(caption),
+      hashtags: Value(hashtags),
+      scheduledAt: scheduledAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(scheduledAt),
+      remindBefore: remindBefore == null && nullToAbsent
+          ? const Value.absent()
+          : Value(remindBefore),
+      status: Value(status),
+      postedAt: postedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(postedAt),
+      url: url == null && nullToAbsent ? const Value.absent() : Value(url),
+      metrics: Value(metrics),
+      metricsAt: metricsAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(metricsAt),
+    );
+  }
+
+  factory ContentPostRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ContentPostRow(
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      id: serializer.fromJson<String>(json['id']),
+      contentId: serializer.fromJson<String>(json['contentId']),
+      accountId: serializer.fromJson<String>(json['accountId']),
+      caption: serializer.fromJson<String>(json['caption']),
+      hashtags: serializer.fromJson<String>(json['hashtags']),
+      scheduledAt: serializer.fromJson<DateTime?>(json['scheduledAt']),
+      remindBefore: serializer.fromJson<int?>(json['remindBefore']),
+      status: serializer.fromJson<String>(json['status']),
+      postedAt: serializer.fromJson<DateTime?>(json['postedAt']),
+      url: serializer.fromJson<String?>(json['url']),
+      metrics: serializer.fromJson<String>(json['metrics']),
+      metricsAt: serializer.fromJson<DateTime?>(json['metricsAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'id': serializer.toJson<String>(id),
+      'contentId': serializer.toJson<String>(contentId),
+      'accountId': serializer.toJson<String>(accountId),
+      'caption': serializer.toJson<String>(caption),
+      'hashtags': serializer.toJson<String>(hashtags),
+      'scheduledAt': serializer.toJson<DateTime?>(scheduledAt),
+      'remindBefore': serializer.toJson<int?>(remindBefore),
+      'status': serializer.toJson<String>(status),
+      'postedAt': serializer.toJson<DateTime?>(postedAt),
+      'url': serializer.toJson<String?>(url),
+      'metrics': serializer.toJson<String>(metrics),
+      'metricsAt': serializer.toJson<DateTime?>(metricsAt),
+    };
+  }
+
+  ContentPostRow copyWith({
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    String? id,
+    String? contentId,
+    String? accountId,
+    String? caption,
+    String? hashtags,
+    Value<DateTime?> scheduledAt = const Value.absent(),
+    Value<int?> remindBefore = const Value.absent(),
+    String? status,
+    Value<DateTime?> postedAt = const Value.absent(),
+    Value<String?> url = const Value.absent(),
+    String? metrics,
+    Value<DateTime?> metricsAt = const Value.absent(),
+  }) => ContentPostRow(
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    id: id ?? this.id,
+    contentId: contentId ?? this.contentId,
+    accountId: accountId ?? this.accountId,
+    caption: caption ?? this.caption,
+    hashtags: hashtags ?? this.hashtags,
+    scheduledAt: scheduledAt.present ? scheduledAt.value : this.scheduledAt,
+    remindBefore: remindBefore.present ? remindBefore.value : this.remindBefore,
+    status: status ?? this.status,
+    postedAt: postedAt.present ? postedAt.value : this.postedAt,
+    url: url.present ? url.value : this.url,
+    metrics: metrics ?? this.metrics,
+    metricsAt: metricsAt.present ? metricsAt.value : this.metricsAt,
+  );
+  ContentPostRow copyWithCompanion(ContentPostsCompanion data) {
+    return ContentPostRow(
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      id: data.id.present ? data.id.value : this.id,
+      contentId: data.contentId.present ? data.contentId.value : this.contentId,
+      accountId: data.accountId.present ? data.accountId.value : this.accountId,
+      caption: data.caption.present ? data.caption.value : this.caption,
+      hashtags: data.hashtags.present ? data.hashtags.value : this.hashtags,
+      scheduledAt: data.scheduledAt.present
+          ? data.scheduledAt.value
+          : this.scheduledAt,
+      remindBefore: data.remindBefore.present
+          ? data.remindBefore.value
+          : this.remindBefore,
+      status: data.status.present ? data.status.value : this.status,
+      postedAt: data.postedAt.present ? data.postedAt.value : this.postedAt,
+      url: data.url.present ? data.url.value : this.url,
+      metrics: data.metrics.present ? data.metrics.value : this.metrics,
+      metricsAt: data.metricsAt.present ? data.metricsAt.value : this.metricsAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ContentPostRow(')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('id: $id, ')
+          ..write('contentId: $contentId, ')
+          ..write('accountId: $accountId, ')
+          ..write('caption: $caption, ')
+          ..write('hashtags: $hashtags, ')
+          ..write('scheduledAt: $scheduledAt, ')
+          ..write('remindBefore: $remindBefore, ')
+          ..write('status: $status, ')
+          ..write('postedAt: $postedAt, ')
+          ..write('url: $url, ')
+          ..write('metrics: $metrics, ')
+          ..write('metricsAt: $metricsAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    createdAt,
+    updatedAt,
+    id,
+    contentId,
+    accountId,
+    caption,
+    hashtags,
+    scheduledAt,
+    remindBefore,
+    status,
+    postedAt,
+    url,
+    metrics,
+    metricsAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ContentPostRow &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.id == this.id &&
+          other.contentId == this.contentId &&
+          other.accountId == this.accountId &&
+          other.caption == this.caption &&
+          other.hashtags == this.hashtags &&
+          other.scheduledAt == this.scheduledAt &&
+          other.remindBefore == this.remindBefore &&
+          other.status == this.status &&
+          other.postedAt == this.postedAt &&
+          other.url == this.url &&
+          other.metrics == this.metrics &&
+          other.metricsAt == this.metricsAt);
+}
+
+class ContentPostsCompanion extends UpdateCompanion<ContentPostRow> {
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<String> id;
+  final Value<String> contentId;
+  final Value<String> accountId;
+  final Value<String> caption;
+  final Value<String> hashtags;
+  final Value<DateTime?> scheduledAt;
+  final Value<int?> remindBefore;
+  final Value<String> status;
+  final Value<DateTime?> postedAt;
+  final Value<String?> url;
+  final Value<String> metrics;
+  final Value<DateTime?> metricsAt;
+  final Value<int> rowid;
+  const ContentPostsCompanion({
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.id = const Value.absent(),
+    this.contentId = const Value.absent(),
+    this.accountId = const Value.absent(),
+    this.caption = const Value.absent(),
+    this.hashtags = const Value.absent(),
+    this.scheduledAt = const Value.absent(),
+    this.remindBefore = const Value.absent(),
+    this.status = const Value.absent(),
+    this.postedAt = const Value.absent(),
+    this.url = const Value.absent(),
+    this.metrics = const Value.absent(),
+    this.metricsAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ContentPostsCompanion.insert({
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    required String id,
+    required String contentId,
+    required String accountId,
+    this.caption = const Value.absent(),
+    this.hashtags = const Value.absent(),
+    this.scheduledAt = const Value.absent(),
+    this.remindBefore = const Value.absent(),
+    this.status = const Value.absent(),
+    this.postedAt = const Value.absent(),
+    this.url = const Value.absent(),
+    this.metrics = const Value.absent(),
+    this.metricsAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt),
+       id = Value(id),
+       contentId = Value(contentId),
+       accountId = Value(accountId);
+  static Insertable<ContentPostRow> custom({
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<String>? id,
+    Expression<String>? contentId,
+    Expression<String>? accountId,
+    Expression<String>? caption,
+    Expression<String>? hashtags,
+    Expression<int>? scheduledAt,
+    Expression<int>? remindBefore,
+    Expression<String>? status,
+    Expression<int>? postedAt,
+    Expression<String>? url,
+    Expression<String>? metrics,
+    Expression<int>? metricsAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (id != null) 'id': id,
+      if (contentId != null) 'content_id': contentId,
+      if (accountId != null) 'account_id': accountId,
+      if (caption != null) 'caption': caption,
+      if (hashtags != null) 'hashtags': hashtags,
+      if (scheduledAt != null) 'scheduled_at': scheduledAt,
+      if (remindBefore != null) 'remind_before': remindBefore,
+      if (status != null) 'status': status,
+      if (postedAt != null) 'posted_at': postedAt,
+      if (url != null) 'url': url,
+      if (metrics != null) 'metrics': metrics,
+      if (metricsAt != null) 'metrics_at': metricsAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ContentPostsCompanion copyWith({
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<String>? id,
+    Value<String>? contentId,
+    Value<String>? accountId,
+    Value<String>? caption,
+    Value<String>? hashtags,
+    Value<DateTime?>? scheduledAt,
+    Value<int?>? remindBefore,
+    Value<String>? status,
+    Value<DateTime?>? postedAt,
+    Value<String?>? url,
+    Value<String>? metrics,
+    Value<DateTime?>? metricsAt,
+    Value<int>? rowid,
+  }) {
+    return ContentPostsCompanion(
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      id: id ?? this.id,
+      contentId: contentId ?? this.contentId,
+      accountId: accountId ?? this.accountId,
+      caption: caption ?? this.caption,
+      hashtags: hashtags ?? this.hashtags,
+      scheduledAt: scheduledAt ?? this.scheduledAt,
+      remindBefore: remindBefore ?? this.remindBefore,
+      status: status ?? this.status,
+      postedAt: postedAt ?? this.postedAt,
+      url: url ?? this.url,
+      metrics: metrics ?? this.metrics,
+      metricsAt: metricsAt ?? this.metricsAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(
+        $ContentPostsTable.$convertercreatedAt.toSql(createdAt.value),
+      );
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(
+        $ContentPostsTable.$converterupdatedAt.toSql(updatedAt.value),
+      );
+    }
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (contentId.present) {
+      map['content_id'] = Variable<String>(contentId.value);
+    }
+    if (accountId.present) {
+      map['account_id'] = Variable<String>(accountId.value);
+    }
+    if (caption.present) {
+      map['caption'] = Variable<String>(caption.value);
+    }
+    if (hashtags.present) {
+      map['hashtags'] = Variable<String>(hashtags.value);
+    }
+    if (scheduledAt.present) {
+      map['scheduled_at'] = Variable<int>(
+        $ContentPostsTable.$converterscheduledAtn.toSql(scheduledAt.value),
+      );
+    }
+    if (remindBefore.present) {
+      map['remind_before'] = Variable<int>(remindBefore.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (postedAt.present) {
+      map['posted_at'] = Variable<int>(
+        $ContentPostsTable.$converterpostedAtn.toSql(postedAt.value),
+      );
+    }
+    if (url.present) {
+      map['url'] = Variable<String>(url.value);
+    }
+    if (metrics.present) {
+      map['metrics'] = Variable<String>(metrics.value);
+    }
+    if (metricsAt.present) {
+      map['metrics_at'] = Variable<int>(
+        $ContentPostsTable.$convertermetricsAtn.toSql(metricsAt.value),
+      );
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ContentPostsCompanion(')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('id: $id, ')
+          ..write('contentId: $contentId, ')
+          ..write('accountId: $accountId, ')
+          ..write('caption: $caption, ')
+          ..write('hashtags: $hashtags, ')
+          ..write('scheduledAt: $scheduledAt, ')
+          ..write('remindBefore: $remindBefore, ')
+          ..write('status: $status, ')
+          ..write('postedAt: $postedAt, ')
+          ..write('url: $url, ')
+          ..write('metrics: $metrics, ')
+          ..write('metricsAt: $metricsAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ContentPillarsTable extends ContentPillars
+    with TableInfo<$ContentPillarsTable, ContentPillarRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ContentPillarsTable(this.attachedDatabase, [this._alias]);
+  @override
+  late final GeneratedColumnWithTypeConverter<DateTime, int> createdAt =
+      GeneratedColumn<int>(
+        'created_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: true,
+      ).withConverter<DateTime>($ContentPillarsTable.$convertercreatedAt);
+  @override
+  late final GeneratedColumnWithTypeConverter<DateTime, int> updatedAt =
+      GeneratedColumn<int>(
+        'updated_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: true,
+      ).withConverter<DateTime>($ContentPillarsTable.$converterupdatedAt);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _colorMeta = const VerificationMeta('color');
+  @override
+  late final GeneratedColumn<String> color = GeneratedColumn<String>(
+    'color',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('#58CC02'),
+  );
+  static const VerificationMeta _sortOrderMeta = const VerificationMeta(
+    'sortOrder',
+  );
+  @override
+  late final GeneratedColumn<int> sortOrder = GeneratedColumn<int>(
+    'sort_order',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    createdAt,
+    updatedAt,
+    id,
+    name,
+    color,
+    sortOrder,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'content_pillars';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ContentPillarRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('color')) {
+      context.handle(
+        _colorMeta,
+        color.isAcceptableOrUnknown(data['color']!, _colorMeta),
+      );
+    }
+    if (data.containsKey('sort_order')) {
+      context.handle(
+        _sortOrderMeta,
+        sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ContentPillarRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ContentPillarRow(
+      createdAt: $ContentPillarsTable.$convertercreatedAt.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}created_at'],
+        )!,
+      ),
+      updatedAt: $ContentPillarsTable.$converterupdatedAt.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}updated_at'],
+        )!,
+      ),
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      color: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}color'],
+      )!,
+      sortOrder: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sort_order'],
+      )!,
+    );
+  }
+
+  @override
+  $ContentPillarsTable createAlias(String alias) {
+    return $ContentPillarsTable(attachedDatabase, alias);
+  }
+
+  static TypeConverter<DateTime, int> $convertercreatedAt = epochMs;
+  static TypeConverter<DateTime, int> $converterupdatedAt = epochMs;
+}
+
+class ContentPillarRow extends DataClass
+    implements Insertable<ContentPillarRow> {
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final String id;
+  final String name;
+  final String color;
+  final int sortOrder;
+  const ContentPillarRow({
+    required this.createdAt,
+    required this.updatedAt,
+    required this.id,
+    required this.name,
+    required this.color,
+    required this.sortOrder,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    {
+      map['created_at'] = Variable<int>(
+        $ContentPillarsTable.$convertercreatedAt.toSql(createdAt),
+      );
+    }
+    {
+      map['updated_at'] = Variable<int>(
+        $ContentPillarsTable.$converterupdatedAt.toSql(updatedAt),
+      );
+    }
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['color'] = Variable<String>(color);
+    map['sort_order'] = Variable<int>(sortOrder);
+    return map;
+  }
+
+  ContentPillarsCompanion toCompanion(bool nullToAbsent) {
+    return ContentPillarsCompanion(
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      id: Value(id),
+      name: Value(name),
+      color: Value(color),
+      sortOrder: Value(sortOrder),
+    );
+  }
+
+  factory ContentPillarRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ContentPillarRow(
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      color: serializer.fromJson<String>(json['color']),
+      sortOrder: serializer.fromJson<int>(json['sortOrder']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'color': serializer.toJson<String>(color),
+      'sortOrder': serializer.toJson<int>(sortOrder),
+    };
+  }
+
+  ContentPillarRow copyWith({
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    String? id,
+    String? name,
+    String? color,
+    int? sortOrder,
+  }) => ContentPillarRow(
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    id: id ?? this.id,
+    name: name ?? this.name,
+    color: color ?? this.color,
+    sortOrder: sortOrder ?? this.sortOrder,
+  );
+  ContentPillarRow copyWithCompanion(ContentPillarsCompanion data) {
+    return ContentPillarRow(
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      color: data.color.present ? data.color.value : this.color,
+      sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ContentPillarRow(')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('color: $color, ')
+          ..write('sortOrder: $sortOrder')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(createdAt, updatedAt, id, name, color, sortOrder);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ContentPillarRow &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.color == this.color &&
+          other.sortOrder == this.sortOrder);
+}
+
+class ContentPillarsCompanion extends UpdateCompanion<ContentPillarRow> {
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<String> id;
+  final Value<String> name;
+  final Value<String> color;
+  final Value<int> sortOrder;
+  final Value<int> rowid;
+  const ContentPillarsCompanion({
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.color = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ContentPillarsCompanion.insert({
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    required String id,
+    required String name,
+    this.color = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt),
+       id = Value(id),
+       name = Value(name);
+  static Insertable<ContentPillarRow> custom({
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<String>? color,
+    Expression<int>? sortOrder,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (color != null) 'color': color,
+      if (sortOrder != null) 'sort_order': sortOrder,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ContentPillarsCompanion copyWith({
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<String>? id,
+    Value<String>? name,
+    Value<String>? color,
+    Value<int>? sortOrder,
+    Value<int>? rowid,
+  }) {
+    return ContentPillarsCompanion(
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      id: id ?? this.id,
+      name: name ?? this.name,
+      color: color ?? this.color,
+      sortOrder: sortOrder ?? this.sortOrder,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(
+        $ContentPillarsTable.$convertercreatedAt.toSql(createdAt.value),
+      );
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(
+        $ContentPillarsTable.$converterupdatedAt.toSql(updatedAt.value),
+      );
+    }
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (color.present) {
+      map['color'] = Variable<String>(color.value);
+    }
+    if (sortOrder.present) {
+      map['sort_order'] = Variable<int>(sortOrder.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ContentPillarsCompanion(')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('color: $color, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $OutboxTable extends Outbox with TableInfo<$OutboxTable, OutboxRow> {
   @override
   final GeneratedDatabase attachedDatabase;
@@ -7706,6 +11776,36 @@ class $SyncMetaTable extends SyncMeta
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _notesSeededMeta = const VerificationMeta(
+    'notesSeeded',
+  );
+  @override
+  late final GeneratedColumn<bool> notesSeeded = GeneratedColumn<bool>(
+    'notes_seeded',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("notes_seeded" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _contentSeededMeta = const VerificationMeta(
+    'contentSeeded',
+  );
+  @override
+  late final GeneratedColumn<bool> contentSeeded = GeneratedColumn<bool>(
+    'content_seeded',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("content_seeded" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -7716,6 +11816,8 @@ class $SyncMetaTable extends SyncMeta
     lastError,
     fullPullRequired,
     tasksSeeded,
+    notesSeeded,
+    contentSeeded,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -7783,6 +11885,24 @@ class $SyncMetaTable extends SyncMeta
         ),
       );
     }
+    if (data.containsKey('notes_seeded')) {
+      context.handle(
+        _notesSeededMeta,
+        notesSeeded.isAcceptableOrUnknown(
+          data['notes_seeded']!,
+          _notesSeededMeta,
+        ),
+      );
+    }
+    if (data.containsKey('content_seeded')) {
+      context.handle(
+        _contentSeededMeta,
+        contentSeeded.isAcceptableOrUnknown(
+          data['content_seeded']!,
+          _contentSeededMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -7824,6 +11944,14 @@ class $SyncMetaTable extends SyncMeta
         DriftSqlType.bool,
         data['${effectivePrefix}tasks_seeded'],
       )!,
+      notesSeeded: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}notes_seeded'],
+      )!,
+      contentSeeded: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}content_seeded'],
+      )!,
     );
   }
 
@@ -7851,6 +11979,14 @@ class SyncMetaRow extends DataClass implements Insertable<SyncMetaRow> {
   /// v3: the default task areas were checked/seeded after the first pull from a
   /// server that knows tasks (`docs/tasks.md`), so they're never re-created.
   final bool tasksSeeded;
+
+  /// v4: a pull from a notes-aware server succeeded — the server owns seeding
+  /// the default "Ide Konten" label from then on; the app never seeds it again.
+  final bool notesSeeded;
+
+  /// v4: a pull from a content-aware server succeeded — the server owns seeding
+  /// the default pillars from then on; the app never seeds them again.
+  final bool contentSeeded;
   const SyncMetaRow({
     required this.id,
     required this.cursor,
@@ -7860,6 +11996,8 @@ class SyncMetaRow extends DataClass implements Insertable<SyncMetaRow> {
     this.lastError,
     required this.fullPullRequired,
     required this.tasksSeeded,
+    required this.notesSeeded,
+    required this.contentSeeded,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -7880,6 +12018,8 @@ class SyncMetaRow extends DataClass implements Insertable<SyncMetaRow> {
     }
     map['full_pull_required'] = Variable<bool>(fullPullRequired);
     map['tasks_seeded'] = Variable<bool>(tasksSeeded);
+    map['notes_seeded'] = Variable<bool>(notesSeeded);
+    map['content_seeded'] = Variable<bool>(contentSeeded);
     return map;
   }
 
@@ -7901,6 +12041,8 @@ class SyncMetaRow extends DataClass implements Insertable<SyncMetaRow> {
           : Value(lastError),
       fullPullRequired: Value(fullPullRequired),
       tasksSeeded: Value(tasksSeeded),
+      notesSeeded: Value(notesSeeded),
+      contentSeeded: Value(contentSeeded),
     );
   }
 
@@ -7918,6 +12060,8 @@ class SyncMetaRow extends DataClass implements Insertable<SyncMetaRow> {
       lastError: serializer.fromJson<String?>(json['lastError']),
       fullPullRequired: serializer.fromJson<bool>(json['fullPullRequired']),
       tasksSeeded: serializer.fromJson<bool>(json['tasksSeeded']),
+      notesSeeded: serializer.fromJson<bool>(json['notesSeeded']),
+      contentSeeded: serializer.fromJson<bool>(json['contentSeeded']),
     );
   }
   @override
@@ -7932,6 +12076,8 @@ class SyncMetaRow extends DataClass implements Insertable<SyncMetaRow> {
       'lastError': serializer.toJson<String?>(lastError),
       'fullPullRequired': serializer.toJson<bool>(fullPullRequired),
       'tasksSeeded': serializer.toJson<bool>(tasksSeeded),
+      'notesSeeded': serializer.toJson<bool>(notesSeeded),
+      'contentSeeded': serializer.toJson<bool>(contentSeeded),
     };
   }
 
@@ -7944,6 +12090,8 @@ class SyncMetaRow extends DataClass implements Insertable<SyncMetaRow> {
     Value<String?> lastError = const Value.absent(),
     bool? fullPullRequired,
     bool? tasksSeeded,
+    bool? notesSeeded,
+    bool? contentSeeded,
   }) => SyncMetaRow(
     id: id ?? this.id,
     cursor: cursor ?? this.cursor,
@@ -7953,6 +12101,8 @@ class SyncMetaRow extends DataClass implements Insertable<SyncMetaRow> {
     lastError: lastError.present ? lastError.value : this.lastError,
     fullPullRequired: fullPullRequired ?? this.fullPullRequired,
     tasksSeeded: tasksSeeded ?? this.tasksSeeded,
+    notesSeeded: notesSeeded ?? this.notesSeeded,
+    contentSeeded: contentSeeded ?? this.contentSeeded,
   );
   SyncMetaRow copyWithCompanion(SyncMetaCompanion data) {
     return SyncMetaRow(
@@ -7970,6 +12120,12 @@ class SyncMetaRow extends DataClass implements Insertable<SyncMetaRow> {
       tasksSeeded: data.tasksSeeded.present
           ? data.tasksSeeded.value
           : this.tasksSeeded,
+      notesSeeded: data.notesSeeded.present
+          ? data.notesSeeded.value
+          : this.notesSeeded,
+      contentSeeded: data.contentSeeded.present
+          ? data.contentSeeded.value
+          : this.contentSeeded,
     );
   }
 
@@ -7983,7 +12139,9 @@ class SyncMetaRow extends DataClass implements Insertable<SyncMetaRow> {
           ..write('lastSyncAt: $lastSyncAt, ')
           ..write('lastError: $lastError, ')
           ..write('fullPullRequired: $fullPullRequired, ')
-          ..write('tasksSeeded: $tasksSeeded')
+          ..write('tasksSeeded: $tasksSeeded, ')
+          ..write('notesSeeded: $notesSeeded, ')
+          ..write('contentSeeded: $contentSeeded')
           ..write(')'))
         .toString();
   }
@@ -7998,6 +12156,8 @@ class SyncMetaRow extends DataClass implements Insertable<SyncMetaRow> {
     lastError,
     fullPullRequired,
     tasksSeeded,
+    notesSeeded,
+    contentSeeded,
   );
   @override
   bool operator ==(Object other) =>
@@ -8010,7 +12170,9 @@ class SyncMetaRow extends DataClass implements Insertable<SyncMetaRow> {
           other.lastSyncAt == this.lastSyncAt &&
           other.lastError == this.lastError &&
           other.fullPullRequired == this.fullPullRequired &&
-          other.tasksSeeded == this.tasksSeeded);
+          other.tasksSeeded == this.tasksSeeded &&
+          other.notesSeeded == this.notesSeeded &&
+          other.contentSeeded == this.contentSeeded);
 }
 
 class SyncMetaCompanion extends UpdateCompanion<SyncMetaRow> {
@@ -8022,6 +12184,8 @@ class SyncMetaCompanion extends UpdateCompanion<SyncMetaRow> {
   final Value<String?> lastError;
   final Value<bool> fullPullRequired;
   final Value<bool> tasksSeeded;
+  final Value<bool> notesSeeded;
+  final Value<bool> contentSeeded;
   const SyncMetaCompanion({
     this.id = const Value.absent(),
     this.cursor = const Value.absent(),
@@ -8031,6 +12195,8 @@ class SyncMetaCompanion extends UpdateCompanion<SyncMetaRow> {
     this.lastError = const Value.absent(),
     this.fullPullRequired = const Value.absent(),
     this.tasksSeeded = const Value.absent(),
+    this.notesSeeded = const Value.absent(),
+    this.contentSeeded = const Value.absent(),
   });
   SyncMetaCompanion.insert({
     this.id = const Value.absent(),
@@ -8041,6 +12207,8 @@ class SyncMetaCompanion extends UpdateCompanion<SyncMetaRow> {
     this.lastError = const Value.absent(),
     this.fullPullRequired = const Value.absent(),
     this.tasksSeeded = const Value.absent(),
+    this.notesSeeded = const Value.absent(),
+    this.contentSeeded = const Value.absent(),
   });
   static Insertable<SyncMetaRow> custom({
     Expression<int>? id,
@@ -8051,6 +12219,8 @@ class SyncMetaCompanion extends UpdateCompanion<SyncMetaRow> {
     Expression<String>? lastError,
     Expression<bool>? fullPullRequired,
     Expression<bool>? tasksSeeded,
+    Expression<bool>? notesSeeded,
+    Expression<bool>? contentSeeded,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -8061,6 +12231,8 @@ class SyncMetaCompanion extends UpdateCompanion<SyncMetaRow> {
       if (lastError != null) 'last_error': lastError,
       if (fullPullRequired != null) 'full_pull_required': fullPullRequired,
       if (tasksSeeded != null) 'tasks_seeded': tasksSeeded,
+      if (notesSeeded != null) 'notes_seeded': notesSeeded,
+      if (contentSeeded != null) 'content_seeded': contentSeeded,
     });
   }
 
@@ -8073,6 +12245,8 @@ class SyncMetaCompanion extends UpdateCompanion<SyncMetaRow> {
     Value<String?>? lastError,
     Value<bool>? fullPullRequired,
     Value<bool>? tasksSeeded,
+    Value<bool>? notesSeeded,
+    Value<bool>? contentSeeded,
   }) {
     return SyncMetaCompanion(
       id: id ?? this.id,
@@ -8083,6 +12257,8 @@ class SyncMetaCompanion extends UpdateCompanion<SyncMetaRow> {
       lastError: lastError ?? this.lastError,
       fullPullRequired: fullPullRequired ?? this.fullPullRequired,
       tasksSeeded: tasksSeeded ?? this.tasksSeeded,
+      notesSeeded: notesSeeded ?? this.notesSeeded,
+      contentSeeded: contentSeeded ?? this.contentSeeded,
     );
   }
 
@@ -8113,6 +12289,12 @@ class SyncMetaCompanion extends UpdateCompanion<SyncMetaRow> {
     if (tasksSeeded.present) {
       map['tasks_seeded'] = Variable<bool>(tasksSeeded.value);
     }
+    if (notesSeeded.present) {
+      map['notes_seeded'] = Variable<bool>(notesSeeded.value);
+    }
+    if (contentSeeded.present) {
+      map['content_seeded'] = Variable<bool>(contentSeeded.value);
+    }
     return map;
   }
 
@@ -8126,7 +12308,9 @@ class SyncMetaCompanion extends UpdateCompanion<SyncMetaRow> {
           ..write('lastSyncAt: $lastSyncAt, ')
           ..write('lastError: $lastError, ')
           ..write('fullPullRequired: $fullPullRequired, ')
-          ..write('tasksSeeded: $tasksSeeded')
+          ..write('tasksSeeded: $tasksSeeded, ')
+          ..write('notesSeeded: $notesSeeded, ')
+          ..write('contentSeeded: $contentSeeded')
           ..write(')'))
         .toString();
   }
@@ -8146,6 +12330,12 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $FoodTable food = $FoodTable(this);
   late final $TaskAreasTable taskAreas = $TaskAreasTable(this);
   late final $TasksTable tasks = $TasksTable(this);
+  late final $NotesTable notes = $NotesTable(this);
+  late final $NoteLabelsTable noteLabels = $NoteLabelsTable(this);
+  late final $SocialAccountsTable socialAccounts = $SocialAccountsTable(this);
+  late final $ContentItemsTable contentItems = $ContentItemsTable(this);
+  late final $ContentPostsTable contentPosts = $ContentPostsTable(this);
+  late final $ContentPillarsTable contentPillars = $ContentPillarsTable(this);
   late final $OutboxTable outbox = $OutboxTable(this);
   late final $SyncMetaTable syncMeta = $SyncMetaTable(this);
   late final Index idxTxDate = Index(
@@ -8188,6 +12378,22 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'idx_task_due',
     'CREATE INDEX idx_task_due ON tasks (due_date)',
   );
+  late final Index idxNoteUpdated = Index(
+    'idx_note_updated',
+    'CREATE INDEX idx_note_updated ON notes (updated_at)',
+  );
+  late final Index idxPostContent = Index(
+    'idx_post_content',
+    'CREATE INDEX idx_post_content ON content_posts (content_id)',
+  );
+  late final Index idxPostAccount = Index(
+    'idx_post_account',
+    'CREATE INDEX idx_post_account ON content_posts (account_id)',
+  );
+  late final Index idxPostScheduled = Index(
+    'idx_post_scheduled',
+    'CREATE INDEX idx_post_scheduled ON content_posts (scheduled_at)',
+  );
   late final Index idxOutboxEntity = Index(
     'idx_outbox_entity',
     'CREATE INDEX idx_outbox_entity ON outbox (entity, entity_id)',
@@ -8208,6 +12414,12 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     food,
     taskAreas,
     tasks,
+    notes,
+    noteLabels,
+    socialAccounts,
+    contentItems,
+    contentPosts,
+    contentPillars,
     outbox,
     syncMeta,
     idxTxDate,
@@ -8220,6 +12432,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     idxFoodDate,
     idxTaskArea,
     idxTaskDue,
+    idxNoteUpdated,
+    idxPostContent,
+    idxPostAccount,
+    idxPostScheduled,
     idxOutboxEntity,
   ];
 }
@@ -11730,6 +15946,2040 @@ typedef $$TasksTableProcessedTableManager =
       TaskRow,
       PrefetchHooks Function()
     >;
+typedef $$NotesTableCreateCompanionBuilder =
+    NotesCompanion Function({
+      required DateTime createdAt,
+      required DateTime updatedAt,
+      required String id,
+      Value<String?> title,
+      Value<String> body,
+      Value<String> checklist,
+      Value<String> labels,
+      Value<String?> color,
+      Value<bool> pinned,
+      Value<bool> archived,
+      Value<String> photos,
+      Value<String> audio,
+      Value<String> links,
+      Value<String?> source,
+      Value<String?> linkedTaskId,
+      Value<String?> linkedContentId,
+      Value<String?> linkedTransactionId,
+      Value<String> searchText,
+      Value<int> rowid,
+    });
+typedef $$NotesTableUpdateCompanionBuilder =
+    NotesCompanion Function({
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<String> id,
+      Value<String?> title,
+      Value<String> body,
+      Value<String> checklist,
+      Value<String> labels,
+      Value<String?> color,
+      Value<bool> pinned,
+      Value<bool> archived,
+      Value<String> photos,
+      Value<String> audio,
+      Value<String> links,
+      Value<String?> source,
+      Value<String?> linkedTaskId,
+      Value<String?> linkedContentId,
+      Value<String?> linkedTransactionId,
+      Value<String> searchText,
+      Value<int> rowid,
+    });
+
+class $$NotesTableFilterComposer extends Composer<_$AppDatabase, $NotesTable> {
+  $$NotesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnWithTypeConverterFilters<DateTime, DateTime, int> get createdAt =>
+      $composableBuilder(
+        column: $table.createdAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
+
+  ColumnWithTypeConverterFilters<DateTime, DateTime, int> get updatedAt =>
+      $composableBuilder(
+        column: $table.updatedAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
+
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get body => $composableBuilder(
+    column: $table.body,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get checklist => $composableBuilder(
+    column: $table.checklist,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get labels => $composableBuilder(
+    column: $table.labels,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get color => $composableBuilder(
+    column: $table.color,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get pinned => $composableBuilder(
+    column: $table.pinned,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get archived => $composableBuilder(
+    column: $table.archived,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get photos => $composableBuilder(
+    column: $table.photos,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get audio => $composableBuilder(
+    column: $table.audio,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get links => $composableBuilder(
+    column: $table.links,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get linkedTaskId => $composableBuilder(
+    column: $table.linkedTaskId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get linkedContentId => $composableBuilder(
+    column: $table.linkedContentId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get linkedTransactionId => $composableBuilder(
+    column: $table.linkedTransactionId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get searchText => $composableBuilder(
+    column: $table.searchText,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$NotesTableOrderingComposer
+    extends Composer<_$AppDatabase, $NotesTable> {
+  $$NotesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get body => $composableBuilder(
+    column: $table.body,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get checklist => $composableBuilder(
+    column: $table.checklist,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get labels => $composableBuilder(
+    column: $table.labels,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get color => $composableBuilder(
+    column: $table.color,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get pinned => $composableBuilder(
+    column: $table.pinned,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get archived => $composableBuilder(
+    column: $table.archived,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get photos => $composableBuilder(
+    column: $table.photos,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get audio => $composableBuilder(
+    column: $table.audio,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get links => $composableBuilder(
+    column: $table.links,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get linkedTaskId => $composableBuilder(
+    column: $table.linkedTaskId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get linkedContentId => $composableBuilder(
+    column: $table.linkedContentId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get linkedTransactionId => $composableBuilder(
+    column: $table.linkedTransactionId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get searchText => $composableBuilder(
+    column: $table.searchText,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$NotesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $NotesTable> {
+  $$NotesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumnWithTypeConverter<DateTime, int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<DateTime, int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get body =>
+      $composableBuilder(column: $table.body, builder: (column) => column);
+
+  GeneratedColumn<String> get checklist =>
+      $composableBuilder(column: $table.checklist, builder: (column) => column);
+
+  GeneratedColumn<String> get labels =>
+      $composableBuilder(column: $table.labels, builder: (column) => column);
+
+  GeneratedColumn<String> get color =>
+      $composableBuilder(column: $table.color, builder: (column) => column);
+
+  GeneratedColumn<bool> get pinned =>
+      $composableBuilder(column: $table.pinned, builder: (column) => column);
+
+  GeneratedColumn<bool> get archived =>
+      $composableBuilder(column: $table.archived, builder: (column) => column);
+
+  GeneratedColumn<String> get photos =>
+      $composableBuilder(column: $table.photos, builder: (column) => column);
+
+  GeneratedColumn<String> get audio =>
+      $composableBuilder(column: $table.audio, builder: (column) => column);
+
+  GeneratedColumn<String> get links =>
+      $composableBuilder(column: $table.links, builder: (column) => column);
+
+  GeneratedColumn<String> get source =>
+      $composableBuilder(column: $table.source, builder: (column) => column);
+
+  GeneratedColumn<String> get linkedTaskId => $composableBuilder(
+    column: $table.linkedTaskId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get linkedContentId => $composableBuilder(
+    column: $table.linkedContentId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get linkedTransactionId => $composableBuilder(
+    column: $table.linkedTransactionId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get searchText => $composableBuilder(
+    column: $table.searchText,
+    builder: (column) => column,
+  );
+}
+
+class $$NotesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $NotesTable,
+          NoteRow,
+          $$NotesTableFilterComposer,
+          $$NotesTableOrderingComposer,
+          $$NotesTableAnnotationComposer,
+          $$NotesTableCreateCompanionBuilder,
+          $$NotesTableUpdateCompanionBuilder,
+          (NoteRow, BaseReferences<_$AppDatabase, $NotesTable, NoteRow>),
+          NoteRow,
+          PrefetchHooks Function()
+        > {
+  $$NotesTableTableManager(_$AppDatabase db, $NotesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$NotesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$NotesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$NotesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<String> id = const Value.absent(),
+                Value<String?> title = const Value.absent(),
+                Value<String> body = const Value.absent(),
+                Value<String> checklist = const Value.absent(),
+                Value<String> labels = const Value.absent(),
+                Value<String?> color = const Value.absent(),
+                Value<bool> pinned = const Value.absent(),
+                Value<bool> archived = const Value.absent(),
+                Value<String> photos = const Value.absent(),
+                Value<String> audio = const Value.absent(),
+                Value<String> links = const Value.absent(),
+                Value<String?> source = const Value.absent(),
+                Value<String?> linkedTaskId = const Value.absent(),
+                Value<String?> linkedContentId = const Value.absent(),
+                Value<String?> linkedTransactionId = const Value.absent(),
+                Value<String> searchText = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => NotesCompanion(
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                id: id,
+                title: title,
+                body: body,
+                checklist: checklist,
+                labels: labels,
+                color: color,
+                pinned: pinned,
+                archived: archived,
+                photos: photos,
+                audio: audio,
+                links: links,
+                source: source,
+                linkedTaskId: linkedTaskId,
+                linkedContentId: linkedContentId,
+                linkedTransactionId: linkedTransactionId,
+                searchText: searchText,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                required String id,
+                Value<String?> title = const Value.absent(),
+                Value<String> body = const Value.absent(),
+                Value<String> checklist = const Value.absent(),
+                Value<String> labels = const Value.absent(),
+                Value<String?> color = const Value.absent(),
+                Value<bool> pinned = const Value.absent(),
+                Value<bool> archived = const Value.absent(),
+                Value<String> photos = const Value.absent(),
+                Value<String> audio = const Value.absent(),
+                Value<String> links = const Value.absent(),
+                Value<String?> source = const Value.absent(),
+                Value<String?> linkedTaskId = const Value.absent(),
+                Value<String?> linkedContentId = const Value.absent(),
+                Value<String?> linkedTransactionId = const Value.absent(),
+                Value<String> searchText = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => NotesCompanion.insert(
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                id: id,
+                title: title,
+                body: body,
+                checklist: checklist,
+                labels: labels,
+                color: color,
+                pinned: pinned,
+                archived: archived,
+                photos: photos,
+                audio: audio,
+                links: links,
+                source: source,
+                linkedTaskId: linkedTaskId,
+                linkedContentId: linkedContentId,
+                linkedTransactionId: linkedTransactionId,
+                searchText: searchText,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$NotesTable, NoteRow>(table),
+                  BaseReferences<_$AppDatabase, $NotesTable, NoteRow>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$NotesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $NotesTable,
+      NoteRow,
+      $$NotesTableFilterComposer,
+      $$NotesTableOrderingComposer,
+      $$NotesTableAnnotationComposer,
+      $$NotesTableCreateCompanionBuilder,
+      $$NotesTableUpdateCompanionBuilder,
+      (NoteRow, BaseReferences<_$AppDatabase, $NotesTable, NoteRow>),
+      NoteRow,
+      PrefetchHooks Function()
+    >;
+typedef $$NoteLabelsTableCreateCompanionBuilder =
+    NoteLabelsCompanion Function({
+      required DateTime createdAt,
+      required DateTime updatedAt,
+      required String id,
+      required String name,
+      Value<String> color,
+      Value<bool> pinnedTab,
+      Value<int> sortOrder,
+      Value<int> rowid,
+    });
+typedef $$NoteLabelsTableUpdateCompanionBuilder =
+    NoteLabelsCompanion Function({
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<String> id,
+      Value<String> name,
+      Value<String> color,
+      Value<bool> pinnedTab,
+      Value<int> sortOrder,
+      Value<int> rowid,
+    });
+
+class $$NoteLabelsTableFilterComposer
+    extends Composer<_$AppDatabase, $NoteLabelsTable> {
+  $$NoteLabelsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnWithTypeConverterFilters<DateTime, DateTime, int> get createdAt =>
+      $composableBuilder(
+        column: $table.createdAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
+
+  ColumnWithTypeConverterFilters<DateTime, DateTime, int> get updatedAt =>
+      $composableBuilder(
+        column: $table.updatedAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
+
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get color => $composableBuilder(
+    column: $table.color,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get pinnedTab => $composableBuilder(
+    column: $table.pinnedTab,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$NoteLabelsTableOrderingComposer
+    extends Composer<_$AppDatabase, $NoteLabelsTable> {
+  $$NoteLabelsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get color => $composableBuilder(
+    column: $table.color,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get pinnedTab => $composableBuilder(
+    column: $table.pinnedTab,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$NoteLabelsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $NoteLabelsTable> {
+  $$NoteLabelsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumnWithTypeConverter<DateTime, int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<DateTime, int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get color =>
+      $composableBuilder(column: $table.color, builder: (column) => column);
+
+  GeneratedColumn<bool> get pinnedTab =>
+      $composableBuilder(column: $table.pinnedTab, builder: (column) => column);
+
+  GeneratedColumn<int> get sortOrder =>
+      $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+}
+
+class $$NoteLabelsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $NoteLabelsTable,
+          NoteLabelRow,
+          $$NoteLabelsTableFilterComposer,
+          $$NoteLabelsTableOrderingComposer,
+          $$NoteLabelsTableAnnotationComposer,
+          $$NoteLabelsTableCreateCompanionBuilder,
+          $$NoteLabelsTableUpdateCompanionBuilder,
+          (
+            NoteLabelRow,
+            BaseReferences<_$AppDatabase, $NoteLabelsTable, NoteLabelRow>,
+          ),
+          NoteLabelRow,
+          PrefetchHooks Function()
+        > {
+  $$NoteLabelsTableTableManager(_$AppDatabase db, $NoteLabelsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$NoteLabelsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$NoteLabelsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$NoteLabelsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> color = const Value.absent(),
+                Value<bool> pinnedTab = const Value.absent(),
+                Value<int> sortOrder = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => NoteLabelsCompanion(
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                id: id,
+                name: name,
+                color: color,
+                pinnedTab: pinnedTab,
+                sortOrder: sortOrder,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                required String id,
+                required String name,
+                Value<String> color = const Value.absent(),
+                Value<bool> pinnedTab = const Value.absent(),
+                Value<int> sortOrder = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => NoteLabelsCompanion.insert(
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                id: id,
+                name: name,
+                color: color,
+                pinnedTab: pinnedTab,
+                sortOrder: sortOrder,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$NoteLabelsTable, NoteLabelRow>(table),
+                  BaseReferences<_$AppDatabase, $NoteLabelsTable, NoteLabelRow>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$NoteLabelsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $NoteLabelsTable,
+      NoteLabelRow,
+      $$NoteLabelsTableFilterComposer,
+      $$NoteLabelsTableOrderingComposer,
+      $$NoteLabelsTableAnnotationComposer,
+      $$NoteLabelsTableCreateCompanionBuilder,
+      $$NoteLabelsTableUpdateCompanionBuilder,
+      (
+        NoteLabelRow,
+        BaseReferences<_$AppDatabase, $NoteLabelsTable, NoteLabelRow>,
+      ),
+      NoteLabelRow,
+      PrefetchHooks Function()
+    >;
+typedef $$SocialAccountsTableCreateCompanionBuilder =
+    SocialAccountsCompanion Function({
+      required DateTime createdAt,
+      required DateTime updatedAt,
+      required String id,
+      required String platform,
+      Value<String?> platformName,
+      required String handle,
+      required String color,
+      Value<int?> targetPerWeek,
+      Value<bool> archived,
+      Value<int> sortOrder,
+      Value<int> rowid,
+    });
+typedef $$SocialAccountsTableUpdateCompanionBuilder =
+    SocialAccountsCompanion Function({
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<String> id,
+      Value<String> platform,
+      Value<String?> platformName,
+      Value<String> handle,
+      Value<String> color,
+      Value<int?> targetPerWeek,
+      Value<bool> archived,
+      Value<int> sortOrder,
+      Value<int> rowid,
+    });
+
+class $$SocialAccountsTableFilterComposer
+    extends Composer<_$AppDatabase, $SocialAccountsTable> {
+  $$SocialAccountsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnWithTypeConverterFilters<DateTime, DateTime, int> get createdAt =>
+      $composableBuilder(
+        column: $table.createdAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
+
+  ColumnWithTypeConverterFilters<DateTime, DateTime, int> get updatedAt =>
+      $composableBuilder(
+        column: $table.updatedAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
+
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get platform => $composableBuilder(
+    column: $table.platform,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get platformName => $composableBuilder(
+    column: $table.platformName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get handle => $composableBuilder(
+    column: $table.handle,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get color => $composableBuilder(
+    column: $table.color,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get targetPerWeek => $composableBuilder(
+    column: $table.targetPerWeek,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get archived => $composableBuilder(
+    column: $table.archived,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$SocialAccountsTableOrderingComposer
+    extends Composer<_$AppDatabase, $SocialAccountsTable> {
+  $$SocialAccountsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get platform => $composableBuilder(
+    column: $table.platform,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get platformName => $composableBuilder(
+    column: $table.platformName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get handle => $composableBuilder(
+    column: $table.handle,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get color => $composableBuilder(
+    column: $table.color,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get targetPerWeek => $composableBuilder(
+    column: $table.targetPerWeek,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get archived => $composableBuilder(
+    column: $table.archived,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$SocialAccountsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SocialAccountsTable> {
+  $$SocialAccountsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumnWithTypeConverter<DateTime, int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<DateTime, int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get platform =>
+      $composableBuilder(column: $table.platform, builder: (column) => column);
+
+  GeneratedColumn<String> get platformName => $composableBuilder(
+    column: $table.platformName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get handle =>
+      $composableBuilder(column: $table.handle, builder: (column) => column);
+
+  GeneratedColumn<String> get color =>
+      $composableBuilder(column: $table.color, builder: (column) => column);
+
+  GeneratedColumn<int> get targetPerWeek => $composableBuilder(
+    column: $table.targetPerWeek,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get archived =>
+      $composableBuilder(column: $table.archived, builder: (column) => column);
+
+  GeneratedColumn<int> get sortOrder =>
+      $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+}
+
+class $$SocialAccountsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $SocialAccountsTable,
+          SocialAccountRow,
+          $$SocialAccountsTableFilterComposer,
+          $$SocialAccountsTableOrderingComposer,
+          $$SocialAccountsTableAnnotationComposer,
+          $$SocialAccountsTableCreateCompanionBuilder,
+          $$SocialAccountsTableUpdateCompanionBuilder,
+          (
+            SocialAccountRow,
+            BaseReferences<
+              _$AppDatabase,
+              $SocialAccountsTable,
+              SocialAccountRow
+            >,
+          ),
+          SocialAccountRow,
+          PrefetchHooks Function()
+        > {
+  $$SocialAccountsTableTableManager(
+    _$AppDatabase db,
+    $SocialAccountsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SocialAccountsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SocialAccountsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SocialAccountsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<String> id = const Value.absent(),
+                Value<String> platform = const Value.absent(),
+                Value<String?> platformName = const Value.absent(),
+                Value<String> handle = const Value.absent(),
+                Value<String> color = const Value.absent(),
+                Value<int?> targetPerWeek = const Value.absent(),
+                Value<bool> archived = const Value.absent(),
+                Value<int> sortOrder = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SocialAccountsCompanion(
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                id: id,
+                platform: platform,
+                platformName: platformName,
+                handle: handle,
+                color: color,
+                targetPerWeek: targetPerWeek,
+                archived: archived,
+                sortOrder: sortOrder,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                required String id,
+                required String platform,
+                Value<String?> platformName = const Value.absent(),
+                required String handle,
+                required String color,
+                Value<int?> targetPerWeek = const Value.absent(),
+                Value<bool> archived = const Value.absent(),
+                Value<int> sortOrder = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SocialAccountsCompanion.insert(
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                id: id,
+                platform: platform,
+                platformName: platformName,
+                handle: handle,
+                color: color,
+                targetPerWeek: targetPerWeek,
+                archived: archived,
+                sortOrder: sortOrder,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$SocialAccountsTable, SocialAccountRow>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $SocialAccountsTable,
+                    SocialAccountRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$SocialAccountsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $SocialAccountsTable,
+      SocialAccountRow,
+      $$SocialAccountsTableFilterComposer,
+      $$SocialAccountsTableOrderingComposer,
+      $$SocialAccountsTableAnnotationComposer,
+      $$SocialAccountsTableCreateCompanionBuilder,
+      $$SocialAccountsTableUpdateCompanionBuilder,
+      (
+        SocialAccountRow,
+        BaseReferences<_$AppDatabase, $SocialAccountsTable, SocialAccountRow>,
+      ),
+      SocialAccountRow,
+      PrefetchHooks Function()
+    >;
+typedef $$ContentItemsTableCreateCompanionBuilder =
+    ContentItemsCompanion Function({
+      required DateTime createdAt,
+      required DateTime updatedAt,
+      required String id,
+      required String title,
+      Value<String> stage,
+      Value<String?> format,
+      Value<String?> pillar,
+      Value<String> idea,
+      Value<String?> noteId,
+      Value<String> checklist,
+      Value<String> photos,
+      Value<String> assetLinks,
+      Value<String?> sponsor,
+      Value<String> stageLog,
+      Value<int> rowid,
+    });
+typedef $$ContentItemsTableUpdateCompanionBuilder =
+    ContentItemsCompanion Function({
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<String> id,
+      Value<String> title,
+      Value<String> stage,
+      Value<String?> format,
+      Value<String?> pillar,
+      Value<String> idea,
+      Value<String?> noteId,
+      Value<String> checklist,
+      Value<String> photos,
+      Value<String> assetLinks,
+      Value<String?> sponsor,
+      Value<String> stageLog,
+      Value<int> rowid,
+    });
+
+class $$ContentItemsTableFilterComposer
+    extends Composer<_$AppDatabase, $ContentItemsTable> {
+  $$ContentItemsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnWithTypeConverterFilters<DateTime, DateTime, int> get createdAt =>
+      $composableBuilder(
+        column: $table.createdAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
+
+  ColumnWithTypeConverterFilters<DateTime, DateTime, int> get updatedAt =>
+      $composableBuilder(
+        column: $table.updatedAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
+
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get stage => $composableBuilder(
+    column: $table.stage,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get format => $composableBuilder(
+    column: $table.format,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get pillar => $composableBuilder(
+    column: $table.pillar,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get idea => $composableBuilder(
+    column: $table.idea,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get noteId => $composableBuilder(
+    column: $table.noteId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get checklist => $composableBuilder(
+    column: $table.checklist,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get photos => $composableBuilder(
+    column: $table.photos,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get assetLinks => $composableBuilder(
+    column: $table.assetLinks,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sponsor => $composableBuilder(
+    column: $table.sponsor,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get stageLog => $composableBuilder(
+    column: $table.stageLog,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ContentItemsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ContentItemsTable> {
+  $$ContentItemsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get stage => $composableBuilder(
+    column: $table.stage,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get format => $composableBuilder(
+    column: $table.format,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get pillar => $composableBuilder(
+    column: $table.pillar,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get idea => $composableBuilder(
+    column: $table.idea,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get noteId => $composableBuilder(
+    column: $table.noteId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get checklist => $composableBuilder(
+    column: $table.checklist,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get photos => $composableBuilder(
+    column: $table.photos,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get assetLinks => $composableBuilder(
+    column: $table.assetLinks,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sponsor => $composableBuilder(
+    column: $table.sponsor,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get stageLog => $composableBuilder(
+    column: $table.stageLog,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ContentItemsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ContentItemsTable> {
+  $$ContentItemsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumnWithTypeConverter<DateTime, int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<DateTime, int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get stage =>
+      $composableBuilder(column: $table.stage, builder: (column) => column);
+
+  GeneratedColumn<String> get format =>
+      $composableBuilder(column: $table.format, builder: (column) => column);
+
+  GeneratedColumn<String> get pillar =>
+      $composableBuilder(column: $table.pillar, builder: (column) => column);
+
+  GeneratedColumn<String> get idea =>
+      $composableBuilder(column: $table.idea, builder: (column) => column);
+
+  GeneratedColumn<String> get noteId =>
+      $composableBuilder(column: $table.noteId, builder: (column) => column);
+
+  GeneratedColumn<String> get checklist =>
+      $composableBuilder(column: $table.checklist, builder: (column) => column);
+
+  GeneratedColumn<String> get photos =>
+      $composableBuilder(column: $table.photos, builder: (column) => column);
+
+  GeneratedColumn<String> get assetLinks => $composableBuilder(
+    column: $table.assetLinks,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get sponsor =>
+      $composableBuilder(column: $table.sponsor, builder: (column) => column);
+
+  GeneratedColumn<String> get stageLog =>
+      $composableBuilder(column: $table.stageLog, builder: (column) => column);
+}
+
+class $$ContentItemsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ContentItemsTable,
+          ContentItemRow,
+          $$ContentItemsTableFilterComposer,
+          $$ContentItemsTableOrderingComposer,
+          $$ContentItemsTableAnnotationComposer,
+          $$ContentItemsTableCreateCompanionBuilder,
+          $$ContentItemsTableUpdateCompanionBuilder,
+          (
+            ContentItemRow,
+            BaseReferences<_$AppDatabase, $ContentItemsTable, ContentItemRow>,
+          ),
+          ContentItemRow,
+          PrefetchHooks Function()
+        > {
+  $$ContentItemsTableTableManager(_$AppDatabase db, $ContentItemsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ContentItemsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ContentItemsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ContentItemsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<String> id = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<String> stage = const Value.absent(),
+                Value<String?> format = const Value.absent(),
+                Value<String?> pillar = const Value.absent(),
+                Value<String> idea = const Value.absent(),
+                Value<String?> noteId = const Value.absent(),
+                Value<String> checklist = const Value.absent(),
+                Value<String> photos = const Value.absent(),
+                Value<String> assetLinks = const Value.absent(),
+                Value<String?> sponsor = const Value.absent(),
+                Value<String> stageLog = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ContentItemsCompanion(
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                id: id,
+                title: title,
+                stage: stage,
+                format: format,
+                pillar: pillar,
+                idea: idea,
+                noteId: noteId,
+                checklist: checklist,
+                photos: photos,
+                assetLinks: assetLinks,
+                sponsor: sponsor,
+                stageLog: stageLog,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                required String id,
+                required String title,
+                Value<String> stage = const Value.absent(),
+                Value<String?> format = const Value.absent(),
+                Value<String?> pillar = const Value.absent(),
+                Value<String> idea = const Value.absent(),
+                Value<String?> noteId = const Value.absent(),
+                Value<String> checklist = const Value.absent(),
+                Value<String> photos = const Value.absent(),
+                Value<String> assetLinks = const Value.absent(),
+                Value<String?> sponsor = const Value.absent(),
+                Value<String> stageLog = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ContentItemsCompanion.insert(
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                id: id,
+                title: title,
+                stage: stage,
+                format: format,
+                pillar: pillar,
+                idea: idea,
+                noteId: noteId,
+                checklist: checklist,
+                photos: photos,
+                assetLinks: assetLinks,
+                sponsor: sponsor,
+                stageLog: stageLog,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$ContentItemsTable, ContentItemRow>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $ContentItemsTable,
+                    ContentItemRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ContentItemsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ContentItemsTable,
+      ContentItemRow,
+      $$ContentItemsTableFilterComposer,
+      $$ContentItemsTableOrderingComposer,
+      $$ContentItemsTableAnnotationComposer,
+      $$ContentItemsTableCreateCompanionBuilder,
+      $$ContentItemsTableUpdateCompanionBuilder,
+      (
+        ContentItemRow,
+        BaseReferences<_$AppDatabase, $ContentItemsTable, ContentItemRow>,
+      ),
+      ContentItemRow,
+      PrefetchHooks Function()
+    >;
+typedef $$ContentPostsTableCreateCompanionBuilder =
+    ContentPostsCompanion Function({
+      required DateTime createdAt,
+      required DateTime updatedAt,
+      required String id,
+      required String contentId,
+      required String accountId,
+      Value<String> caption,
+      Value<String> hashtags,
+      Value<DateTime?> scheduledAt,
+      Value<int?> remindBefore,
+      Value<String> status,
+      Value<DateTime?> postedAt,
+      Value<String?> url,
+      Value<String> metrics,
+      Value<DateTime?> metricsAt,
+      Value<int> rowid,
+    });
+typedef $$ContentPostsTableUpdateCompanionBuilder =
+    ContentPostsCompanion Function({
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<String> id,
+      Value<String> contentId,
+      Value<String> accountId,
+      Value<String> caption,
+      Value<String> hashtags,
+      Value<DateTime?> scheduledAt,
+      Value<int?> remindBefore,
+      Value<String> status,
+      Value<DateTime?> postedAt,
+      Value<String?> url,
+      Value<String> metrics,
+      Value<DateTime?> metricsAt,
+      Value<int> rowid,
+    });
+
+class $$ContentPostsTableFilterComposer
+    extends Composer<_$AppDatabase, $ContentPostsTable> {
+  $$ContentPostsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnWithTypeConverterFilters<DateTime, DateTime, int> get createdAt =>
+      $composableBuilder(
+        column: $table.createdAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
+
+  ColumnWithTypeConverterFilters<DateTime, DateTime, int> get updatedAt =>
+      $composableBuilder(
+        column: $table.updatedAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
+
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get contentId => $composableBuilder(
+    column: $table.contentId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get accountId => $composableBuilder(
+    column: $table.accountId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get caption => $composableBuilder(
+    column: $table.caption,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get hashtags => $composableBuilder(
+    column: $table.hashtags,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<DateTime?, DateTime, int> get scheduledAt =>
+      $composableBuilder(
+        column: $table.scheduledAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
+
+  ColumnFilters<int> get remindBefore => $composableBuilder(
+    column: $table.remindBefore,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<DateTime?, DateTime, int> get postedAt =>
+      $composableBuilder(
+        column: $table.postedAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
+
+  ColumnFilters<String> get url => $composableBuilder(
+    column: $table.url,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get metrics => $composableBuilder(
+    column: $table.metrics,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<DateTime?, DateTime, int> get metricsAt =>
+      $composableBuilder(
+        column: $table.metricsAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
+}
+
+class $$ContentPostsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ContentPostsTable> {
+  $$ContentPostsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get contentId => $composableBuilder(
+    column: $table.contentId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get accountId => $composableBuilder(
+    column: $table.accountId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get caption => $composableBuilder(
+    column: $table.caption,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get hashtags => $composableBuilder(
+    column: $table.hashtags,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get scheduledAt => $composableBuilder(
+    column: $table.scheduledAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get remindBefore => $composableBuilder(
+    column: $table.remindBefore,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get postedAt => $composableBuilder(
+    column: $table.postedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get url => $composableBuilder(
+    column: $table.url,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get metrics => $composableBuilder(
+    column: $table.metrics,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get metricsAt => $composableBuilder(
+    column: $table.metricsAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ContentPostsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ContentPostsTable> {
+  $$ContentPostsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumnWithTypeConverter<DateTime, int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<DateTime, int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get contentId =>
+      $composableBuilder(column: $table.contentId, builder: (column) => column);
+
+  GeneratedColumn<String> get accountId =>
+      $composableBuilder(column: $table.accountId, builder: (column) => column);
+
+  GeneratedColumn<String> get caption =>
+      $composableBuilder(column: $table.caption, builder: (column) => column);
+
+  GeneratedColumn<String> get hashtags =>
+      $composableBuilder(column: $table.hashtags, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<DateTime?, int> get scheduledAt =>
+      $composableBuilder(
+        column: $table.scheduledAt,
+        builder: (column) => column,
+      );
+
+  GeneratedColumn<int> get remindBefore => $composableBuilder(
+    column: $table.remindBefore,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<DateTime?, int> get postedAt =>
+      $composableBuilder(column: $table.postedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get url =>
+      $composableBuilder(column: $table.url, builder: (column) => column);
+
+  GeneratedColumn<String> get metrics =>
+      $composableBuilder(column: $table.metrics, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<DateTime?, int> get metricsAt =>
+      $composableBuilder(column: $table.metricsAt, builder: (column) => column);
+}
+
+class $$ContentPostsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ContentPostsTable,
+          ContentPostRow,
+          $$ContentPostsTableFilterComposer,
+          $$ContentPostsTableOrderingComposer,
+          $$ContentPostsTableAnnotationComposer,
+          $$ContentPostsTableCreateCompanionBuilder,
+          $$ContentPostsTableUpdateCompanionBuilder,
+          (
+            ContentPostRow,
+            BaseReferences<_$AppDatabase, $ContentPostsTable, ContentPostRow>,
+          ),
+          ContentPostRow,
+          PrefetchHooks Function()
+        > {
+  $$ContentPostsTableTableManager(_$AppDatabase db, $ContentPostsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ContentPostsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ContentPostsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ContentPostsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<String> id = const Value.absent(),
+                Value<String> contentId = const Value.absent(),
+                Value<String> accountId = const Value.absent(),
+                Value<String> caption = const Value.absent(),
+                Value<String> hashtags = const Value.absent(),
+                Value<DateTime?> scheduledAt = const Value.absent(),
+                Value<int?> remindBefore = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<DateTime?> postedAt = const Value.absent(),
+                Value<String?> url = const Value.absent(),
+                Value<String> metrics = const Value.absent(),
+                Value<DateTime?> metricsAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ContentPostsCompanion(
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                id: id,
+                contentId: contentId,
+                accountId: accountId,
+                caption: caption,
+                hashtags: hashtags,
+                scheduledAt: scheduledAt,
+                remindBefore: remindBefore,
+                status: status,
+                postedAt: postedAt,
+                url: url,
+                metrics: metrics,
+                metricsAt: metricsAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                required String id,
+                required String contentId,
+                required String accountId,
+                Value<String> caption = const Value.absent(),
+                Value<String> hashtags = const Value.absent(),
+                Value<DateTime?> scheduledAt = const Value.absent(),
+                Value<int?> remindBefore = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<DateTime?> postedAt = const Value.absent(),
+                Value<String?> url = const Value.absent(),
+                Value<String> metrics = const Value.absent(),
+                Value<DateTime?> metricsAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ContentPostsCompanion.insert(
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                id: id,
+                contentId: contentId,
+                accountId: accountId,
+                caption: caption,
+                hashtags: hashtags,
+                scheduledAt: scheduledAt,
+                remindBefore: remindBefore,
+                status: status,
+                postedAt: postedAt,
+                url: url,
+                metrics: metrics,
+                metricsAt: metricsAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$ContentPostsTable, ContentPostRow>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $ContentPostsTable,
+                    ContentPostRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ContentPostsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ContentPostsTable,
+      ContentPostRow,
+      $$ContentPostsTableFilterComposer,
+      $$ContentPostsTableOrderingComposer,
+      $$ContentPostsTableAnnotationComposer,
+      $$ContentPostsTableCreateCompanionBuilder,
+      $$ContentPostsTableUpdateCompanionBuilder,
+      (
+        ContentPostRow,
+        BaseReferences<_$AppDatabase, $ContentPostsTable, ContentPostRow>,
+      ),
+      ContentPostRow,
+      PrefetchHooks Function()
+    >;
+typedef $$ContentPillarsTableCreateCompanionBuilder =
+    ContentPillarsCompanion Function({
+      required DateTime createdAt,
+      required DateTime updatedAt,
+      required String id,
+      required String name,
+      Value<String> color,
+      Value<int> sortOrder,
+      Value<int> rowid,
+    });
+typedef $$ContentPillarsTableUpdateCompanionBuilder =
+    ContentPillarsCompanion Function({
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<String> id,
+      Value<String> name,
+      Value<String> color,
+      Value<int> sortOrder,
+      Value<int> rowid,
+    });
+
+class $$ContentPillarsTableFilterComposer
+    extends Composer<_$AppDatabase, $ContentPillarsTable> {
+  $$ContentPillarsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnWithTypeConverterFilters<DateTime, DateTime, int> get createdAt =>
+      $composableBuilder(
+        column: $table.createdAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
+
+  ColumnWithTypeConverterFilters<DateTime, DateTime, int> get updatedAt =>
+      $composableBuilder(
+        column: $table.updatedAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
+
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get color => $composableBuilder(
+    column: $table.color,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ContentPillarsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ContentPillarsTable> {
+  $$ContentPillarsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get color => $composableBuilder(
+    column: $table.color,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ContentPillarsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ContentPillarsTable> {
+  $$ContentPillarsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumnWithTypeConverter<DateTime, int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<DateTime, int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get color =>
+      $composableBuilder(column: $table.color, builder: (column) => column);
+
+  GeneratedColumn<int> get sortOrder =>
+      $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+}
+
+class $$ContentPillarsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ContentPillarsTable,
+          ContentPillarRow,
+          $$ContentPillarsTableFilterComposer,
+          $$ContentPillarsTableOrderingComposer,
+          $$ContentPillarsTableAnnotationComposer,
+          $$ContentPillarsTableCreateCompanionBuilder,
+          $$ContentPillarsTableUpdateCompanionBuilder,
+          (
+            ContentPillarRow,
+            BaseReferences<
+              _$AppDatabase,
+              $ContentPillarsTable,
+              ContentPillarRow
+            >,
+          ),
+          ContentPillarRow,
+          PrefetchHooks Function()
+        > {
+  $$ContentPillarsTableTableManager(
+    _$AppDatabase db,
+    $ContentPillarsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ContentPillarsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ContentPillarsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ContentPillarsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> color = const Value.absent(),
+                Value<int> sortOrder = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ContentPillarsCompanion(
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                id: id,
+                name: name,
+                color: color,
+                sortOrder: sortOrder,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                required String id,
+                required String name,
+                Value<String> color = const Value.absent(),
+                Value<int> sortOrder = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ContentPillarsCompanion.insert(
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                id: id,
+                name: name,
+                color: color,
+                sortOrder: sortOrder,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$ContentPillarsTable, ContentPillarRow>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $ContentPillarsTable,
+                    ContentPillarRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ContentPillarsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ContentPillarsTable,
+      ContentPillarRow,
+      $$ContentPillarsTableFilterComposer,
+      $$ContentPillarsTableOrderingComposer,
+      $$ContentPillarsTableAnnotationComposer,
+      $$ContentPillarsTableCreateCompanionBuilder,
+      $$ContentPillarsTableUpdateCompanionBuilder,
+      (
+        ContentPillarRow,
+        BaseReferences<_$AppDatabase, $ContentPillarsTable, ContentPillarRow>,
+      ),
+      ContentPillarRow,
+      PrefetchHooks Function()
+    >;
 typedef $$OutboxTableCreateCompanionBuilder =
     OutboxCompanion Function({
       Value<int> seq,
@@ -12036,6 +18286,8 @@ typedef $$SyncMetaTableCreateCompanionBuilder =
       Value<String?> lastError,
       Value<bool> fullPullRequired,
       Value<bool> tasksSeeded,
+      Value<bool> notesSeeded,
+      Value<bool> contentSeeded,
     });
 typedef $$SyncMetaTableUpdateCompanionBuilder =
     SyncMetaCompanion Function({
@@ -12047,6 +18299,8 @@ typedef $$SyncMetaTableUpdateCompanionBuilder =
       Value<String?> lastError,
       Value<bool> fullPullRequired,
       Value<bool> tasksSeeded,
+      Value<bool> notesSeeded,
+      Value<bool> contentSeeded,
     });
 
 class $$SyncMetaTableFilterComposer
@@ -12095,6 +18349,16 @@ class $$SyncMetaTableFilterComposer
 
   ColumnFilters<bool> get tasksSeeded => $composableBuilder(
     column: $table.tasksSeeded,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get notesSeeded => $composableBuilder(
+    column: $table.notesSeeded,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get contentSeeded => $composableBuilder(
+    column: $table.contentSeeded,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -12147,6 +18411,16 @@ class $$SyncMetaTableOrderingComposer
     column: $table.tasksSeeded,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<bool> get notesSeeded => $composableBuilder(
+    column: $table.notesSeeded,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get contentSeeded => $composableBuilder(
+    column: $table.contentSeeded,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$SyncMetaTableAnnotationComposer
@@ -12185,6 +18459,16 @@ class $$SyncMetaTableAnnotationComposer
 
   GeneratedColumn<bool> get tasksSeeded => $composableBuilder(
     column: $table.tasksSeeded,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get notesSeeded => $composableBuilder(
+    column: $table.notesSeeded,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get contentSeeded => $composableBuilder(
+    column: $table.contentSeeded,
     builder: (column) => column,
   );
 }
@@ -12228,6 +18512,8 @@ class $$SyncMetaTableTableManager
                 Value<String?> lastError = const Value.absent(),
                 Value<bool> fullPullRequired = const Value.absent(),
                 Value<bool> tasksSeeded = const Value.absent(),
+                Value<bool> notesSeeded = const Value.absent(),
+                Value<bool> contentSeeded = const Value.absent(),
               }) => SyncMetaCompanion(
                 id: id,
                 cursor: cursor,
@@ -12237,6 +18523,8 @@ class $$SyncMetaTableTableManager
                 lastError: lastError,
                 fullPullRequired: fullPullRequired,
                 tasksSeeded: tasksSeeded,
+                notesSeeded: notesSeeded,
+                contentSeeded: contentSeeded,
               ),
           createCompanionCallback:
               ({
@@ -12248,6 +18536,8 @@ class $$SyncMetaTableTableManager
                 Value<String?> lastError = const Value.absent(),
                 Value<bool> fullPullRequired = const Value.absent(),
                 Value<bool> tasksSeeded = const Value.absent(),
+                Value<bool> notesSeeded = const Value.absent(),
+                Value<bool> contentSeeded = const Value.absent(),
               }) => SyncMetaCompanion.insert(
                 id: id,
                 cursor: cursor,
@@ -12257,6 +18547,8 @@ class $$SyncMetaTableTableManager
                 lastError: lastError,
                 fullPullRequired: fullPullRequired,
                 tasksSeeded: tasksSeeded,
+                notesSeeded: notesSeeded,
+                contentSeeded: contentSeeded,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -12314,6 +18606,18 @@ class $AppDatabaseManager {
       $$TaskAreasTableTableManager(_db, _db.taskAreas);
   $$TasksTableTableManager get tasks =>
       $$TasksTableTableManager(_db, _db.tasks);
+  $$NotesTableTableManager get notes =>
+      $$NotesTableTableManager(_db, _db.notes);
+  $$NoteLabelsTableTableManager get noteLabels =>
+      $$NoteLabelsTableTableManager(_db, _db.noteLabels);
+  $$SocialAccountsTableTableManager get socialAccounts =>
+      $$SocialAccountsTableTableManager(_db, _db.socialAccounts);
+  $$ContentItemsTableTableManager get contentItems =>
+      $$ContentItemsTableTableManager(_db, _db.contentItems);
+  $$ContentPostsTableTableManager get contentPosts =>
+      $$ContentPostsTableTableManager(_db, _db.contentPosts);
+  $$ContentPillarsTableTableManager get contentPillars =>
+      $$ContentPillarsTableTableManager(_db, _db.contentPillars);
   $$OutboxTableTableManager get outbox =>
       $$OutboxTableTableManager(_db, _db.outbox);
   $$SyncMetaTableTableManager get syncMeta =>

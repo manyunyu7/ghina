@@ -3,7 +3,7 @@
 import * as React from "react";
 import type { Category } from "@prisma/client";
 import { Modal } from "@/components/ui/modal";
-import { Button } from "@/components/ui/button";
+import { SubmitButton, FormCancelButton } from "@/components/ui/submit-button";
 import { Input, Select, Field } from "@/components/ui/input";
 import { CategoryIcon } from "@/components/icon";
 import { MONTHS } from "@/lib/utils";
@@ -42,7 +42,6 @@ export function BudgetForm({
   );
   const [amount, setAmount] = React.useState(budget ? String(budget.amount) : "");
   const [error, setError] = React.useState<string | null>(null);
-  const [pending, setPending] = React.useState(false);
 
   // Reset local state during render whenever the modal is (re)opened or the target changes.
   const instanceKey = `${open ? "open" : "closed"}:${budget?.id ?? "new"}:${month}-${year}`;
@@ -52,11 +51,9 @@ export function BudgetForm({
     setCategoryId(budget?.categoryId ?? availableCategories[0]?.id ?? "");
     setAmount(budget ? String(budget.amount) : "");
     setError(null);
-    setPending(false);
   }
 
   async function handleAction(formData: FormData) {
-    setPending(true);
     setError(null);
     const action = isEdit ? updateBudget : setBudget;
     let result: BudgetActionResult;
@@ -65,7 +62,6 @@ export function BudgetForm({
     } catch {
       result = { ok: false, error: "Something went wrong" };
     }
-    setPending(false);
     if (result.ok) {
       onClose();
     } else {
@@ -143,12 +139,12 @@ export function BudgetForm({
         {error && <p className="text-sm text-expense">{error}</p>}
 
         <div className="flex justify-end gap-2 pt-2">
-          <Button type="button" variant="ghost" onClick={onClose} disabled={pending}>
+          <FormCancelButton variant="ghost" onClick={onClose}>
             Cancel
-          </Button>
-          <Button type="submit" disabled={pending || noCategories}>
-            {pending ? "Saving…" : isEdit ? "Save changes" : "Set budget"}
-          </Button>
+          </FormCancelButton>
+          <SubmitButton pendingText="Menyimpan…" disabled={noCategories}>
+            {isEdit ? "Save changes" : "Set budget"}
+          </SubmitButton>
         </div>
       </form>
     </Modal>

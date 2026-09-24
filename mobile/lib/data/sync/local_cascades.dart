@@ -1,7 +1,10 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart';
 
 import '../datasources/local/app_database.dart';
 import '../models/entity_names.dart';
+import '../models/notes_content_mappers.dart';
 import 'outbox.dart';
 
 /// The contract's delete relations, applied to the local database (for local deletes
@@ -54,9 +57,37 @@ class LocalCascades {
     await _nullTaskRef(_db.tasks.walletId, 'walletId', walletId);
   }
 
-  /// Transaction deleted → tasks get `transactionId = null`.
-  Future<void> transactionDeleted(String transactionId) =>
-      _nullTaskRef(_db.tasks.transactionId, 'transactionId', transactionId);
+  /// Transaction deleted → tasks get `transactionId = null`, notes
+  /// `linkedTransactionId = null`, sponsors `transactionId = null`.
+  Future<void> transactionDeleted(String transactionId) async {
+    await _nullTaskRef(_db.tasks.transactionId, 'transactionId', transactionId);
+    await _nullNoteRef(
+      _db.notes.linkedTransactionId,
+      'linkedTransactionId',
+      transactionId,
+    );
+    final items = await (_db.select(
+      _db.contentItems,
+    )..where((i) => i.sponsor.isNotNull())).get();
+    for (final r in items) {
+      final i = r.toEntity();
+      final s = i.sponsor;
+      if (s == null || s.transactionId != transactionId) continue;
+      final fixed = s.copyWith(transactionId: null);
+      await (_db.update(
+        _db.contentItems,
+      )..where((x) => x.id.equals(i.id))).write(
+        ContentItemsCompanion(sponsor: Value(jsonEncode(fixed.toJson()))),
+      );
+      await _outbox.patchQueued(SyncEntity.contentItems, i.id, {
+        'sponsor': fixed.toJson(),
+      });
+    }
+  }
+
+  /// Task deleted → notes get `linkedTaskId = null`.
+  Future<void> taskDeleted(String taskId) =>
+      _nullNoteRef(_db.notes.linkedTaskId, 'linkedTaskId', taskId);
 
   /// Task area deleted → its tasks are deleted (the server tombstones them).
   Future<void> taskAreaDeleted(String areaId) async {
@@ -66,6 +97,111 @@ class LocalCascades {
     for (final t in tasks) {
       await (_db.delete(_db.tasks)..where((x) => x.id.equals(t.id))).go();
       await _outbox.dropQueued(SyncEntity.tasks, t.id);
+      await taskDeleted(t.id);
+    }
+  }
+
+  // ---------------------------------------------------------------- notes & content
+
+  /// Note deleted → content items get `noteId = null`.
+  Future<void> noteDeleted(String noteId) async {
+    final rows = await (_db.select(
+      _db.contentItems,
+    )..where((i) => i.noteId.equals(noteId))).get();
+    for (final r in rows) {
+      await (_db.update(_db.contentItems)..where((x) => x.id.equals(r.id)))
+          .write(const ContentItemsCompanion(noteId: Value(null)));
+      await _outbox.patchQueued(SyncEntity.contentItems, r.id, {
+        'noteId': null,
+      });
+    }
+  }
+
+  /// Label deleted → its id is removed from every note (the server updates
+  /// those notes too, so they sync).
+  Future<void> noteLabelDeleted(String labelId) async {
+    final rows = await (_db.select(
+      _db.notes,
+    )..where((n) => n.labels.like('%"$labelId"%'))).get();
+    for (final r in rows) {
+      final ids = [
+        for (final x in r.toEntity().labelIds)
+          if (x != labelId) x,
+      ];
+      await (_db.update(_db.notes)..where((x) => x.id.equals(r.id))).write(
+        NotesCompanion(labels: Value(jsonEncode(ids))),
+      );
+      await _outbox.patchQueued(SyncEntity.notes, r.id, {'labels': ids});
+    }
+  }
+
+  /// Content item deleted → its posts are deleted (tombstoned by the server);
+  /// notes get `linkedContentId = null`.
+  Future<void> contentItemDeleted(String itemId) async {
+    await _deletePosts(_db.contentPosts.contentId, itemId);
+    await _nullNoteRef(_db.notes.linkedContentId, 'linkedContentId', itemId);
+  }
+
+  /// Pillar [name] deleted → items with that pillar (case-insensitive) get
+  /// `pillar = null`.
+  Future<void> pillarDeleted(String name) => _setPillar(name, null);
+
+  /// Pillar renamed [from] → [to]: items follow (the server does the same).
+  Future<void> pillarRenamed(String from, String to) async {
+    if (from == to) return;
+    await _setPillar(from, to);
+  }
+
+  Future<void> _setPillar(String name, String? to) async {
+    final key = name.trim().toLowerCase();
+    final rows = await (_db.select(
+      _db.contentItems,
+    )..where((i) => i.pillar.isNotNull())).get();
+    for (final r in rows) {
+      if (r.pillar!.trim().toLowerCase() != key) continue;
+      await (_db.update(_db.contentItems)..where((x) => x.id.equals(r.id)))
+          .write(ContentItemsCompanion(pillar: Value(to)));
+      await _outbox.patchQueued(SyncEntity.contentItems, r.id, {'pillar': to});
+    }
+  }
+
+  /// Social account deleted → its posts are deleted.
+  Future<void> socialAccountDeleted(String accountId) =>
+      _deletePosts(_db.contentPosts.accountId, accountId);
+
+  Future<void> _deletePosts(GeneratedColumn<String> column, String id) async {
+    final rows = await (_db.select(
+      _db.contentPosts,
+    )..where((_) => column.equals(id))).get();
+    for (final p in rows) {
+      await (_db.delete(
+        _db.contentPosts,
+      )..where((x) => x.id.equals(p.id))).go();
+      await _outbox.dropQueued(SyncEntity.contentPosts, p.id);
+    }
+  }
+
+  Future<void> _nullNoteRef(
+    GeneratedColumn<String> column,
+    String field,
+    String id,
+  ) async {
+    final rows = await (_db.select(
+      _db.notes,
+    )..where((_) => column.equals(id))).get();
+    for (final n in rows) {
+      await (_db.update(_db.notes)..where((x) => x.id.equals(n.id))).write(
+        NotesCompanion.custom(
+          linkedTaskId: field == 'linkedTaskId' ? const Constant(null) : null,
+          linkedContentId: field == 'linkedContentId'
+              ? const Constant(null)
+              : null,
+          linkedTransactionId: field == 'linkedTransactionId'
+              ? const Constant(null)
+              : null,
+        ),
+      );
+      await _outbox.patchQueued(SyncEntity.notes, n.id, {field: null});
     }
   }
 

@@ -449,11 +449,20 @@ class ContinueLearningCard extends StatelessWidget {
 // ---------------------------------------------------------------- quick actions
 
 class _QuickAction {
-  const _QuickAction(this.label, this.icon, this.color, this.path);
+  const _QuickAction(
+    this.label,
+    this.icon,
+    this.color,
+    this.path, {
+    this.longPressPath,
+  });
   final String label;
   final IconData icon;
   final ChunkySwatch color;
   final String path;
+
+  /// Shortcut on long-press (Catatan → a new note right away).
+  final String? longPressPath;
 }
 
 const _actions = [
@@ -477,11 +486,20 @@ const _actions = [
     GhinaColors.pink,
     '/subscriptions',
   ),
+  // Catatan replaced Proyeksi (still in Profil › Kelola): keeps the 3×3 grid.
   _QuickAction(
-    'Proyeksi',
-    Icons.insights_rounded,
+    'Catatan',
+    Icons.sticky_note_2_rounded,
     GhinaColors.orange,
-    '/forecast',
+    '/notes',
+    longPressPath: '/notes/new',
+  ),
+  // Konten (`docs/content.md` → Navigation): quick action + Profil menu.
+  _QuickAction(
+    'Konten',
+    Icons.campaign_rounded,
+    GhinaColors.purple,
+    '/content',
   ),
   _QuickAction(
     'Laporan',
@@ -530,6 +548,9 @@ class QuickActionsGrid extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
             borderRadius: GhinaRadii.rLg,
             onTap: () => context.push(a.path),
+            onLongPress: a.longPressPath == null
+                ? null
+                : () => context.push(a.longPressPath!),
             semanticLabel: a.label,
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,

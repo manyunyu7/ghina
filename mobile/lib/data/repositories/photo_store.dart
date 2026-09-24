@@ -12,8 +12,23 @@ abstract interface class PhotoStore {
   /// copies it there (picked files may live in a temp dir) and returns the copy.
   Future<String> ensureStored(String path, String id);
 
+  /// Notes/content media: returns [path] when it is already under the app
+  /// storage [folder] (`note_photos`, `note_audio`, `content_photos`), else
+  /// copies it there and returns the copy.
+  Future<String> ensureStoredIn(String path, String id, String folder);
+
+  /// Whether a pending file still exists (a missing file can never upload).
+  Future<bool> exists(String path);
+
   /// Deletes a stored file (no-op when missing / null).
   Future<void> delete(String? path);
+}
+
+/// App-storage folders of pending media.
+abstract final class MediaFolder {
+  static const notePhotos = 'note_photos';
+  static const noteAudio = 'note_audio';
+  static const contentPhotos = 'content_photos';
 }
 
 /// Stores photos under `<app documents>/food_photos/` and `…/tx_photos/`.
@@ -33,6 +48,16 @@ final class FilePhotoStore implements PhotoStore {
     if (p.isWithin(dir, path)) return path;
     return _copy(path, id, 'tx_photos');
   }
+
+  @override
+  Future<String> ensureStoredIn(String path, String id, String folder) async {
+    final dir = p.join((await getApplicationDocumentsDirectory()).path, folder);
+    if (p.isWithin(dir, path)) return path;
+    return _copy(path, id, folder);
+  }
+
+  @override
+  Future<bool> exists(String path) => File(path).exists();
 
   Future<String> _copy(String sourcePath, String id, String folder) async {
     final dir = Directory(
@@ -65,6 +90,16 @@ final class FilePhotoStore implements PhotoStore {
 /// Test double: keeps the source path, deletes nothing.
 final class InMemoryPhotoStore implements PhotoStore {
   final deleted = <String>[];
+
+  /// Paths [exists] reports as missing (test hook).
+  final missing = <String>{};
+
+  @override
+  Future<String> ensureStoredIn(String path, String id, String folder) async =>
+      path;
+
+  @override
+  Future<bool> exists(String path) async => !missing.contains(path);
 
   @override
   Future<String> importPhoto(String sourcePath, String id) async => sourcePath;

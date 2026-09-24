@@ -29,6 +29,14 @@ import '../presentation/features/settings/pages/sync_page.dart';
 import '../presentation/features/shell/app_shell.dart';
 import '../presentation/features/subscriptions/pages/subscription_form_page.dart';
 import '../presentation/features/subscriptions/pages/subscriptions_page.dart';
+import '../presentation/features/content/pages/content_accounts_page.dart';
+import '../presentation/features/content/pages/content_item_page.dart';
+import '../presentation/features/content/pages/content_page.dart';
+import '../presentation/features/content/pages/content_post_page.dart';
+import '../presentation/features/content/pages/content_report_page.dart';
+import '../presentation/features/notes/pages/note_editor_page.dart';
+import '../presentation/features/notes/pages/note_labels_page.dart';
+import '../presentation/features/notes/pages/notes_page.dart';
 import '../presentation/features/tasks/pages/task_area_form_page.dart';
 import '../presentation/features/tasks/pages/task_areas_page.dart';
 import '../presentation/features/tasks/pages/task_form_page.dart';
@@ -163,6 +171,32 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Belajar is no longer a tab; reachable from home and profile.
       GoRoute(path: '/learn', builder: (_, _) => const LearnPage()),
       GoRoute(path: '/reports', builder: (_, _) => const ReportsPage()),
+      // Notes & content (docs/notes.md, docs/content.md).
+      GoRoute(path: '/notes', builder: (_, _) => const NotesPage()),
+      GoRoute(path: '/notes/labels', builder: (_, _) => const NoteLabelsPage()),
+      GoRoute(path: '/notes/new', builder: (_, _) => const NoteEditorPage()),
+      GoRoute(
+        path: '/notes/:id',
+        builder: (_, s) => NoteEditorPage(id: s.pathParameters['id']),
+      ),
+      GoRoute(path: '/content', builder: (_, _) => const ContentPage()),
+      GoRoute(
+        path: '/content/accounts',
+        builder: (_, _) => const ContentAccountsPage(),
+      ),
+      GoRoute(
+        path: '/content/report',
+        builder: (_, _) => const ContentReportPage(),
+      ),
+      GoRoute(path: '/content/new', builder: (_, _) => const ContentItemPage()),
+      GoRoute(
+        path: '/content/posts/:id',
+        builder: (_, s) => ContentPostPage(id: s.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: '/content/:id',
+        builder: (_, s) => ContentItemPage(id: s.pathParameters['id']),
+      ),
       GoRoute(path: '/prayers', builder: (_, _) => const PrayersPage()),
       GoRoute(
         path: '/prayers/report',

@@ -67,6 +67,64 @@ List<ActivityEvent> activityEventsFrom(
       ),
 ];
 
+/// Content-planner milestones as [ActivityEvent]s (`lib/domain/game/README.md`
+/// → Content): stages reached (from the device-only `stageReachedAt`, stages
+/// after `ide` up to the current one), posted posts, weekly targets met, paid
+/// sponsors. [transactions] resolve a sponsor's payment time: its linked
+/// income transaction's `date`, else the device-only `sponsorPaidAt`, else the
+/// item's `createdAt` — never `updatedAt`, which moves with every later edit.
+List<ActivityEvent> contentActivityEventsFrom(
+  List<ContentItem> items,
+  List<ContentPost> posts,
+  List<SocialAccount> accounts, {
+  List<Transaction> transactions = const [],
+}) {
+  final acc = {for (final a in accounts) a.id: a};
+  final txDate = {for (final t in transactions) t.id: t.date};
+  return [
+    for (final i in items)
+      for (final s in ContentStage.values)
+        if (s != ContentStage.ide && s.index <= i.stage.index)
+          ActivityEvent.contentStage(
+            itemId: i.id,
+            stage: s.wire,
+            reachedAt: i.stageReachedAt[s] ?? i.updatedAt,
+            stageXp: s.xp,
+            createdAt: i.createdAt,
+          ),
+    for (final p in posts)
+      if (p.isPosted && p.postedAt != null)
+        ActivityEvent.contentPosted(
+          postId: p.id,
+          itemId: p.contentId,
+          accountId: p.accountId,
+          platform: acc[p.accountId]?.platform.wire ?? 'other',
+          postedAt: p.postedAt!,
+          scheduledAt: p.scheduledAt,
+          onSchedule: postedOnSchedule(p),
+        ),
+    for (final a in accounts)
+      for (final w in weeklyTargetsMet(a, posts))
+        ActivityEvent.contentWeeklyTarget(
+          accountId: a.id,
+          platform: a.platform.wire,
+          weekStart: GameDate.fromDateTime(w.weekStart),
+          at: w.at,
+          target: a.targetPerWeek!,
+        ),
+    for (final i in items)
+      if (i.sponsor case final s? when s.paid)
+        ActivityEvent.contentSponsorPaid(
+          itemId: i.id,
+          at:
+              (s.transactionId == null ? null : txDate[s.transactionId]) ??
+              i.sponsorPaidAt ??
+              i.createdAt,
+          amount: s.amount,
+        ),
+  ];
+}
+
 /// The production overrides (game progress in shared_preferences).
 List<Override> get gameOverrides => buildGameOverrides();
 
@@ -78,15 +136,37 @@ List<Override> buildGameOverrides({GameStore? store}) => [
     (ref) => ref.watch(currentUserProvider)?.displayName,
   ),
   activityEventsSourceProvider.overrideWith(
-    (ref) => combineLatest5(
-      ref.watch(transactionRepositoryProvider).watch(),
-      ref
-          .watch(prayerRepositoryProvider)
-          .watchRange('0000-01-01', '9999-12-31'),
-      ref.watch(healthRepositoryProvider).watchAll(),
-      ref.watch(foodRepositoryProvider).watchAll(),
-      ref.watch(taskRepositoryProvider).watchAll(),
-      (t, p, h, f, k) => activityEventsFrom(t, p, h, f, tasks: k),
+    (ref) => combineLatestList(
+      [
+        ref.watch(transactionRepositoryProvider).watch(),
+        ref
+            .watch(prayerRepositoryProvider)
+            .watchRange('0000-01-01', '9999-12-31'),
+        ref.watch(healthRepositoryProvider).watchAll(),
+        ref.watch(foodRepositoryProvider).watchAll(),
+        ref.watch(taskRepositoryProvider).watchAll(),
+        ref.watch(contentItemRepositoryProvider).watchAll(),
+        ref.watch(contentPostRepositoryProvider).watchAll(),
+        ref.watch(socialAccountRepositoryProvider).watchAll(),
+      ],
+      (v) {
+        final t = v[0] as List<Transaction>;
+        return [
+          ...activityEventsFrom(
+            t,
+            v[1] as List<PrayerEntry>,
+            v[2] as List<HealthEntry>,
+            v[3] as List<FoodLog>,
+            tasks: v[4] as List<Task>,
+          ),
+          ...contentActivityEventsFrom(
+            v[5] as List<ContentItem>,
+            v[6] as List<ContentPost>,
+            v[7] as List<SocialAccount>,
+            transactions: t,
+          ),
+        ];
+      },
     ),
   ),
   budgetStatusSourceProvider.overrideWith(

@@ -1,9 +1,11 @@
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:ghina/core/clock.dart';
 import 'package:ghina/data/datasources/local/app_database.dart';
+import 'package:ghina/data/repositories/content_repositories.dart';
 import 'package:ghina/data/repositories/finance_repositories.dart';
 import 'package:ghina/data/repositories/life_repositories.dart';
 import 'package:ghina/data/repositories/local_store.dart';
+import 'package:ghina/data/repositories/notes_repositories.dart';
 import 'package:ghina/data/repositories/photo_store.dart';
 import 'package:ghina/data/repositories/task_repositories.dart';
 import 'package:ghina/data/sync/outbox.dart';
@@ -91,6 +93,63 @@ class Harness {
   late final moveTask = MoveTask(tasks, taskAreas, clock);
   late final reorderTasks = ReorderTasks(tasks, uow, clock);
   late final addPhotos = AddTransactionPhotos(transactions, clock);
+
+  // --- notes & content (docs/notes.md, docs/content.md)
+  late final notes = DriftNoteRepository(store, photos);
+  late final labels = DriftNoteLabelRepository(store);
+  late final accounts = DriftSocialAccountRepository(store);
+  late final items = DriftContentItemRepository(store, photos);
+  late final posts = DriftContentPostRepository(store);
+  late final pillars = DriftContentPillarRepository(store);
+  late final seedState = DriftDefaultsSeedState(db);
+
+  late final createNote = CreateNote(notes, clock);
+  late final updateNote = UpdateNote(notes, clock);
+  late final deleteNote = DeleteNote(notes);
+  late final addNotePhotos = AddNotePhotos(notes, clock);
+  late final addNoteAudio = AddNoteAudio(notes, clock);
+  late final createLabel = CreateNoteLabel(labels, clock);
+  late final deleteLabel = DeleteNoteLabel(labels);
+  late final createAccount = CreateSocialAccount(accounts, clock);
+  late final deleteAccount = DeleteSocialAccount(accounts);
+  late final createPillar = CreateContentPillar(pillars, clock);
+  late final updatePillar = UpdateContentPillar(pillars, clock);
+  late final deletePillar = DeleteContentPillar(pillars);
+  late final createItem = CreateContentItem(items, clock);
+  late final updateItem = UpdateContentItem(items, clock);
+  late final deleteItem = DeleteContentItem(items);
+  late final moveStage = MoveContentStage(items, clock);
+  late final addContentPhotos = AddContentPhotos(items, clock);
+  late final createPost = CreateContentPost(posts, items, accounts, uow, clock);
+  late final updatePost = UpdateContentPost(posts, items, uow, clock);
+  late final schedulePost = ScheduleContentPost(posts, items, uow, clock);
+  late final markPosted = MarkPostPosted(posts, items, uow, clock);
+  late final markSkipped = MarkPostSkipped(posts, items, uow, clock);
+  late final deletePost = DeleteContentPost(posts, items, uow, clock);
+  late final setSponsor = SetContentSponsor(items, clock);
+  late final markSponsorPaid = MarkSponsorPaid(
+    items,
+    categories,
+    createTx,
+    uow,
+    clock,
+  );
+  late final noteToTask = ConvertNoteToTask(notes, createTask, uow, clock);
+  late final noteToContent = ConvertNoteToContent(
+    notes,
+    items,
+    createItem,
+    uow,
+    clock,
+  );
+  late final noteToTx = ConvertNoteToTransaction(notes, createTx, uow, clock);
+  late final seedLabel = SeedDefaultNoteLabel(labels, seedState, clock);
+  late final seedPillars = SeedDefaultContentPillars(
+    pillars,
+    seedState,
+    uow,
+    clock,
+  );
   late final removePhoto = RemoveTransactionPhoto(transactions, clock);
 
   /// Emits the client clock once (tests drive time by re-subscribing).

@@ -55,6 +55,8 @@ function PlannedCard({
   const [converting, setConverting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [pending, startTransition] = React.useTransition();
+  const [toggling, startToggle] = React.useTransition();
+  const busy = pending || toggling;
 
   const done = item.done;
   const isExpense = item.type === "expense";
@@ -65,7 +67,7 @@ function PlannedCard({
   function runToggle() {
     const fd = new FormData();
     fd.set("id", item.id);
-    startTransition(async () => {
+    startToggle(async () => {
       await togglePlannedDone(fd);
     });
   }
@@ -124,11 +126,11 @@ function PlannedCard({
       </div>
 
       <div className="mt-3 flex items-center gap-1 border-t border-border-soft pt-3">
-        <Button variant={done ? "secondary" : "ghost"} size="sm" onClick={runToggle} disabled={pending}>
-          <Check className="h-4 w-4" />
+        <Button variant={done ? "secondary" : "ghost"} size="sm" onClick={runToggle} loading={toggling} disabled={busy}>
+          {!toggling && <Check className="h-4 w-4" />}
           {done ? "Done" : "Mark done"}
         </Button>
-        <Button variant="ghost" size="sm" onClick={() => setConverting(true)} disabled={pending}>
+        <Button variant="ghost" size="sm" onClick={() => setConverting(true)} disabled={busy}>
           <ArrowRightLeft className="h-4 w-4" />
           Make real
         </Button>
@@ -161,8 +163,8 @@ function PlannedCard({
           <Button variant="outline" onClick={() => setConfirming(false)} disabled={pending}>
             Cancel
           </Button>
-          <Button variant="danger" onClick={runDelete} disabled={pending}>
-            {pending ? "Deleting…" : "Delete"}
+          <Button variant="danger" onClick={runDelete} loading={pending}>
+            {pending ? "Menghapus…" : "Delete"}
           </Button>
         </div>
       </Modal>
@@ -195,8 +197,8 @@ function PlannedCard({
           >
             Cancel
           </Button>
-          <Button onClick={runConvert} disabled={pending || !targetWallet}>
-            {pending ? "Working…" : "Make real"}
+          <Button onClick={runConvert} loading={pending} disabled={!targetWallet}>
+            {pending ? "Memproses…" : "Make real"}
           </Button>
         </div>
       </Modal>

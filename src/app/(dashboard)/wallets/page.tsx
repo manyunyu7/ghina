@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge, EmptyState, PageHeader } from "@/components/ui/misc";
 import { AddWalletButton } from "./add-wallet-button";
 import { WalletCardActions } from "./wallet-card-actions";
+import { LinkPendingIcon } from "@/components/link-pending";
 
 export default async function WalletsPage() {
   const user = await requireUser();
@@ -106,7 +107,9 @@ export default async function WalletsPage() {
                       href={`/transactions?walletId=${encodeURIComponent(w.id)}`}
                       className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-primary transition hover:bg-primary-soft"
                     >
-                      <History className="h-3.5 w-3.5" />
+                      <LinkPendingIcon className="h-3.5 w-3.5">
+                        <History className="h-3.5 w-3.5" />
+                      </LinkPendingIcon>
                       Riwayat
                     </Link>
                   </div>

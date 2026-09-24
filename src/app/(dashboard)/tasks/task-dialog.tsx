@@ -500,7 +500,7 @@ function TaskForm({
 
       <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
         {target.mode === "edit" ? (
-          <Button type="button" variant="ghost" className="text-expense hover:text-expense" onClick={() => setConfirmDelete(true)}>
+          <Button type="button" variant="ghost" className="text-expense hover:text-expense" onClick={() => setConfirmDelete(true)} disabled={pending}>
             <Trash2 className="h-4 w-4" /> Hapus
           </Button>
         ) : (
@@ -510,7 +510,7 @@ function TaskForm({
           <Button type="button" variant="ghost" onClick={onClose} disabled={pending}>
             Batal
           </Button>
-          <Button type="submit" disabled={pending}>
+          <Button type="submit" loading={pending}>
             {pending ? "Menyimpan…" : target.mode === "edit" ? "Simpan" : "Tambah tugas"}
           </Button>
         </div>

@@ -1,8 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Calendar } from "lucide-react";
+import { PendingBar } from "@/components/pending-bar";
+import { SavingHint } from "@/components/ui/saving-hint";
+import { useNavTransition } from "@/components/use-nav-transition";
 import { Select } from "@/components/ui/input";
 
 type Preset = "6m" | "12m" | "month" | "year";
@@ -13,24 +16,37 @@ type Preset = "6m" | "12m" | "month" | "year";
  * without a full navigation. The server `page.tsx` reads these params.
  */
 export function PeriodSelector({ currentYear }: { currentYear: number }) {
-  const router = useRouter();
+  const { pending, replace } = useNavTransition();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const range = (searchParams.get("range") as Preset | null) ?? "6m";
-  const year = searchParams.get("year") ?? String(currentYear);
+  const urlRange = (searchParams.get("range") as Preset | null) ?? "6m";
+  const urlYear = searchParams.get("year") ?? String(currentYear);
+
+  // Reflect the choice immediately while the report reloads; re-sync from the URL after.
+  const urlKey = `${urlRange}|${urlYear}`;
+  const [view, setView] = React.useState({ range: urlRange, year: urlYear, key: urlKey });
+  if (view.key !== urlKey && !pending) {
+    setView({ range: urlRange, year: urlYear, key: urlKey });
+  }
+  const { range, year } = view;
 
   const setParams = React.useCallback(
     (next: Record<string, string | null>) => {
+      setView((v) => ({
+        ...v,
+        range: (next.range as Preset | null) ?? v.range,
+        year: next.year ?? v.year,
+      }));
       const params = new URLSearchParams(searchParams.toString());
       for (const [key, value] of Object.entries(next)) {
         if (value) params.set(key, value);
         else params.delete(key);
       }
       const qs = params.toString();
-      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+      replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     },
-    [router, pathname, searchParams],
+    [replace, pathname, searchParams],
   );
 
   const years = React.useMemo(() => {
@@ -40,7 +56,9 @@ export function PeriodSelector({ currentYear }: { currentYear: number }) {
   }, [currentYear]);
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2" aria-busy={pending || undefined}>
+      <PendingBar pending={pending} />
+      <SavingHint pending={pending} label={null} />
       <div className="relative">
         <Calendar className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-soft" />
         <Select

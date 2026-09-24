@@ -4,6 +4,7 @@ import 'package:ghina/data/models/api_dto.dart';
 import 'package:ghina/data/models/entity_names.dart';
 import 'package:ghina/data/models/wire.dart';
 import 'package:ghina/domain/entities/entities.dart';
+import 'package:ghina/domain/usecases/notes_rules.dart' as notes;
 import 'package:ghina/domain/usecases/prayer_quality.dart';
 
 typedef Tomb = ({String entity, String id, int deletedAt});
@@ -40,6 +41,18 @@ class FakeServer implements SyncApi {
   /// When set, a pull seeds the default task areas for this user id if there are
   /// none (like the real server).
   String? seedAreasFor;
+
+  /// Pretend to be a server from before notes/content (v3 era): no notes/content
+  /// keys on pull, those entities unknown on push.
+  bool preNotes = false;
+
+  /// When set, a pull seeds the default "Ide Konten" label and pillars for this
+  /// user id once, like the real server (not after a tombstone / name clash).
+  String? seedNotesFor;
+
+  /// Upload of these file paths returns this URL instead (e.g. an image where
+  /// audio was expected).
+  final uploadAs = <String, String>{};
   final pushed = <PushMutation>[];
 
   /// Every rejected mutation with its error.
@@ -90,6 +103,8 @@ class FakeServer implements SyncApi {
         'archived': false,
       });
     }
+    final ns = seedNotesFor;
+    if (!legacy && !preNotes && ns != null) _seedNotes(ns);
     final changes = {
       for (final e in _entities)
         e: [
@@ -121,8 +136,51 @@ class FakeServer implements SyncApi {
 
   List<String> get _entities => [
     for (final e in SyncEntity.all)
-      if (!legacy || (e != SyncEntity.taskAreas && e != SyncEntity.tasks)) e,
+      if ((!legacy || (e != SyncEntity.taskAreas && e != SyncEntity.tasks)) &&
+          (!(legacy || preNotes) ||
+              (!SyncEntity.notesModule.contains(e) &&
+                  !SyncEntity.contentModule.contains(e))))
+        e,
   ];
+
+  bool _tombed(String e, String id) =>
+      tombstones.any((t) => t.entity == e && t.id == id);
+
+  void _seedNotes(String userId) {
+    final labelId = 'label-ide-konten-$userId';
+    final labels = rows[SyncEntity.noteLabels]!;
+    if (!labels.containsKey(labelId) &&
+        !_tombed(SyncEntity.noteLabels, labelId) &&
+        !labels.values.any(
+          (l) => notes.nameKey(l['name'] as String) == 'ide konten',
+        )) {
+      _write(SyncEntity.noteLabels, labelId, {
+        'name': 'Ide Konten',
+        'color': '#CE82FF',
+        'pinnedTab': true,
+        'sortOrder': 0,
+      });
+    }
+    const pillars = [
+      ('edukasi', 'Edukasi', '#1CB0F6'),
+      ('hiburan', 'Hiburan', '#FF9600'),
+      ('promo', 'Promo', '#FF4B4B'),
+      ('bts', 'Behind the scene', '#CE82FF'),
+      ('personal', 'Personal', '#58CC02'),
+    ];
+    if (rows[SyncEntity.contentPillars]!.isEmpty &&
+        !pillars.any(
+          (p) => _tombed(SyncEntity.contentPillars, 'pillar-${p.$1}-$userId'),
+        )) {
+      for (final (i, p) in pillars.indexed) {
+        _write(SyncEntity.contentPillars, 'pillar-${p.$1}-$userId', {
+          'name': p.$2,
+          'color': p.$3,
+          'sortOrder': i,
+        });
+      }
+    }
+  }
 
   Json _public(String entity, Json r) {
     final out = Map<String, dynamic>.from(r);
@@ -157,7 +215,9 @@ class FakeServer implements SyncApi {
     _checkOnline();
     final err = uploadErrors[filePath];
     if (err != null) throw err;
-    final url = '/uploads/${uploads.length}-${filePath.split('/').last}';
+    final url =
+        uploadAs[filePath] ??
+        '/uploads/${uploads.length}-${filePath.split('/').last}';
     uploads.add(filePath);
     return url;
   }
@@ -203,6 +263,12 @@ class FakeServer implements SyncApi {
   }
 
   static final _photoRe = RegExp(r'^/uploads/[A-Za-z0-9-]+\.[a-z]+$');
+  static final _imageRe = RegExp(
+    r'^/uploads/[A-Za-z0-9-]+\.(jpg|png|webp|gif|heic|heif)$',
+  );
+  static final _audioRe = RegExp(
+    r'^/uploads/[A-Za-z0-9-]+\.(m4a|aac|mp3|ogg|webm)$',
+  );
   static final _codeRe = RegExp(r'^[A-Z0-9]{1,8}$');
 
   /// Server-side defaults (docs/mobile-sync.md → Tasks, transactions.photos).
@@ -217,6 +283,53 @@ class FakeServer implements SyncApi {
     }
     if (e == SyncEntity.taskAreas && out['code'] is String) {
       out['code'] = (out['code'] as String).trim().toUpperCase();
+    }
+    if (e == SyncEntity.notes) {
+      // Soft links resolved leniently; body URLs merged into links.
+      out['labels'] = [
+        for (final l in (out['labels'] as List? ?? const []))
+          if (_owned(SyncEntity.noteLabels, l as String)) l,
+      ];
+      for (final (f, ent) in [
+        ('linkedTaskId', SyncEntity.tasks),
+        ('linkedContentId', SyncEntity.contentItems),
+        ('linkedTransactionId', SyncEntity.transactions),
+      ]) {
+        if (out[f] != null && !_owned(ent, out[f] as String)) out[f] = null;
+      }
+      if (out['links'] is List && out['body'] is String) {
+        final stored = [
+          for (final l in (existing?['links'] as List? ?? const []))
+            ?NoteLink.tryParse(l),
+        ];
+        out['links'] = [
+          for (final l in notes.mergeLinks(
+            [for (final l in out['links'] as List) ?NoteLink.tryParse(l)],
+            out['body'] as String,
+            stored: stored,
+          ))
+            l.toJson(),
+        ];
+      }
+    }
+    if (e == SyncEntity.contentItems) {
+      if (out['noteId'] != null &&
+          !_owned(SyncEntity.notes, out['noteId'] as String)) {
+        out['noteId'] = null;
+      }
+      final sp = out['sponsor'];
+      if (sp is Map &&
+          sp['transactionId'] != null &&
+          !_owned(SyncEntity.transactions, sp['transactionId'] as String)) {
+        out['sponsor'] = {...sp, 'transactionId': null};
+      }
+    }
+    if (e == SyncEntity.contentPosts) {
+      if (out['status'] != 'posted') {
+        out['postedAt'] = null;
+      } else {
+        out['postedAt'] ??= iso(now);
+      }
     }
     if (e == SyncEntity.tasks) {
       if (out['recurrence'] != null && out['seriesId'] == null) {
@@ -309,6 +422,60 @@ class FakeServer implements SyncApi {
         if (d['schedule'] != null && d['schedule'] is! Map) {
           return 'Invalid schedule';
         }
+      case SyncEntity.notes:
+        for (final f in ['checklist', 'labels', 'photos', 'audio', 'links']) {
+          if (d.containsKey(f) && d[f] != null && d[f] is! List) {
+            return '$f harus berupa array';
+          }
+        }
+        final photos = d['photos'] as List? ?? const [];
+        if (photos.length > 10 ||
+            photos.any((p) => p is! String || !_imageRe.hasMatch(p))) {
+          return 'URL foto tidak valid';
+        }
+        final audio = d['audio'] as List? ?? const [];
+        if (audio.length > 5 ||
+            audio.any(
+              (a) =>
+                  a is! Map ||
+                  a['url'] is! String ||
+                  !_audioRe.hasMatch(a['url'] as String) ||
+                  (a['durationSec'] as num) > 610,
+            )) {
+          return 'URL audio tidak valid';
+        }
+        final color = d['color'];
+        if (color != null && noteColorById(color as String) == null) {
+          return 'Warna catatan tidak valid';
+        }
+      case SyncEntity.noteLabels:
+      case SyncEntity.contentPillars:
+        final name = (d['name'] as String? ?? '').trim();
+        if (name.isEmpty || name.length > 30) return 'Nama tidak valid';
+      case SyncEntity.socialAccounts:
+        if (d['platform'] == 'other' && d['platformName'] == null) {
+          return 'Isi nama platform untuk platform Lainnya';
+        }
+      case SyncEntity.contentItems:
+        final title = (d['title'] as String? ?? '').trim();
+        if (title.isEmpty || title.length > 200) return 'Judul wajib diisi';
+        if (d['sponsor'] != null && d['sponsor'] is! Map) {
+          return 'sponsor harus berupa objek';
+        }
+        final photos = d['photos'] as List? ?? const [];
+        if (photos.any((p) => p is! String || !_imageRe.hasMatch(p))) {
+          return 'URL foto tidak valid';
+        }
+      case SyncEntity.contentPosts:
+        if (!_owned(SyncEntity.contentItems, d['contentId'] as String?)) {
+          return 'Konten tidak ditemukan';
+        }
+        if (!_owned(SyncEntity.socialAccounts, d['accountId'] as String?)) {
+          return 'Akun tidak ditemukan';
+        }
+        if (d['status'] == 'scheduled' && d['scheduledAt'] == null) {
+          return 'Posting terjadwal butuh waktu tayang';
+        }
       case SyncEntity.tasks:
         if (!_owned(SyncEntity.taskAreas, d['areaId'] as String?)) {
           return 'Area not found';
@@ -358,11 +525,22 @@ class FakeServer implements SyncApi {
             r['year'] == d['year'],
       ),
       SyncEntity.taskAreas => clash((r) => r['code'] == d['code']),
+      SyncEntity.noteLabels || SyncEntity.contentPillars => clash(
+        (r) =>
+            notes.nameKey(r['name'] as String) ==
+            notes.nameKey(d['name'] as String),
+      ),
       _ => false,
     };
   }
 
   void _write(String e, String id, Json data) {
+    final existing0 = rows[e]![id];
+    if (e == SyncEntity.contentPillars &&
+        existing0 != null &&
+        existing0['name'] != data['name']) {
+      _setPillar(existing0['name'] as String, data['name'] as String?);
+    }
     final t = tick();
     final existing = rows[e]![id];
     final row = <String, dynamic>{
@@ -415,7 +593,37 @@ class FakeServer implements SyncApi {
     if (e == SyncEntity.transactions) {
       _ledger(row, -1);
       _nullRef(SyncEntity.tasks, 'transactionId', id);
+      _detachTransaction(id);
     }
+    if (e == SyncEntity.tasks) _nullRef(SyncEntity.notes, 'linkedTaskId', id);
+    if (e == SyncEntity.notes) _nullRef(SyncEntity.contentItems, 'noteId', id);
+    if (e == SyncEntity.noteLabels) {
+      for (final n in rows[SyncEntity.notes]!.values) {
+        final l = n['labels'] as List? ?? const [];
+        if (l.contains(id)) {
+          n['labels'] = [
+            for (final x in l)
+              if (x != id) x,
+          ];
+          n['updatedAt'] = iso(tick());
+        }
+      }
+    }
+    if (e == SyncEntity.contentItems || e == SyncEntity.socialAccounts) {
+      final field = e == SyncEntity.contentItems ? 'contentId' : 'accountId';
+      final posts = rows[SyncEntity.contentPosts]!.values
+          .where((p) => p[field] == id)
+          .map((p) => p['id'] as String)
+          .toList();
+      for (final p in posts) {
+        rows[SyncEntity.contentPosts]!.remove(p);
+        _tomb(SyncEntity.contentPosts, p);
+      }
+      if (e == SyncEntity.contentItems) {
+        _nullRef(SyncEntity.notes, 'linkedContentId', id);
+      }
+    }
+    if (e == SyncEntity.contentPillars) _setPillar(row['name'] as String, null);
     _tomb(e, id);
     if (e == SyncEntity.taskAreas) {
       final tasks = rows[SyncEntity.tasks]!.values
@@ -457,6 +665,27 @@ class FakeServer implements SyncApi {
     }
   }
 
+  void _detachTransaction(String txId) {
+    _nullRef(SyncEntity.notes, 'linkedTransactionId', txId);
+    for (final i in rows[SyncEntity.contentItems]!.values) {
+      final sp = i['sponsor'];
+      if (sp is Map && sp['transactionId'] == txId) {
+        i['sponsor'] = {...sp, 'transactionId': null};
+        i['updatedAt'] = iso(tick());
+      }
+    }
+  }
+
+  void _setPillar(String name, String? to) {
+    for (final i in rows[SyncEntity.contentItems]!.values) {
+      final p = i['pillar'] as String?;
+      if (p != null && notes.nameKey(p) == notes.nameKey(name)) {
+        i['pillar'] = to;
+        i['updatedAt'] = iso(tick());
+      }
+    }
+  }
+
   // ---------------------------------------------------------------- "web" helpers
 
   /// Writes a row as the web would (full wire row minus id/timestamps).
@@ -466,6 +695,9 @@ class FakeServer implements SyncApi {
 
   /// Web "reset all data".
   void webReset() {
+    for (final t in rows[SyncEntity.transactions]!.keys.toList()) {
+      _detachTransaction(t);
+    }
     for (final e in [
       SyncEntity.wallets,
       SyncEntity.categories,

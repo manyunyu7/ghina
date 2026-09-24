@@ -39,8 +39,8 @@ export function EntryActions({ entry }: { entry: HealthFormData }) {
           <Button variant="outline" onClick={() => setConfirming(false)} disabled={pending}>
             Cancel
           </Button>
-          <Button variant="danger" onClick={runDelete} disabled={pending}>
-            {pending ? "Deleting…" : "Delete"}
+          <Button variant="danger" onClick={runDelete} loading={pending}>
+            {pending ? "Menghapus…" : "Delete"}
           </Button>
         </div>
       </Modal>

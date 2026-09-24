@@ -12,11 +12,13 @@ import 'package:drift_dev/api/migrations_native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghina/data/datasources/local/app_database.dart';
 import 'package:ghina/data/models/mappers.dart';
+import 'package:ghina/data/models/notes_content_mappers.dart';
 import 'package:ghina/domain/entities/entities.dart';
 
 import 'generated_migrations/schema.dart';
 import 'generated_migrations/schema_v1.dart' as v1;
 import 'generated_migrations/schema_v2.dart' as v2;
+import 'generated_migrations/schema_v3.dart' as v3;
 
 void main() {
   late SchemaVerifier verifier;
@@ -51,6 +53,22 @@ void main() {
     final schema = await verifier.schemaAt(3);
     final db = AppDatabase(schema.newConnection());
     await verifier.migrateAndValidate(db, 3);
+    await db.close();
+  });
+
+  for (final from in [1, 2, 3]) {
+    test('upgrade v$from → v4 yields exactly the v4 schema', () async {
+      final schema = await verifier.schemaAt(from);
+      final db = AppDatabase(schema.newConnection());
+      await verifier.migrateAndValidate(db, 4);
+      await db.close();
+    });
+  }
+
+  test('fresh install creates the v4 schema', () async {
+    final schema = await verifier.schemaAt(4);
+    final db = AppDatabase(schema.newConnection());
+    await verifier.migrateAndValidate(db, 4);
     await db.close();
   });
 
@@ -131,7 +149,7 @@ void main() {
     );
 
     final version = await db.customSelect('PRAGMA user_version').getSingle();
-    expect(version.read<int>('user_version'), 3);
+    expect(version.read<int>('user_version'), 4);
     // v3 columns on the migrated rows.
     expect((await db.select(db.transactions).getSingle()).photos, '[]');
     await db.close();
@@ -192,13 +210,13 @@ void main() {
     );
     await old.close();
 
-    // 2. Open with the current app → onUpgrade(2, 3).
+    // 2. Open with the current app → onUpgrade(2, 4).
     final db = AppDatabase(NativeDatabase(file));
     expect(
       (await db.customSelect('PRAGMA user_version').getSingle()).read<int>(
         'user_version',
       ),
-      3,
+      4,
     );
     expect(await db.select(db.wallets).get(), hasLength(2));
     expect((await db.select(db.categories).getSingle()).name, 'Makan');
@@ -295,6 +313,135 @@ void main() {
     final again = AppDatabase(NativeDatabase(file));
     expect(await again.select(again.transactions).get(), hasLength(3));
     expect(await again.select(again.tasks).get(), hasLength(1));
+    await again.close();
+  });
+
+  test('v3 data (the installed app) survives v3 → v4 on a real file, '
+      'and forces one full re-pull', () async {
+    final dir = await Directory.systemTemp.createTemp('ghina_migration_v4');
+    final file = File('${dir.path}/ghina.sqlite');
+    addTearDown(() => dir.delete(recursive: true));
+
+    // 1. A v3 database like the one on the phone: tasks, photos, pending outbox,
+    //    sync meta mid-life (cursor set, tasks seeded, no full pull pending).
+    final old = v3.DatabaseAtV3(NativeDatabase(file));
+    for (final sql in [
+      "INSERT INTO wallets (id, name, type, balance, currency, color, icon, archived, created_at, updated_at) "
+          "VALUES ('w1', 'Tunai', 'cash', 150000, 'IDR', '#22c55e', 'wallet', 0, 1, 1)",
+      "INSERT INTO transactions (id, wallet_id, type, amount, note, date, photos, created_at, updated_at) "
+          "VALUES ('t1', 'w1', 'expense', 25000, 'Nasi', 1000, '[\"/uploads/a.jpg\",\"local:/data/b.jpg\"]', 1000, 1000)",
+      "INSERT INTO task_areas (id, name, code, color, icon, schedule, sort_order, archived, created_at, updated_at) "
+          "VALUES ('area-kerjaan-u1', 'Kerjaan', 'KERJA', '#1CB0F6', 'briefcase', '{\"days\":[1,2,3,4,5],\"start\":\"09:00\",\"end\":\"17:00\"}', 0, 0, 1, 1)",
+      "INSERT INTO tasks (id, area_id, title, bucket, due_date, due_time, remind_before, done, sort_order, created_at, updated_at) "
+          "VALUES ('k1', 'area-kerjaan-u1', 'Kirim revisi', 'fire', '2026-09-25', '14:00', 30, 0, 0, 1, 1)",
+      "INSERT INTO outbox (mutation_id, entity, op, entity_id, data, base, is_create, in_flight, client_updated_at) "
+          "VALUES ('m1', 'tasks', 'upsert', 'k1', '{\"areaId\":\"area-kerjaan-u1\",\"title\":\"Kirim revisi\"}', NULL, 1, 0, 2000)",
+      "INSERT INTO sync_meta (id, cursor, epoch, user_id, last_sync_at, full_pull_required, tasks_seeded) "
+          "VALUES (1, 1790000000000, 'epoch-1', 'u1', 1790000000001, 0, 1)",
+    ]) {
+      await old.customStatement(sql);
+    }
+    expect(
+      (await old.customSelect('PRAGMA user_version').getSingle()).read<int>(
+        'user_version',
+      ),
+      3,
+    );
+    await old.close();
+
+    // 2. Open with the current app → onUpgrade(3, 4).
+    final db = AppDatabase(NativeDatabase(file));
+    expect(
+      (await db.customSelect('PRAGMA user_version').getSingle()).read<int>(
+        'user_version',
+      ),
+      4,
+    );
+    expect((await db.select(db.wallets).getSingle()).balance, 150000);
+    final tx = (await db.select(db.transactions).getSingle()).toEntityOrNull()!;
+    expect(tx.photos, [
+      const TransactionPhoto.remote('/uploads/a.jpg'),
+      const TransactionPhoto.local('/data/b.jpg'),
+    ]);
+    final task = (await db.select(db.tasks).getSingle()).toEntity();
+    expect(task.dueAt, DateTime(2026, 9, 25, 14));
+    expect(
+      (await db.select(db.taskAreas).getSingle()).toEntity().schedule,
+      AreaSchedule.workHours,
+    );
+    final outbox = await db.select(db.outbox).getSingle();
+    expect(outbox.entityId, 'k1');
+    final meta = await db.getMeta();
+    expect(meta.cursor, 1790000000000);
+    expect(meta.epoch, 'epoch-1');
+    expect(meta.userId, 'u1');
+    expect(meta.tasksSeeded, isTrue);
+    expect(meta.notesSeeded, isFalse);
+    expect(meta.contentSeeded, isFalse);
+    // The v3 app pulled past notes/content from the web without storing them:
+    // re-download everything once (pending outbox rows still win).
+    expect(meta.fullPullRequired, isTrue);
+
+    // New tables exist, are empty and writable.
+    for (final t in <TableInfo<Table, dynamic>>[
+      db.notes,
+      db.noteLabels,
+      db.socialAccounts,
+      db.contentItems,
+      db.contentPosts,
+      db.contentPillars,
+    ]) {
+      expect(await db.select(t).get(), isEmpty);
+    }
+    final now = DateTime(2026, 9, 24, 10);
+    await db
+        .into(db.notes)
+        .insert(
+          Note(
+            id: 'n1',
+            title: 'Ide video',
+            body: 'Cek https://x.id',
+            checklist: const [ChecklistItem(id: 'c1', text: 'Rekam')],
+            labelIds: const ['label-ide-konten-u1'],
+            color: 'yellow',
+            audio: const [
+              NoteAudio.local(
+                '/data/rec.m4a',
+                durationSec: 12,
+                transcript: 'halo',
+              ),
+            ],
+            createdAt: now,
+            updatedAt: now,
+          ).toCompanion(),
+        );
+    final n = (await db.select(db.notes).getSingle());
+    expect(n.searchText, contains('halo'));
+    expect(n.toEntity().audio.single.isPending, isTrue);
+    await db
+        .into(db.contentItems)
+        .insert(
+          ContentItem(
+            id: 'i1',
+            title: 'Review',
+            stage: ContentStage.siap,
+            sponsor: const Sponsor(brand: 'Kopi', amount: 0),
+            stageReachedAt: {ContentStage.siap: now},
+            createdAt: now,
+            updatedAt: now,
+          ).toCompanion(),
+        );
+    final item = (await db.select(db.contentItems).getSingle()).toEntity();
+    expect(item.stage, ContentStage.siap);
+    expect(item.sponsor!.amount, 0);
+    expect(item.stageReachedAt[ContentStage.siap], now);
+    await db.close();
+
+    // 3. Re-opening is a no-op and keeps everything.
+    final again = AppDatabase(NativeDatabase(file));
+    expect(await again.select(again.notes).get(), hasLength(1));
+    expect(await again.select(again.tasks).get(), hasLength(1));
+    expect((await again.getMeta()).fullPullRequired, isTrue);
     await again.close();
   });
 }

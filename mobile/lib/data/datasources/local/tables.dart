@@ -246,6 +246,146 @@ class Tasks extends Table with Timestamps {
   Set<Column> get primaryKey => {id};
 }
 
+// --- schema v4: notes (`docs/notes.md`) and content planner (`docs/content.md`) ---
+//
+// JSON fields are stored as JSON text. Photo/audio lists may hold device-only
+// markers for files waiting for upload (`local:<path>` photos, `{"local": path}`
+// clips) — never sent on the wire.
+
+@DataClassName('NoteRow')
+@TableIndex(name: 'idx_note_updated', columns: {#updatedAt})
+class Notes extends Table with Timestamps {
+  TextColumn get id => text()();
+  TextColumn get title => text().nullable()();
+  TextColumn get body => text().withDefault(const Constant(''))();
+
+  /// JSON `[{id, text, done}]`.
+  TextColumn get checklist => text().withDefault(const Constant('[]'))();
+
+  /// JSON array of label ids.
+  TextColumn get labels => text().withDefault(const Constant('[]'))();
+  TextColumn get color => text().nullable()();
+  BoolColumn get pinned => boolean().withDefault(const Constant(false))();
+  BoolColumn get archived => boolean().withDefault(const Constant(false))();
+
+  /// JSON array: `/uploads/…` paths and `local:<path>` markers.
+  TextColumn get photos => text().withDefault(const Constant('[]'))();
+
+  /// JSON `[{url, durationSec, transcript?}]`; pending clips `{local, …}`.
+  TextColumn get audio => text().withDefault(const Constant('[]'))();
+
+  /// JSON `[{url, title?}]`.
+  TextColumn get links => text().withDefault(const Constant('[]'))();
+
+  /// `share | quick | voice`
+  TextColumn get source => text().nullable()();
+  TextColumn get linkedTaskId => text().nullable()();
+  TextColumn get linkedContentId => text().nullable()();
+  TextColumn get linkedTransactionId => text().nullable()();
+
+  /// Device-only: lowercased title + body + checklist + transcripts (search).
+  TextColumn get searchText => text().withDefault(const Constant(''))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+@DataClassName('NoteLabelRow')
+class NoteLabels extends Table with Timestamps {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  TextColumn get color => text().withDefault(const Constant('#58CC02'))();
+  BoolColumn get pinnedTab => boolean().withDefault(const Constant(false))();
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+@DataClassName('SocialAccountRow')
+class SocialAccounts extends Table with Timestamps {
+  TextColumn get id => text()();
+
+  /// `instagram | tiktok | youtube | x | threads | linkedin | facebook | other`
+  TextColumn get platform => text()();
+  TextColumn get platformName => text().nullable()();
+  TextColumn get handle => text()();
+  TextColumn get color => text()();
+  IntColumn get targetPerWeek => integer().nullable()();
+  BoolColumn get archived => boolean().withDefault(const Constant(false))();
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+@DataClassName('ContentItemRow')
+class ContentItems extends Table with Timestamps {
+  TextColumn get id => text()();
+  TextColumn get title => text()();
+
+  /// `ide | naskah | produksi | siap | terjadwal | tayang`
+  TextColumn get stage => text().withDefault(const Constant('ide'))();
+  TextColumn get format => text().nullable()();
+
+  /// Pillar name.
+  TextColumn get pillar => text().nullable()();
+  TextColumn get idea => text().withDefault(const Constant(''))();
+  TextColumn get noteId => text().nullable()();
+  TextColumn get checklist => text().withDefault(const Constant('[]'))();
+  TextColumn get photos => text().withDefault(const Constant('[]'))();
+
+  /// JSON `[{url, label}]`.
+  TextColumn get assetLinks => text().withDefault(const Constant('[]'))();
+
+  /// JSON `{brand, amount, currency, due?, paid, transactionId?}` or null.
+  TextColumn get sponsor => text().nullable()();
+
+  /// Device-only: JSON `{stage: epochMs}` — when this device first saw each
+  /// stage reached (gamification, see `lib/domain/game/README.md`).
+  TextColumn get stageLog => text().withDefault(const Constant('{}'))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+@DataClassName('ContentPostRow')
+@TableIndex(name: 'idx_post_content', columns: {#contentId})
+@TableIndex(name: 'idx_post_account', columns: {#accountId})
+@TableIndex(name: 'idx_post_scheduled', columns: {#scheduledAt})
+class ContentPosts extends Table with Timestamps {
+  TextColumn get id => text()();
+  TextColumn get contentId => text()();
+  TextColumn get accountId => text()();
+  TextColumn get caption => text().withDefault(const Constant(''))();
+  TextColumn get hashtags => text().withDefault(const Constant(''))();
+  IntColumn get scheduledAt => integer().map(epochMs).nullable()();
+  IntColumn get remindBefore => integer().nullable()();
+
+  /// `draft | scheduled | posted | skipped`
+  TextColumn get status => text().withDefault(const Constant('draft'))();
+  IntColumn get postedAt => integer().map(epochMs).nullable()();
+  TextColumn get url => text().nullable()();
+
+  /// JSON `{views, likes, comments, shares, saves, followers}`.
+  TextColumn get metrics => text().withDefault(const Constant('{}'))();
+  IntColumn get metricsAt => integer().map(epochMs).nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+@DataClassName('ContentPillarRow')
+class ContentPillars extends Table with Timestamps {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  TextColumn get color => text().withDefault(const Constant('#58CC02'))();
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 /// Pending local mutations, pushed in [seq] order.
 @DataClassName('OutboxRow')
 @TableIndex(name: 'idx_outbox_entity', columns: {#entity, #entityId})
@@ -300,6 +440,15 @@ class SyncMeta extends Table {
   /// v3: the default task areas were checked/seeded after the first pull from a
   /// server that knows tasks (`docs/tasks.md`), so they're never re-created.
   BoolColumn get tasksSeeded => boolean().withDefault(const Constant(false))();
+
+  /// v4: a pull from a notes-aware server succeeded — the server owns seeding
+  /// the default "Ide Konten" label from then on; the app never seeds it again.
+  BoolColumn get notesSeeded => boolean().withDefault(const Constant(false))();
+
+  /// v4: a pull from a content-aware server succeeded — the server owns seeding
+  /// the default pillars from then on; the app never seeds them again.
+  BoolColumn get contentSeeded =>
+      boolean().withDefault(const Constant(false))();
 
   @override
   Set<Column> get primaryKey => {id};

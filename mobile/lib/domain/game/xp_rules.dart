@@ -48,6 +48,38 @@ abstract final class XpRules {
   static int taskXp(String? bucket) =>
       taskBucketXp[bucket] ?? taskBucketXp['should']!;
 
+  // --- Content planner (`docs/content.md` → Gamification) -------------------
+
+  /// XP per pipeline stage newly reached (server `STAGES[].xp`, `stageXp`):
+  /// naskah 3, produksi 4, siap 5, terjadwal 6, tayang 10.
+  static const contentStageXp = <String, int>{
+    'naskah': 3,
+    'produksi': 4,
+    'siap': 5,
+    'terjadwal': 6,
+    'tayang': 10,
+  };
+
+  /// XP of reaching [stage] (unknown / `ide` → 0).
+  static int contentStage(String? stage) => contentStageXp[stage] ?? 0;
+
+  /// Bonus for a post marked posted on (or before) its scheduled day.
+  static const contentOnSchedule = 5;
+
+  /// An account met its weekly posting target (mirrors `weeklyTargetXp`).
+  static const contentWeeklyTarget = 20;
+
+  /// A sponsor was paid.
+  static const contentSponsorPaid = 15;
+
+  /// Max content milestones (stages reached + posts) per local day that earn
+  /// XP / count toward the daily goal — creating dummy items can't farm XP.
+  static const contentDailyCap = 20;
+
+  /// Max content bonuses (weekly target met + sponsor paid) per local day that
+  /// earn XP — dummy accounts / barter sponsors can't farm XP either.
+  static const contentBonusDailyCap = 3;
+
   // --- Lessons --------------------------------------------------------------
   static const lessonBase = 15;
   static const lessonPerfectBonus = 5;

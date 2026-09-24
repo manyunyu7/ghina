@@ -2,6 +2,8 @@ export const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: "LayoutDashboard" },
   { href: "/transactions", label: "Transactions", icon: "ArrowLeftRight" },
   { href: "/tasks", label: "Tugas", icon: "ListTodo" },
+  { href: "/notes", label: "Catatan", icon: "StickyNote" },
+  { href: "/content", label: "Konten", icon: "Clapperboard" },
   { href: "/wallets", label: "Wallets", icon: "Wallet" },
   { href: "/budgets", label: "Budgets", icon: "Target" },
   { href: "/subscriptions", label: "Subscriptions", icon: "Repeat" },

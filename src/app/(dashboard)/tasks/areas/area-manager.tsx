@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Field, Input, Label } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/misc";
+import { SavingHint } from "@/components/ui/saving-hint";
 import { Modal } from "@/components/ui/modal";
 import { CategoryIcon } from "@/components/icon";
 import { CATEGORY_ICONS, COLOR_PALETTE } from "@/lib/constants";
@@ -23,12 +24,13 @@ import {
 import { WEEKDAYS_LONG, WEEKDAYS_SHORT, errorText } from "../format";
 import { scheduleLabel } from "../schedule";
 import type { AreaDTO } from "../types";
+import { LinkPendingIcon } from "@/components/link-pending";
 
 const AREA_COLORS = [...new Set([...BUCKETS.map((b) => b.color), DEFAULT_AREA_COLOR, "#FF9600", "#FFC800", ...COLOR_PALETTE])];
 
 export function AreaManager({ areas, taskCounts }: { areas: AreaDTO[]; taskCounts: Record<string, number> }) {
   const [list, apply] = React.useOptimistic(areas, (s: AreaDTO[], fn: (s: AreaDTO[]) => AreaDTO[]) => fn(s));
-  const [, startTransition] = React.useTransition();
+  const [saving, startTransition] = React.useTransition();
   const [error, setError] = React.useState<string | null>(null);
   const [editing, setEditing] = React.useState<AreaDTO | "new" | null>(null);
   const [deleting, setDeleting] = React.useState<AreaDTO | null>(null);
@@ -70,15 +72,21 @@ export function AreaManager({ areas, taskCounts }: { areas: AreaDTO[]; taskCount
   return (
     <div>
       <Link href="/tasks" className="mb-3 inline-flex items-center gap-1 text-sm font-medium text-muted hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> Kembali ke Tugas
+        <LinkPendingIcon>
+          <ArrowLeft className="h-4 w-4" />
+        </LinkPendingIcon>{" "}
+        Kembali ke Tugas
       </Link>
       <PageHeader
         title="Area tugas"
         description="Area adalah konteks hidupmu (Kerjaan, Keseharian, Kuliah…). Jadwal area menentukan mode Fokus."
         action={
-          <Button onClick={() => setEditing("new")}>
-            <Plus className="h-4 w-4" /> Area baru
-          </Button>
+          <div className="flex items-center gap-2">
+            <SavingHint pending={saving} />
+            <Button onClick={() => setEditing("new")}>
+              <Plus className="h-4 w-4" /> Area baru
+            </Button>
+          </div>
         }
       />
 
@@ -417,7 +425,7 @@ function AreaForm({ area, onDone }: { area: AreaDTO | null; onDone: () => void }
         <Button type="button" variant="ghost" onClick={onDone} disabled={pending}>
           Batal
         </Button>
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" loading={pending}>
           {pending ? "Menyimpan…" : area ? "Simpan" : "Buat area"}
         </Button>
       </div>

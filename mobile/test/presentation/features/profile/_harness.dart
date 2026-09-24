@@ -211,6 +211,16 @@ class Harness {
     healthRepositoryProvider.overrideWithValue(health),
     foodRepositoryProvider.overrideWithValue(food),
     taskRepositoryProvider.overrideWithValue(tasks),
+    // Notes/content sources (game events, merged reminders) in memory.
+    contentItemRepositoryProvider.overrideWithValue(
+      FakeContentItemRepository(),
+    ),
+    contentPostRepositoryProvider.overrideWithValue(
+      FakeContentPostRepository(),
+    ),
+    socialAccountRepositoryProvider.overrideWithValue(
+      FakeSocialAccountRepository(),
+    ),
     syncServiceProvider.overrideWithValue(sync),
     currentUserProvider.overrideWithValue(harnessUser),
   ];

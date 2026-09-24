@@ -8,6 +8,7 @@
 // Also exercises the web delete / reset helpers directly (via jiti) to confirm they
 // write tombstones and rotate the sync epoch. Also covers tasks/areas and transaction photos.
 import { randomUUID } from "node:crypto";
+import http from "node:http";
 import { existsSync } from "node:fs";
 import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -69,6 +70,7 @@ const del = (entity, entityId, clientUpdatedAt = now()) => ({
   entityId,
   clientUpdatedAt,
 });
+const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const statuses = (r) => r.json?.results?.map((x) => x.status);
 const byId = (rows, id) => rows.find((r) => r.id === id);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -121,7 +123,8 @@ async function main() {
   check("epoch matches user", full.epoch === user.syncEpoch, full.epoch);
   check("starter wallet present", full.changes.wallets.length === 1 && full.changes.wallets[0].name === "Cash");
   check("default categories present", full.changes.categories.length >= 10, full.changes.categories.length);
-  check("all 11 entity keys present", Object.keys(full.changes).length === 11 && "taskAreas" in full.changes && "tasks" in full.changes, Object.keys(full.changes));
+  check("all 17 entity keys present", Object.keys(full.changes).length === 17 &&
+    ["taskAreas", "tasks", "noteLabels", "notes", "socialAccounts", "contentPillars", "contentItems", "contentPosts"].every((k) => Array.isArray(full.changes[k])), Object.keys(full.changes));
   {
     const areas = full.changes.taskAreas;
     const kerja = byId(areas, `area-kerjaan-${user.id}`);
@@ -844,16 +847,31 @@ async function main() {
     await rm(stubDir, { recursive: true, force: true });
   }
 
+  await notesAndContent({ user, token, tokenB, userBId, KERJA, W1, png, upload, exists });
+
   // Leave a wallet + photo transaction + linked task for the reset check below.
   const WR = randomUUID(), TR = randomUUID(), TKR = randomUUID();
   const uR = await upload();
+  const uR2 = await upload(); // shared by the transaction and a note
+  const NR = randomUUID(), IR = randomUUID();
   r = await api("POST", "/api/mobile/sync", {
     token,
-    body: { mutations: [mut("wallets", WR, wallet("Reset me", 0)), mut("transactions", TR, txp([uR], { walletId: WR })), mut("tasks", TKR, { areaId: KERJA, title: "linked", walletId: WR, transactionId: TR, amount: 10 })] },
+    body: {
+      mutations: [
+        mut("wallets", WR, wallet("Reset me", 0)),
+        mut("transactions", TR, txp([uR, uR2], { walletId: WR })),
+        mut("tasks", TKR, { areaId: KERJA, title: "linked", walletId: WR, transactionId: TR, amount: 10 }),
+        mut("notes", NR, { title: "struk", photos: [uR2], linkedTransactionId: TR }),
+        mut("contentItems", IR, { title: "endorse", sponsor: { brand: "B", amount: 10, paid: true, transactionId: TR } }),
+      ],
+    },
   });
   check("reset fixture applied", statuses(r)?.every((x) => x === "applied"), r.json);
   resetCtx.taskId = TKR;
   resetCtx.photo = uR;
+  resetCtx.sharedPhoto = uR2;
+  resetCtx.noteId = NR;
+  resetCtx.itemId = IR;
 
   // ---------- Web helpers (same code the server actions call) ----------
   console.log("web deletes / reset");
@@ -882,6 +900,12 @@ async function main() {
     check("reset keeps tasks + areas, nulls wallet/category/transaction links",
       tr && tr.walletId === null && tr.categoryId === null && tr.transactionId === null && (await prisma.taskArea.count({ where: { userId: user.id } })) >= 2, tr);
     check("reset removed transaction photo files", (await fetch(BASE + resetCtx.photo)).status === 404);
+    const nr = await prisma.note.findUnique({ where: { id: resetCtx.noteId } });
+    const ir = await prisma.contentItem.findUnique({ where: { id: resetCtx.itemId } });
+    check("reset keeps notes + content, nulls note/sponsor transaction links (paid kept)",
+      nr && nr.linkedTransactionId === null && ir && JSON.parse(ir.sponsor).transactionId === null && JSON.parse(ir.sponsor).paid === true &&
+      (await prisma.contentPillar.count({ where: { userId: user.id } })) > 0, { nr, ir });
+    check("reset keeps a transaction photo a note still uses", (await fetch(BASE + resetCtx.sharedPhoto)).status === 200);
   }
   r = await api("POST", "/api/mobile/sync", { token, body: { epoch: user.syncEpoch, mutations: [mut("wallets", randomUUID(), wallet("zombie", 0))] } });
   check("push with old epoch → 409 + new epoch, nothing applied", r.status === 409 && r.json.epoch === after.syncEpoch, r.json);
@@ -890,12 +914,485 @@ async function main() {
   check("pull reports new epoch", r.json.epoch === after.syncEpoch);
 }
 
+// ---------- Notes + content planner (docs/notes.md, docs/content.md) ----------
+async function notesAndContent({ user, token, tokenB, userBId, KERJA, W1, png, upload, exists }) {
+  const push = async (mutations, tk = token) => api("POST", "/api/mobile/sync", { token: tk, body: { mutations } });
+  const pullSince = async (c, tk = token) => (await api("GET", `/api/mobile/sync?since=${c}`, { token: tk })).json;
+  const jitiL = createJiti(import.meta.url, { alias: { "@": join(root, "src") } });
+  const ns = await jitiL.import(join(root, "src/lib/notes-server.ts"));
+  const cs = await jitiL.import(join(root, "src/lib/content-server.ts"));
+  const IDEA = `label-ide-konten-${user.id}`;
+  let r;
+
+  console.log("notes/content: seeding");
+  r = await api("GET", "/api/mobile/sync", { token });
+  const idea = byId(r.json.changes.noteLabels, IDEA);
+  check("full pull seeds `Ide Konten` (deterministic id, pinned tab)", idea?.name === "Ide Konten" && idea.pinnedTab === true && r.json.changes.noteLabels.length === 1, r.json.changes.noteLabels);
+  const pillarIds = ["edukasi", "hiburan", "promo", "bts", "personal"].map((k) => `pillar-${k}-${user.id}`);
+  check("full pull seeds 5 default pillars (deterministic ids, order)",
+    r.json.changes.contentPillars.length === 5 && pillarIds.every((id, i) => byId(r.json.changes.contentPillars, id)?.sortOrder === i) &&
+    byId(r.json.changes.contentPillars, pillarIds[3]).name === "Behind the scene", r.json.changes.contentPillars);
+  check("label/pillar wire shape", idea && eq(Object.keys(idea), ["id", "name", "color", "pinnedTab", "sortOrder", "createdAt", "updatedAt"]), idea);
+  check("seeding is idempotent (helpers + second pull)",
+    (await ns.ensureDefaultNoteLabel(prisma, user.id)) === 0 && (await cs.ensureDefaultContentPillars(prisma, user.id)) === 0 &&
+    (await api("GET", "/api/mobile/sync", { token })).json.changes.contentPillars.length === 5 &&
+    (await prisma.noteLabel.count({ where: { userId: user.id } })) === 1);
+  r = await api("GET", "/api/mobile/sync", { token: tokenB });
+  check("other user gets their own seeded label", byId(r.json.changes.noteLabels, `label-ide-konten-${userBId}`) && r.json.changes.noteLabels.length === 1);
+
+  console.log("notes/content: uploads (audio)");
+  const m4a = Buffer.concat([Buffer.from([0, 0, 0, 0x20]), Buffer.from("ftypM4A "), Buffer.alloc(256)]);
+  const ogg = Buffer.concat([Buffer.from("OggS"), Buffer.alloc(256)]);
+  const up = async (bytes, type, name) => {
+    const f = new FormData();
+    f.append("file", new Blob([bytes], { type }), name);
+    return api("POST", "/api/mobile/upload", { token, form: f });
+  };
+  r = await up(m4a, "application/octet-stream", "rec");
+  check("upload m4a (generic MIME) → .m4a, kind audio", r.status === 200 && /^\/uploads\/[\w-]+\.m4a$/.test(r.json?.url) && r.json.kind === "audio", r.json);
+  const a1 = r.json?.url;
+  r = await up(ogg, "audio/ogg", "v.opus");
+  check("upload ogg/opus → .ogg", r.status === 200 && /\.ogg$/.test(r.json?.url), r.json);
+  const a2 = r.json?.url;
+  r = await up(png, "audio/mp4", "fake.m4a");
+  check("image bytes sent as audio → stored as image (kind image)", r.status === 200 && /\.png$/.test(r.json?.url) && r.json.kind === "image", r.json);
+  await rm(join(root, "public", r.json?.url ?? "/nope"), { force: true });
+  r = await up("<html><script>alert(1)</script></html>", "audio/mp4", "x.m4a");
+  check("HTML disguised as audio → 400", r.status === 400, r.json);
+  r = await up(Buffer.concat([m4a, Buffer.alloc(21 * 1024 * 1024)]), "audio/mp4", "big.m4a");
+  check("audio > 20 MB → 400", r.status === 400 && /20 MB/.test(r.json?.error ?? ""), r.json);
+  r = await up(Buffer.concat([png, Buffer.alloc(6 * 1024 * 1024)]), "image/png", "big.png");
+  check("image > 5 MB still → 400", r.status === 400 && /5 MB/.test(r.json?.error ?? ""), r.json);
+  check("uploaded audio is served", await exists(a1));
+
+  console.log("notes/content: labels + notes sync");
+  const L1 = randomUUID(), N1 = randomUUID();
+  r = await push([
+    mut("noteLabels", L1, { name: "Kerjaan", color: "#1CB0F6", pinnedTab: true, sortOrder: 1 }),
+    mut("noteLabels", randomUUID(), { name: " kerjaan " }),
+    mut("noteLabels", randomUUID(), { name: "IDE konten" }),
+    mut("noteLabels", randomUUID(), { name: "" }),
+  ]);
+  check("labels: created / case-insensitive duplicate ×2 / blank rejected", eq(statuses(r), ["applied", "duplicate", "duplicate", "rejected"]), r.json);
+  const [p1, p2, p3] = [await upload(), await upload(), await upload()];
+  const noteData = (extra = {}) => ({
+    title: "Ide video",
+    body: "Script di https://contoh.invalid/a dan [b](https://contoh.invalid/b).",
+    checklist: [{ id: "c1", text: "Rekam", done: false }],
+    labels: [L1, IDEA, "no-such-label"],
+    color: "yellow",
+    pinned: true,
+    archived: false,
+    photos: [p1, p2],
+    audio: [{ url: a1, durationSec: 12.5, transcript: "halo" }, { url: a2, durationSec: 3 }],
+    links: [],
+    source: "quick",
+    linkedTaskId: null,
+    linkedContentId: null,
+    linkedTransactionId: null,
+    ...extra,
+  });
+  const cursorN = Date.now() - 1000;
+  r = await push([mut("notes", N1, noteData())]);
+  check("note upsert applied", statuses(r)?.[0] === "applied", r.json);
+  let nrow = await prisma.note.findUnique({ where: { id: N1 } });
+  check("unknown label id dropped, JSON columns stored as text", nrow?.labels === JSON.stringify([L1, IDEA]) && nrow.photos === JSON.stringify([p1, p2]), nrow);
+  check("body URLs extracted into links", eq(JSON.parse(nrow.links), [{ url: "https://contoh.invalid/a", title: null }, { url: "https://contoh.invalid/b", title: null }]), nrow.links);
+  let pn = byId((await pullSince(cursorN)).changes.notes, N1);
+  const NOTE_FIELDS = ["id", "title", "body", "checklist", "labels", "color", "pinned", "archived", "photos", "audio", "links", "source", "linkedTaskId", "linkedContentId", "linkedTransactionId", "createdAt", "updatedAt"];
+  check("note wire: exact fields (no userId/editedAt)", pn && eq(Object.keys(pn), NOTE_FIELDS), pn && Object.keys(pn));
+  check("note wire: JSON fields as JSON values", Array.isArray(pn?.checklist) && Array.isArray(pn.labels) && Array.isArray(pn.photos) && eq(pn.audio[1], { url: a2, durationSec: 3, transcript: null }) && Array.isArray(pn.links) && pn.color === "yellow", pn);
+
+  r = await push([
+    mut("notes", randomUUID(), noteData({ checklist: "[]" })),
+    mut("notes", randomUUID(), noteData({ photos: Array.from({ length: 11 }, (_, i) => `/uploads/x${i}.png`) })),
+    mut("notes", randomUUID(), noteData({ photos: [a1] })),
+    mut("notes", randomUUID(), noteData({ color: "#ff0000" })),
+    mut("notes", randomUUID(), noteData({ audio: [{ url: a1, durationSec: 700 }] })),
+    mut("notes", randomUUID(), noteData({ body: "x".repeat(50001) })),
+    mut("notes", randomUUID(), noteData({ labels: "x" })),
+    mut("notes", randomUUID(), noteData({ links: [{ url: "javascript:alert(1)" }] })),
+    mut("notes", randomUUID(), noteData({ photos: ["/uploads/../../.env"] })),
+  ]);
+  ["checklist as string", "11 photos", "audio url as photo", "color outside palette", "clip > 10 min", "body > 50 000", "labels not array", "javascript: link", "path traversal"].forEach((name, i) =>
+    check(`note ${name} → rejected`, statuses(r)?.[i] === "rejected" && r.json.results[i].error, r.json?.results?.[i]));
+  check("rejected notes touched no files", (await exists(p1)) && (await exists(a1)));
+
+  r = await push([mut("notes", N1, noteData({ photos: [p2], audio: [{ url: a1, durationSec: 12.5, transcript: "halo" }] }))]);
+  check("note update dropping a photo + a clip deletes those files only", statuses(r)?.[0] === "applied" && !(await exists(p1)) && !(await exists(a2)) && (await exists(p2)) && (await exists(a1)));
+
+  // Last-write-wins uses editedAt: a server-side title fill (links/updatedAt only) must not
+  // make a device's edit — made before the fill, pushed after — lose.
+  const editAt = new Date().toISOString();
+  await sleep(30);
+  await prisma.note.update({ where: { id: N1 }, data: { links: JSON.stringify([{ url: "https://contoh.invalid/a", title: "Judul A" }, { url: "https://contoh.invalid/b", title: null }]) } });
+  r = await push([mut("notes", N1, noteData({ title: "Ide video v2", photos: [p2], audio: [{ url: a1, durationSec: 12.5 }] }), editAt)]);
+  nrow = await prisma.note.findUnique({ where: { id: N1 } });
+  check("edit older than a title fill (but newer than the last edit) still applies", statuses(r)?.[0] === "applied" && nrow.title === "Ide video v2", r.json);
+  check("fetched link title kept when the client sends none", JSON.parse(nrow.links)[0].title === "Judul A", nrow.links);
+  r = await push([mut("notes", N1, noteData({ title: "stale" }), ago(60_000))]);
+  check("stale note edit → skipped", statuses(r)?.[0] === "skipped", r.json);
+
+  // Background title fetch: the server never reaches a local address from a note link.
+  {
+    let hits = 0;
+    const srv = http.createServer((req, res) => {
+      hits++;
+      res.writeHead(200, { "content-type": "text/html" });
+      res.end("<title>Lokal</title>");
+    });
+    await new Promise((ok) => srv.listen(0, "127.0.0.1", ok));
+    const url = `http://127.0.0.1:${srv.address().port}/page`;
+    const N2 = randomUUID();
+    r = await push([mut("notes", N2, { body: `cek ${url}` })]);
+    await sleep(800);
+    check("sync push of a note linking 127.0.0.1: server never fetched it (SSRF)", statuses(r)?.[0] === "applied" && hits === 0, hits);
+    const n2before = await prisma.note.findUnique({ where: { id: N2 } });
+    await sleep(20);
+    const filled = await ns.refreshNoteLinkTitles(N2, { isAllowedAddress: (ip) => ip === "127.0.0.1" });
+    const n2 = await prisma.note.findUnique({ where: { id: N2 } });
+    check("refreshNoteLinkTitles fills titles, bumps updatedAt, not editedAt",
+      filled === 1 && JSON.parse(n2.links)[0].title === "Lokal" && n2.editedAt.getTime() === n2before.editedAt.getTime() && n2.updatedAt > n2before.updatedAt, n2.links);
+    srv.close();
+  }
+
+  // Ownership
+  r = await push([
+    mut("notes", N1, noteData()),
+    del("notes", N1),
+    mut("notes", randomUUID(), { title: "B", labels: [IDEA, L1], linkedTaskId: KERJA }),
+    mut("noteLabels", L1, { name: "hijack" }),
+  ], tokenB);
+  check("other user: upsert/delete A's note → rejected", statuses(r)?.[0] === "rejected" && statuses(r)?.[1] === "rejected", r.json);
+  const bNote = await prisma.note.findFirst({ where: { userId: userBId, title: "B" } });
+  check("other user's note can't reference A's labels/rows (dropped/nulled)", statuses(r)?.[2] === "applied" && bNote?.labels === "[]" && bNote.linkedTaskId === null, bNote);
+  check("other user: upsert A's label → rejected", statuses(r)?.[3] === "rejected");
+
+  console.log("notes/content: content sync");
+  const ACC1 = randomUUID(), ACC3 = randomUUID(), PIL1 = randomUUID(), ITEM1 = randomUUID(), ITEM2 = randomUUID(), POST1 = randomUUID(), POST2 = randomUUID();
+  const cursorK = Date.now() - 1000;
+  const sched = new Date(Date.now() + 86_400_000).toISOString();
+  const itemData = (extra = {}) => ({
+    title: "Review kopi",
+    stage: "produksi",
+    format: "reel",
+    pillar: "Edukasi",
+    idea: "# Hook\nKopi enak",
+    noteId: N1,
+    checklist: [{ id: "k1", text: "Rekam", done: true }],
+    photos: [p3],
+    assetLinks: [{ url: "https://drive.google.com/x", label: "Draft" }],
+    sponsor: { brand: "Kopi Kita", amount: 1500000, currency: "IDR", due: "2026-10-01", paid: false, transactionId: null },
+    ...extra,
+  });
+  const postData = (extra = {}) => ({ contentId: ITEM1, accountId: ACC1, caption: "Halo", hashtags: "#kopi", scheduledAt: sched, remindBefore: 30, status: "scheduled", postedAt: null, url: null, metrics: {}, metricsAt: null, ...extra });
+  r = await push([
+    mut("socialAccounts", ACC1, { platform: "instagram", handle: "@ghina", targetPerWeek: 3 }),
+    mut("socialAccounts", randomUUID(), { platform: "other", handle: "x" }),
+    mut("socialAccounts", ACC3, { platform: "tiktok", handle: "ghina", color: "#000000", sortOrder: 1 }),
+    mut("contentPillars", PIL1, { name: "Tutorial", color: "#FF9600", sortOrder: 5 }),
+    mut("contentPillars", randomUUID(), { name: "edukasi" }),
+    mut("contentItems", ITEM1, itemData()),
+    mut("contentItems", ITEM2, { title: "Tanpa catatan", noteId: "no-such-note", pillar: "tutorial" }),
+    mut("contentPosts", POST1, postData()),
+    mut("contentPosts", POST2, postData({ accountId: ACC3, status: "posted", postedAt: now(), url: "https://www.tiktok.com/@ghina/video/1", metrics: { views: 1000, likes: 50 }, metricsAt: now() })),
+    mut("contentPosts", randomUUID(), postData({ contentId: "nope" })),
+    mut("contentPosts", randomUUID(), postData({ scheduledAt: null })),
+    mut("contentPosts", randomUUID(), postData({ metrics: '{"views":1}' })),
+    mut("contentItems", randomUUID(), itemData({ sponsor: '{"brand":"x"}' })),
+    mut("contentItems", randomUUID(), itemData({ stage: "done" })),
+  ]);
+  check("content creates", eq(statuses(r), ["applied", "rejected", "applied", "applied", "duplicate", "applied", "applied", "applied", "applied", "rejected", "rejected", "rejected", "rejected", "rejected"]), r.json?.results);
+  let pk = await pullSince(cursorK);
+  const acc = byId(pk.changes.socialAccounts, ACC1);
+  check("account wire: default color, platformName null", acc?.color === "#E1306C" && acc.platformName === null && acc.targetPerWeek === 3 && eq(Object.keys(acc), ["id", "platform", "platformName", "handle", "color", "targetPerWeek", "archived", "sortOrder", "createdAt", "updatedAt"]), acc);
+  const it = byId(pk.changes.contentItems, ITEM1);
+  check("item wire: sponsor/checklist/assetLinks as JSON", it && eq(it.sponsor, { brand: "Kopi Kita", amount: 1500000, currency: "IDR", due: "2026-10-01", paid: false, transactionId: null }) && Array.isArray(it.checklist) && eq(it.assetLinks, [{ url: "https://drive.google.com/x", label: "Draft" }]) && it.noteId === N1, it);
+  check("item with unknown noteId stored with noteId null", byId(pk.changes.contentItems, ITEM2)?.noteId === null);
+  const po = byId(pk.changes.contentPosts, POST2);
+  check("post wire: metrics object, dates ISO", po && eq(po.metrics, { views: 1000, likes: 50 }) && /Z$/.test(po.postedAt) && po.status === "posted", po);
+  check("sync does not auto-advance the stage (client's job)", (await prisma.contentItem.findUnique({ where: { id: ITEM1 } })).stage === "produksi");
+  r = await push([mut("contentPillars", pillarIds[0], { name: "Edukasi & Tips", color: "#1CB0F6", sortOrder: 0 })]);
+  check("pillar rename via sync renames items' pillar", statuses(r)?.[0] === "applied" && (await prisma.contentItem.findUnique({ where: { id: ITEM1 } })).pillar === "Edukasi & Tips");
+  r = await push([
+    mut("contentPosts", randomUUID(), postData()),
+    mut("socialAccounts", ACC1, { platform: "x", handle: "hijack" }),
+    del("contentItems", ITEM1),
+  ], tokenB);
+  check("other user: post on A's item / edit A's account / delete A's item → rejected", eq(statuses(r), ["rejected", "rejected", "rejected"]), r.json);
+
+  console.log("notes/content: cascades");
+  const TKN = randomUUID(), TXN = randomUUID(), N3 = randomUUID();
+  r = await push([
+    mut("tasks", TKN, { areaId: KERJA, title: "dari catatan" }),
+    mut("transactions", TXN, { walletId: W1, toWalletId: null, categoryId: null, type: "income", amount: 1500000, note: "Endorse", date: now() }),
+    mut("notes", N1, noteData({ photos: [p2], audio: [{ url: a1, durationSec: 12.5 }], linkedTaskId: TKN, linkedTransactionId: TXN, linkedContentId: ITEM1 })),
+    mut("contentItems", ITEM1, itemData({ pillar: "Edukasi & Tips", sponsor: { brand: "Kopi Kita", amount: 1500000, paid: true, transactionId: TXN } })),
+    mut("notes", N3, { title: "linked to item", linkedContentId: ITEM1 }),
+  ]);
+  check("links set", statuses(r)?.every((x) => x === "applied") && (await prisma.note.findUnique({ where: { id: N1 } })).linkedTaskId === TKN, r.json);
+  const cursorX = Date.now() - 1000;
+  r = await push([del("tasks", TKN), del("transactions", TXN)]);
+  nrow = await prisma.note.findUnique({ where: { id: N1 } });
+  let irow = await prisma.contentItem.findUnique({ where: { id: ITEM1 } });
+  check("delete task/transaction → note links null", statuses(r)?.every((x) => x === "applied") && nrow.linkedTaskId === null && nrow.linkedTransactionId === null && nrow.linkedContentId === ITEM1, nrow);
+  check("delete transaction → sponsor.transactionId null, paid kept", eq(JSON.parse(irow.sponsor), { brand: "Kopi Kita", amount: 1500000, currency: "IDR", due: null, paid: true, transactionId: null }), irow.sponsor);
+  pk = await pullSince(cursorX);
+  check("nulled note + item re-sent in changes", byId(pk.changes.notes, N1)?.linkedTaskId === null && byId(pk.changes.contentItems, ITEM1)?.sponsor?.transactionId === null);
+  r = await push([mut("contentItems", ITEM1, itemData({ sponsor: { brand: "Kopi Kita", amount: 1, paid: true, transactionId: TXN } }))]);
+  check("stale sponsor.transactionId of a deleted tx → stored as null", statuses(r)?.[0] === "applied" && JSON.parse((await prisma.contentItem.findUnique({ where: { id: ITEM1 } })).sponsor).transactionId === null);
+  const TXE = randomUUID();
+  r = await push([
+    mut("transactions", TXE, { walletId: W1, toWalletId: null, categoryId: null, type: "expense", amount: 5, note: null, date: now() }),
+    mut("contentItems", ITEM1, itemData({ sponsor: { brand: "Kopi Kita", amount: 1, paid: true, transactionId: TXE } })),
+  ]);
+  check("sponsor.transactionId of an expense (not income) → stored as null", eq(statuses(r), ["applied", "applied"]) && JSON.parse((await prisma.contentItem.findUnique({ where: { id: ITEM1 } })).sponsor).transactionId === null, r.json);
+  await push([del("transactions", TXE)]);
+
+  r = await push([del("socialAccounts", ACC3)]);
+  pk = await pullSince(cursorX);
+  check("delete account → its posts tombstoned", statuses(r)?.[0] === "applied" && pk.deleted.some((d) => d.entity === "contentPosts" && d.id === POST2) && pk.deleted.some((d) => d.entity === "socialAccounts" && d.id === ACC3) && (await prisma.contentPost.count({ where: { id: POST2 } })) === 0);
+  r = await push([mut("contentPosts", POST2, postData({ accountId: ACC3 }), ago(60_000))]);
+  check("stale upsert of cascaded post → skipped", statuses(r)?.[0] === "skipped", r.json);
+  r = await push([del("contentPillars", PIL1)]);
+  check("delete pillar → items with it (case-insensitive) get pillar null", statuses(r)?.[0] === "applied" && (await prisma.contentItem.findUnique({ where: { id: ITEM2 } })).pillar === null);
+  r = await push([del("notes", N1)]);
+  irow = await prisma.contentItem.findUnique({ where: { id: ITEM1 } });
+  check("delete note → item.noteId null, note files removed", statuses(r)?.[0] === "applied" && irow.noteId === null && !(await exists(p2)) && !(await exists(a1)), irow.noteId);
+  r = await push([del("contentItems", ITEM1)]);
+  pk = await pullSince(cursorX);
+  check("delete item → posts tombstoned, notes' linkedContentId null, photo removed",
+    statuses(r)?.[0] === "applied" && pk.deleted.some((d) => d.entity === "contentPosts" && d.id === POST1) && (await prisma.note.findUnique({ where: { id: N3 } })).linkedContentId === null &&
+    byId(pk.changes.notes, N3)?.linkedContentId === null && !(await exists(p3)));
+  check("tombstones for note, item, pillar, label-free", pk.deleted.some((d) => d.entity === "notes" && d.id === N1) && pk.deleted.some((d) => d.entity === "contentItems" && d.id === ITEM1) && pk.deleted.some((d) => d.entity === "contentPillars" && d.id === PIL1));
+
+  // Label delete strips it from notes (they re-sync); a deleted default label isn't re-seeded.
+  const N4 = randomUUID();
+  await push([mut("noteLabels", L1, { name: "Kerjaan" }), mut("notes", N4, { title: "berlabel", labels: [L1, IDEA] })]);
+  const cursorL = Date.now() - 1000;
+  r = await push([del("noteLabels", L1), del("noteLabels", IDEA)]);
+  pk = await pullSince(cursorL);
+  check("delete label → stripped from notes, note re-sent", statuses(r)?.every((x) => x === "applied") && eq(byId(pk.changes.notes, N4)?.labels, []) && pk.deleted.some((d) => d.entity === "noteLabels" && d.id === L1), byId(pk.changes.notes, N4));
+  check("deleted `Ide Konten` is not re-seeded", !pk.changes.noteLabels.some((l) => l.id === IDEA) && (await prisma.noteLabel.count({ where: { id: IDEA } })) === 0);
+  r = await push([mut("noteLabels", IDEA, { name: "Ide Konten", color: "#CE82FF", pinnedTab: true, sortOrder: 0 })]);
+  check("re-creating `Ide Konten` with a newer edit works", statuses(r)?.[0] === "applied");
+  r = await push([mut("notes", randomUUID(), { labels: [L1] })]);
+  check("note referencing a deleted label → label dropped", statuses(r)?.[0] === "applied");
+
+  // A file shared by a note and a transaction survives deleting either one alone.
+  const shared = await upload();
+  const NS = randomUUID(), TXS = randomUUID();
+  await push([
+    mut("transactions", TXS, { walletId: W1, toWalletId: null, categoryId: null, type: "expense", amount: 1, note: null, date: now(), photos: [shared] }),
+    mut("notes", NS, { title: "struk", photos: [shared], linkedTransactionId: TXS }),
+  ]);
+  await push([del("transactions", TXS)]);
+  check("tx delete keeps a photo a note still uses", await exists(shared));
+  await push([del("notes", NS)]);
+  check("…deleted once the note goes too", !(await exists(shared)));
+
+  // ---------- Web actions (auth + next/cache stubbed) ----------
+  console.log("notes/content: web actions");
+  const stubDir = await mkdtemp(join(tmpdir(), "ghina-stubs-"));
+  await writeFile(join(stubDir, "auth.mjs"), "export async function requireUser() { return globalThis.__ghinaTestUser; }\n");
+  await writeFile(join(stubDir, "cache.mjs"), "export function revalidatePath() {}\n");
+  globalThis.__ghinaTestUser = await prisma.user.findUnique({ where: { id: user.id } });
+  const jitiW = createJiti(import.meta.url, {
+    alias: { "@/lib/auth-helpers": join(stubDir, "auth.mjs"), "next/cache": join(stubDir, "cache.mjs"), "@": join(root, "src") },
+    moduleCache: false,
+  });
+  const na = await jitiW.import(join(root, "src/app/(dashboard)/notes/actions.ts"));
+  const ca = await jitiW.import(join(root, "src/app/(dashboard)/content/actions.ts"));
+  const onDisk = (u) => existsSync(join(root, "public", u));
+  const wallet = await prisma.wallet.create({ data: { userId: user.id, name: "Notes wallet", balance: 1000 } });
+  const incomeCat = await prisma.category.findFirst({ where: { userId: user.id, type: "income" } });
+
+  let a = await na.createNote({ title: "Belanja", body: "Beli beras Rp 125.000 di https://contoh.invalid/toko", labels: [IDEA, "nope"] });
+  check("createNote", a.ok && typeof a.id === "string", a);
+  const WN = a.id;
+  let wn = await prisma.note.findUnique({ where: { id: WN } });
+  check("createNote: labels filtered, links from body", wn.labels === JSON.stringify([IDEA]) && JSON.parse(wn.links).length === 1, wn);
+  a = await na.updateNote(WN, { pinned: true, color: "green" });
+  wn = await prisma.note.findUnique({ where: { id: WN } });
+  check("updateNote patch keeps other fields", a.ok && wn.pinned && wn.color === "green" && wn.title === "Belanja", wn);
+  check("updateNote invalid color → Indonesian error", !(await na.setNoteColor(WN, "#123456")).ok && (await na.setNoteColor(WN, "#123456")).error === "Warna catatan tidak valid");
+  check("string-id guard: object id → not found", (await na.updateNote({ not: "" }, { pinned: false })).error === "Catatan tidak ditemukan" && (await na.deleteNote({ id: { not: "" } })).ok === false);
+  a = await na.addChecklistItem(WN, "Beras");
+  const it1 = a.itemId;
+  await na.addChecklistItem(WN, "Telur");
+  const it0 = (await na.addChecklistItem(WN, "Minyak", { index: 0 })).itemId;
+  await na.toggleChecklistItem(WN, it1);
+  let cl = JSON.parse((await prisma.note.findUnique({ where: { id: WN } })).checklist);
+  check("checklist add/insert/toggle", eq(cl.map((c) => [c.text, c.done]), [["Minyak", false], ["Beras", true], ["Telur", false]]), cl);
+  await na.updateChecklistItem(WN, it0, { text: "Minyak goreng" });
+  a = await na.reorderChecklist(WN, [cl[2].id, cl[0].id, cl[1].id]);
+  await na.clearCheckedItems(WN);
+  cl = JSON.parse((await prisma.note.findUnique({ where: { id: WN } })).checklist);
+  check("checklist update/reorder/clear checked", a.ok && eq(cl.map((c) => c.text), ["Telur", "Minyak goreng"]), cl);
+  check("reorderChecklist with a wrong id set → error", !(await na.reorderChecklist(WN, [cl[0].id])).ok);
+  await na.removeChecklistItem(WN, cl[0].id);
+  check("removeChecklistItem", JSON.parse((await prisma.note.findUnique({ where: { id: WN } })).checklist).length === 1);
+
+  a = await na.createNoteLabel({ name: "Belanja", color: "#FF9600" });
+  const LB = a.id;
+  check("createNoteLabel (sortOrder after last)", a.ok && (await prisma.noteLabel.findUnique({ where: { id: LB } })).sortOrder === 1, a);
+  check("createNoteLabel duplicate (case-insensitive) → error", (await na.createNoteLabel({ name: "belanja" })).error === "Nama label sudah dipakai");
+  a = await na.updateNoteLabel(LB, { name: "Belanjaan", pinnedTab: true });
+  check("updateNoteLabel rename + pin", a.ok && (await prisma.noteLabel.findUnique({ where: { id: LB } })).name === "Belanjaan");
+  await na.setNoteLabels(WN, [IDEA, LB]);
+  a = await na.reorderNoteLabels([LB, IDEA]);
+  check("reorderNoteLabels", a.ok && (await prisma.noteLabel.findUnique({ where: { id: LB } })).sortOrder === 0);
+  a = await na.deleteNoteLabel(LB);
+  check("deleteNoteLabel strips it from notes", a.ok && (await prisma.note.findUnique({ where: { id: WN } })).labels === JSON.stringify([IDEA]));
+
+  const fd = (o) => {
+    const f = new FormData();
+    for (const [k, v] of Object.entries(o)) for (const x of [v].flat()) f.append(k, x);
+    return f;
+  };
+  const pngFile = (nm) => new File([png], `${nm}.png`, { type: "image/png" });
+  const m4aFile = (nm) => new File([m4a], `${nm}.m4a`, { type: "audio/mp4" });
+  a = await na.uploadNoteMedia(fd({ noteId: WN, photos: [pngFile("a"), pngFile("b")], audio: [m4aFile("v")], audioDuration: ["42.5"], audioTranscript: ["beli beras"] }));
+  check("uploadNoteMedia: photos + audio", a.ok && a.photos.length === 2 && a.audio.length === 1 && a.audio[0].durationSec === 42.5 && a.audio[0].transcript === "beli beras" && onDisk(a.photos[0]) && onDisk(a.audio[0].url), a);
+  const [wp1, wp2] = a.photos;
+  const wa1 = a.audio[0].url;
+  const filesBefore = (await readdir(join(root, "public", "uploads"))).length;
+  a = await na.uploadNoteMedia(fd({ noteId: WN, audio: [pngFile("x")], audioDuration: ["1"] }));
+  check("uploadNoteMedia: image as audio → error, no file left", !a.ok && (await readdir(join(root, "public", "uploads"))).length === filesBefore, a);
+  a = await na.uploadNoteMedia(fd({ noteId: WN, audio: [m4aFile("y")] }));
+  check("uploadNoteMedia: audio without duration → error", !a.ok && /Durasi/.test(a.error), a);
+  a = await na.setAudioTranscript(WN, wa1, "beli beras 5 kg");
+  check("setAudioTranscript", a.ok && JSON.parse((await prisma.note.findUnique({ where: { id: WN } })).audio)[0].transcript === "beli beras 5 kg");
+  a = await na.updateNote(WN, { photos: [wp2, wp1] });
+  check("updateNote reorders photos", a.ok && (await prisma.note.findUnique({ where: { id: WN } })).photos === JSON.stringify([wp2, wp1]));
+  check("updateNote can't adopt a foreign photo", !(await na.updateNote(WN, { photos: [wp1, "/uploads/other.png"] })).ok);
+  a = await na.removeNoteMedia(WN, wp2);
+  check("removeNoteMedia deletes the file", a.ok && !onDisk(wp2) && onDisk(wp1));
+
+  a = await na.getNoteConversion(WN);
+  check("getNoteConversion prefill (amount parsed, photos, title)", a.ok && a.transaction.amount === 125000 && eq(a.transaction.photos, [wp1]) && a.task.title === "Belanja" && a.content.idea.startsWith("Beli beras"), a);
+  a = await na.convertNoteToTask(WN, { areaId: KERJA, bucket: "fire" });
+  const wt = await prisma.task.findUnique({ where: { id: a.taskId } });
+  check("convertNoteToTask: task created + linkedTaskId", a.ok && wt?.title === "Belanja" && wt.bucket === "fire" && (await prisma.note.findUnique({ where: { id: WN } })).linkedTaskId === a.taskId, a);
+  a = await na.convertNoteToContent(WN, { format: "reel" });
+  const wc = await prisma.contentItem.findUnique({ where: { id: a.contentId } });
+  check("convertNoteToContent: item at ide with noteId + photos, note.linkedContentId", a.ok && wc.stage === "ide" && wc.noteId === WN && wc.format === "reel" && wc.photos === JSON.stringify([wp1]) && (await prisma.note.findUnique({ where: { id: WN } })).linkedContentId === wc.id, wc);
+  const WC = wc.id;
+  a = await na.createTransactionFromNote(WN, { type: "expense", amount: 125000, walletId: wallet.id });
+  const wtx = await prisma.transaction.findUnique({ where: { id: a.transactionId } });
+  check("createTransactionFromNote: ledger tx with note photos, balance moved, link set",
+    a.ok && wtx.amount === 125000 && wtx.note === "Belanja" && wtx.photos === JSON.stringify([wp1]) && (await prisma.wallet.findUnique({ where: { id: wallet.id } })).balance === -124000 &&
+    (await prisma.note.findUnique({ where: { id: WN } })).linkedTransactionId === wtx.id, a);
+  check("createTransactionFromNote: income category on expense → error", !(await na.createTransactionFromNote(WN, { type: "expense", amount: 1, walletId: wallet.id, categoryId: incomeCat.id })).ok);
+  check("createTransactionFromNote: foreign photo → error", !(await na.createTransactionFromNote(WN, { type: "expense", amount: 1, walletId: wallet.id, photos: ["/uploads/x.png"] })).ok);
+
+  console.log("notes/content: content web actions");
+  a = await ca.createSocialAccount({ platform: "instagram", handle: "@ghina", targetPerWeek: 2 });
+  const WA = a.id;
+  check("createSocialAccount (platform color)", a.ok && (await prisma.socialAccount.findUnique({ where: { id: WA } })).color === "#E1306C", a);
+  check("createSocialAccount other w/o name → Indonesian error", /nama platform/.test((await ca.createSocialAccount({ platform: "other", handle: "x" })).error ?? ""));
+  a = await ca.updateSocialAccount(WA, { platform: "youtube" });
+  check("updateSocialAccount platform switch resets default color", a.ok && (await prisma.socialAccount.findUnique({ where: { id: WA } })).color === "#FF0000");
+  const WA2 = (await ca.createSocialAccount({ platform: "tiktok", handle: "g" })).id;
+  check("reorderSocialAccounts", (await ca.reorderSocialAccounts([WA2, WA])).ok && (await prisma.socialAccount.findUnique({ where: { id: WA2 } })).sortOrder === 0);
+  a = await ca.createContentPillar({ name: "Review" });
+  check("createContentPillar + duplicate", a.ok && (await ca.createContentPillar({ name: "review" })).error === "Nama pilar sudah dipakai");
+  const WPIL = a.id;
+  a = await ca.createContentItem({ title: "Review HP", pillar: "Review", sponsor: { brand: "HPku", amount: 2000000, due: "2026-10-10" } });
+  const WI = a.id;
+  check("createContentItem with sponsor", a.ok && JSON.parse((await prisma.contentItem.findUnique({ where: { id: WI } })).sponsor).paid === false, a);
+  a = await ca.updateContentPillar(WPIL, { name: "Ulasan" });
+  check("updateContentPillar rename cascades to items", a.ok && (await prisma.contentItem.findUnique({ where: { id: WI } })).pillar === "Ulasan");
+  a = await ca.moveContentStage(WI, "siap");
+  check("moveContentStage", a.ok && (await prisma.contentItem.findUnique({ where: { id: WI } })).stage === "siap");
+  check("moveContentStage bad stage → error", !(await ca.moveContentStage(WI, "done")).ok);
+  const when = new Date(Date.now() + 2 * 86_400_000).toISOString();
+  a = await ca.createContentPost({ contentId: WI, accountId: WA, caption: "Cek!", scheduledAt: when });
+  const WP1 = a.id;
+  check("createContentPost scheduled → item auto-advances to terjadwal", a.ok && a.stage === "terjadwal" && (await prisma.contentItem.findUnique({ where: { id: WI } })).stage === "terjadwal", a);
+  check("createContentPost same account twice → error", (await ca.createContentPost({ contentId: WI, accountId: WA })).error === "Akun ini sudah ada di konten ini");
+  a = await ca.createContentPost({ contentId: WI, accountId: WA2 });
+  const WP2 = a.id;
+  check("second variant (draft)", a.ok && (await prisma.contentPost.findUnique({ where: { id: WP2 } })).status === "draft");
+  a = await ca.markPostPosted(WP1, { url: "https://youtube.com/watch?v=1" });
+  check("markPostPosted: stays terjadwal while another variant is unposted", a.ok && a.stage === null && (await prisma.contentPost.findUnique({ where: { id: WP1 } })).status === "posted");
+  a = await ca.setPostSkipped(WP2, true);
+  check("skipping the last unposted variant → tayang", a.ok && a.stage === "tayang" && (await prisma.contentItem.findUnique({ where: { id: WI } })).stage === "tayang", a);
+  a = await ca.setPostMetrics(WP1, { views: 1234, likes: 56, bogus: 1 });
+  const mrow = await prisma.contentPost.findUnique({ where: { id: WP1 } });
+  check("setPostMetrics", a.ok && mrow.metrics === JSON.stringify({ views: 1234, likes: 56 }) && mrow.metricsAt, mrow);
+  check("setPostMetrics negative → error", !(await ca.setPostMetrics(WP1, { views: -5 })).ok);
+  a = await ca.scheduleContentPost(WP2, when);
+  check("scheduleContentPost keeps a skipped status", a.ok && (await prisma.contentPost.findUnique({ where: { id: WP2 } })).status === "skipped");
+
+  a = await ca.markSponsorPaid(WI, { walletId: wallet.id, categoryId: incomeCat.id });
+  const sp = JSON.parse((await prisma.contentItem.findUnique({ where: { id: WI } })).sponsor);
+  const stx = await prisma.transaction.findUnique({ where: { id: a.transactionId } });
+  check("markSponsorPaid records income via ledger + links it",
+    a.ok && sp.paid && sp.transactionId === stx.id && stx.type === "income" && stx.amount === 2000000 && stx.note === "Endorse HPku" && (await prisma.wallet.findUnique({ where: { id: wallet.id } })).balance === 1876000, { a, sp });
+  a = await ca.markSponsorPaid(WI, { walletId: wallet.id });
+  check("markSponsorPaid twice never records a second income", a.ok && a.transactionId === stx.id && (await prisma.transaction.count({ where: { walletId: wallet.id, type: "income" } })) === 1);
+  check("markSponsorPaid with an expense category → error", !(await ca.markSponsorPaid(WC, { walletId: wallet.id })).ok);
+  a = await ca.markSponsorUnpaid(WI, { deleteTransaction: true });
+  check("markSponsorUnpaid + deleteTransaction reverses the income", a.ok && (await prisma.transaction.count({ where: { id: stx.id } })) === 0 && (await prisma.wallet.findUnique({ where: { id: wallet.id } })).balance === -124000 && JSON.parse((await prisma.contentItem.findUnique({ where: { id: WI } })).sponsor).paid === false);
+  const spAt = async () => JSON.parse((await prisma.contentItem.findUnique({ where: { id: WI } })).sponsor);
+  check("… and the deleted income is unlinked", (await spAt()).transactionId === null);
+  a = await ca.markSponsorPaid(WI, { walletId: wallet.id });
+  const stx2 = a.ok ? a.transactionId : null;
+  check("paid again after the income was deleted → a new income", a.ok && stx2 && stx2 !== stx.id && (await prisma.transaction.count({ where: { walletId: wallet.id, type: "income" } })) === 1, a);
+  a = await ca.markSponsorUnpaid(WI);
+  check("markSponsorUnpaid without deleting keeps the income linked", a.ok && (await spAt()).paid === false && (await spAt()).transactionId === stx2 && (await prisma.transaction.count({ where: { id: stx2 } })) === 1, await spAt());
+  a = await ca.markSponsorPaid(WI, { walletId: wallet.id });
+  check("paid again reuses the linked income (never a second one)", a.ok && a.transactionId === stx2 && (await prisma.transaction.count({ where: { walletId: wallet.id, type: "income" } })) === 1 && (await prisma.wallet.findUnique({ where: { id: wallet.id } })).balance === 1876000, a);
+  a = await ca.updateContentItem(WI, { sponsor: null });
+  check("removing a sponsor whose income is linked → error, sponsor kept", !a.ok && (await spAt())?.transactionId === stx2, a);
+  a = await ca.markSponsorUnpaid(WI, { deleteTransaction: true });
+  a = await ca.updateContentItem(WI, { sponsor: null });
+  check("… after deleting the income the sponsor can be removed", a.ok && (await prisma.contentItem.findUnique({ where: { id: WI } })).sponsor === null, a);
+  a = await ca.updateContentItem(WI, { sponsor: { brand: "HPku", amount: 2000000, due: "2026-10-10" } });
+
+  const today = new Date().toISOString().slice(0, 10);
+  const in10 = new Date(Date.now() + 10 * 86_400_000).toISOString().slice(0, 10);
+  a = await ca.fetchContentCalendar({ from: today, to: in10 });
+  const calDay = a.ok && a.calendar.days.find((d) => d.posts.some((p) => p.id === WP1));
+  check("fetchContentCalendar places the posted post on its day, with title + week slots", a.ok && calDay && calDay.posts.find((p) => p.id === WP1).title === "Review HP" && a.calendar.weeks.length >= 2 && a.calendar.weeks[0].slots.some((s) => s.accountId === WA && s.target === 2), a.ok ? a.calendar.weeks[0] : a);
+  check("fetchContentCalendar rejects a bad range", !(await ca.fetchContentCalendar({ from: in10, to: today })).ok && !(await ca.fetchContentCalendar({ from: "2026-01-01", to: "2026-12-31" })).ok);
+  a = await ca.fetchContentReport({ from: today, to: today });
+  check("fetchContentReport: posted count + best post + sponsor unpaid list", a.ok && a.report.totals.posted === 1 && a.report.bestByViews[0]?.postId === WP1 && a.sponsors.unpaid.some((u) => u.contentId === WI), a.ok ? a.report.totals : a);
+  const inbox = await cs.getIdeaInbox(user.id);
+  check("idea inbox: labelled notes not yet turned into content", !inbox.some((x) => x.id === WN), inbox.map((x) => x.id));
+  const NI = (await na.createNote({ title: "Ide: vlog", labels: [IDEA] })).id;
+  check("idea inbox includes a fresh idea note", (await cs.getIdeaInbox(user.id)).some((x) => x.id === NI));
+
+  a = await ca.deleteContentPost(WP2);
+  check("deleteContentPost (tombstone)", a.ok && (await prisma.syncTombstone.count({ where: { entity: "contentPosts", entityId: WP2 } })) === 1);
+  a = await ca.deleteSocialAccount(WA);
+  check("deleteSocialAccount cascades posts", a.ok && (await prisma.contentPost.count({ where: { id: WP1 } })) === 0 && (await prisma.syncTombstone.count({ where: { entity: "contentPosts", entityId: WP1 } })) === 1);
+  a = await ca.deleteContentPillar(WPIL);
+  check("deleteContentPillar clears items' pillar", a.ok && (await prisma.contentItem.findUnique({ where: { id: WI } })).pillar === null);
+  a = await ca.deleteContentItem(WC);
+  check("deleteContentItem: note.linkedContentId null, shared photo kept (note/tx use it)", a.ok && (await prisma.note.findUnique({ where: { id: WN } })).linkedContentId === null && onDisk(wp1));
+  a = await na.deleteNote(WN);
+  check("deleteNote: tombstone, audio removed, photo kept (transaction uses it)", a.ok && (await prisma.syncTombstone.count({ where: { entity: "notes", entityId: WN } })) === 1 && !onDisk(wa1) && onDisk(wp1));
+  await rm(stubDir, { recursive: true, force: true });
+}
+
 try {
   await main();
 } catch (err) {
   failed++;
   console.error("Test run crashed:", err);
 } finally {
+  // Files still referenced by the throwaway users' rows would be orphaned by the DB cascade.
+  const users = await prisma.user.findMany({ where: { email: { in: createdEmails } }, select: { id: true } });
+  const where = { userId: { in: users.map((u) => u.id) } };
+  const refs = [
+    ...(await prisma.transaction.findMany({ where, select: { photos: true } })).map((x) => x.photos),
+    ...(await prisma.note.findMany({ where, select: { photos: true, audio: true } })).flatMap((x) => [x.photos, x.audio]),
+    ...(await prisma.contentItem.findMany({ where, select: { photos: true } })).map((x) => x.photos),
+    ...(await prisma.foodLog.findMany({ where, select: { photoUrl: true } })).map((x) => JSON.stringify(x.photoUrl)),
+  ].join(" ");
+  for (const u of new Set(refs.match(/\/uploads\/[A-Za-z0-9-]+\.[a-z0-9]+/g) ?? [])) await rm(join(root, "public", u), { force: true });
   // Clean up the throwaway users (DB cascades remove their data and tombstones).
   await prisma.user.deleteMany({ where: { email: { in: createdEmails } } });
   await prisma.$disconnect();

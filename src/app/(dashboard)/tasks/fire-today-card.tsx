@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { addDaysKey, focusAreas } from "@/lib/tasks";
 import { formatDueDate, taskStatus, useLocalClock } from "./format";
 import type { AreaDTO, TaskDTO } from "./types";
+import { LinkPendingIcon } from "@/components/link-pending";
 
 const MAX = 5;
 
@@ -27,7 +28,10 @@ export function FireTodayCard({ areas, tasks }: { areas: AreaDTO[]; tasks: TaskD
       <CardHeader>
         <CardTitle>🔥 Tugas FIRE hari ini</CardTitle>
         <Link href="/tasks" className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">
-          Buka Tugas <ArrowRight className="h-3.5 w-3.5" />
+          Buka Tugas{" "}
+          <LinkPendingIcon className="h-3.5 w-3.5">
+            <ArrowRight className="h-3.5 w-3.5" />
+          </LinkPendingIcon>
         </Link>
       </CardHeader>
       <CardContent>

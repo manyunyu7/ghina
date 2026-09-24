@@ -255,7 +255,8 @@ class Outbox {
   /// Marks up to [limit] queued entries in flight and returns them in push order:
   /// upserts of referenced entities first — wallets, categories, task areas, then
   /// transactions (tasks reference them via `transactionId`) — then everything in
-  /// queue order.
+  /// queue order (deletes included), then notes, content items and content posts
+  /// (each referencing the ones before).
   Future<List<OutboxRow>> takeBatch({int limit = 500}) =>
       _db.transaction(() async {
         final rows =
@@ -269,12 +270,37 @@ class Outbox {
               ..where((o) => o.seq.isIn(rows.map((r) => r.seq))))
             .write(const OutboxCompanion(inFlight: Value(true)));
         int rank(OutboxRow r) {
-          if (r.op != MutationOp.upsert.name) return 4;
+          if (r.op != MutationOp.upsert.name) {
+            return switch (r.entity) {
+              // Unique keys (label name, area code, budget/prayer slot): a
+              // delete must reach the server before a re-created row takes
+              // the same key.
+              SyncEntity.taskAreas => 2,
+              SyncEntity.noteLabels ||
+              SyncEntity.budgets ||
+              SyncEntity.prayers => 4,
+              SyncEntity.contentPillars => 8,
+              // Everything else last: the server's delete cascades (nulling
+              // links, a pillar, a sponsor's transaction) bump the affected
+              // rows' updatedAt, which would make this device's own queued
+              // edits of those rows lose last-write-wins if they went later.
+              // Their local copies already carry the cascade.
+              _ => 10,
+            };
+          }
           return switch (r.entity) {
             SyncEntity.wallets => 0,
             SyncEntity.categories => 1,
             SyncEntity.taskAreas => 2,
             SyncEntity.transactions => 3,
+            // Notes link tasks/transactions/labels; items link notes; posts
+            // need their item and account (hard reference).
+            SyncEntity.notes => 5,
+            SyncEntity.contentItems => 6,
+            SyncEntity.contentPosts => 7,
+            // After the items: a rename renames the pillar on the server's
+            // items (bumping them), and the items already carry the new name.
+            SyncEntity.contentPillars => 9,
             _ => 4,
           };
         }

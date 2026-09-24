@@ -486,11 +486,16 @@ final watchTaskBoardUseCaseProvider = Provider(
     ref.watch(tickSourceProvider),
   ),
 );
+
+/// Task reminders merged with content post reminders (≤ 60 total).
 final watchRemindersUseCaseProvider = Provider(
   (ref) => WatchReminders(
     ref.watch(taskRepositoryProvider),
     ref.watch(taskAreaRepositoryProvider),
     ref.watch(tickSourceProvider),
+    posts: ref.watch(contentPostRepositoryProvider),
+    items: ref.watch(contentItemRepositoryProvider),
+    accounts: ref.watch(socialAccountRepositoryProvider),
   ),
 );
 final watchSyncStatusUseCaseProvider = Provider(
@@ -681,7 +686,8 @@ final watchTaskHomeProvider = StreamProvider.autoDispose<TaskHome>(
   )(),
 );
 
-/// The task reminders to schedule (≤ 60, soonest first); emits only on change.
+/// The reminders to schedule — tasks + content posts (`[IG-TAYANG] …`), ≤ 60,
+/// soonest first; emits only on change.
 /// Feed to `ReminderScheduler.replaceAll`.
 final watchRemindersProvider = StreamProvider.autoDispose<List<Reminder>>(
   (ref) => ref.watch(watchRemindersUseCaseProvider)(

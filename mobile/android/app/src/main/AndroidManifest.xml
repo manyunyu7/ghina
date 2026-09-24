@@ -11,6 +11,9 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Notes: voice clips (record) and dictation (speech_to_text). Runtime permission,
+         requested only when the user taps "Rekam suara" / "Dikte". -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <application
         android:label="Ghina"
         android:name="${applicationName}"
@@ -18,7 +21,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:launchMode="singleTop"
+            android:launchMode="singleTask"
             android:taskAffinity=""
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
@@ -35,6 +38,31 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+            <!-- Notes share target (docs/notes.md → Capture paths): text/URL and
+                 image(s) shared from other apps become a note. Handled in MainActivity.
+                 launchMode singleTask: a share always reaches the ONE running instance
+                 (onNewIntent) instead of spawning a second Flutter engine + database
+                 inside the sender's task. -->
+            <intent-filter android:label="Catatan Ghina">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+            <intent-filter android:label="Catatan Ghina">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+            <intent-filter android:label="Catatan Ghina">
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+            <intent-filter android:label="Catatan Ghina">
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
         <!-- flutter_local_notifications: fires scheduled reminders and re-schedules them
@@ -60,6 +88,11 @@
 
          In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
     <queries>
+        <!-- speech_to_text: see the device's speech recognition service (Android 11+
+             package visibility). -->
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>

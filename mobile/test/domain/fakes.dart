@@ -375,3 +375,144 @@ class FakeTaskRepository implements TaskRepository {
   @override
   Future<void> delete(String id) async => s.remove(id);
 }
+
+// ---------------------------------------------------------------- notes & content
+
+class FakeNoteRepository implements NoteRepository {
+  final s = _Store<Note>((n) => n.id);
+
+  List<Note> _q({bool? archived, String? labelId, String? search}) {
+    final words = (search ?? '').trim().toLowerCase().split(RegExp(r'\s+'))
+      ..removeWhere((w) => w.isEmpty);
+    return s.items.values
+        .where(
+          (n) =>
+              (archived == null || n.archived == archived) &&
+              (labelId == null || n.labelIds.contains(labelId)) &&
+              words.every(
+                [
+                  n.title ?? '',
+                  n.body,
+                  for (final c in n.checklist) c.text,
+                  for (final a in n.audio) a.transcript ?? '',
+                ].join('\n').toLowerCase().contains,
+              ),
+        )
+        .toList()
+      ..sort((a, b) {
+        if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
+        return b.updatedAt.compareTo(a.updatedAt);
+      });
+  }
+
+  @override
+  Stream<List<Note>> watch({bool? archived, String? labelId, String? search}) =>
+      s.watch(() => _q(archived: archived, labelId: labelId, search: search));
+  @override
+  Stream<List<Note>> watchAll() => s.watch(_q);
+  @override
+  Future<List<Note>> getAll() async => _q();
+  @override
+  Stream<Note?> watchById(String id) => s.watch(() => s.items[id]);
+  @override
+  Future<Note?> getById(String id) async => s.items[id];
+  @override
+  Future<void> save(Note note) async => s.put(note);
+  @override
+  Future<void> delete(String id) async => s.remove(id);
+}
+
+class FakeNoteLabelRepository implements NoteLabelRepository {
+  final s = _Store<NoteLabel>((l) => l.id);
+  List<NoteLabel> _all() =>
+      s.items.values.toList()
+        ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+
+  @override
+  Stream<List<NoteLabel>> watchAll() => s.watch(_all);
+  @override
+  Future<List<NoteLabel>> getAll() async => _all();
+  @override
+  Future<NoteLabel?> getById(String id) async => s.items[id];
+  @override
+  Future<void> save(NoteLabel label) async => s.put(label);
+  @override
+  Future<void> delete(String id) async => s.remove(id);
+}
+
+class FakeSocialAccountRepository implements SocialAccountRepository {
+  final s = _Store<SocialAccount>((a) => a.id);
+  List<SocialAccount> _all() =>
+      s.items.values.toList()
+        ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+
+  @override
+  Stream<List<SocialAccount>> watchAll() => s.watch(_all);
+  @override
+  Future<List<SocialAccount>> getAll() async => _all();
+  @override
+  Stream<SocialAccount?> watchById(String id) => s.watch(() => s.items[id]);
+  @override
+  Future<SocialAccount?> getById(String id) async => s.items[id];
+  @override
+  Future<void> save(SocialAccount account) async => s.put(account);
+  @override
+  Future<void> delete(String id) async => s.remove(id);
+}
+
+class FakeContentItemRepository implements ContentItemRepository {
+  final s = _Store<ContentItem>((i) => i.id);
+
+  @override
+  Stream<List<ContentItem>> watchAll() =>
+      s.watch(() => s.items.values.toList());
+  @override
+  Future<List<ContentItem>> getAll() async => s.items.values.toList();
+  @override
+  Stream<ContentItem?> watchById(String id) => s.watch(() => s.items[id]);
+  @override
+  Future<ContentItem?> getById(String id) async => s.items[id];
+  @override
+  Future<void> save(ContentItem item) async => s.put(item);
+  @override
+  Future<void> delete(String id) async => s.remove(id);
+}
+
+class FakeContentPostRepository implements ContentPostRepository {
+  final s = _Store<ContentPost>((p) => p.id);
+
+  @override
+  Stream<List<ContentPost>> watchAll() =>
+      s.watch(() => s.items.values.toList());
+  @override
+  Future<List<ContentPost>> getAll({String? contentId}) async => [
+    for (final p in s.items.values)
+      if (contentId == null || p.contentId == contentId) p,
+  ];
+  @override
+  Stream<ContentPost?> watchById(String id) => s.watch(() => s.items[id]);
+  @override
+  Future<ContentPost?> getById(String id) async => s.items[id];
+  @override
+  Future<void> save(ContentPost post) async => s.put(post);
+  @override
+  Future<void> delete(String id) async => s.remove(id);
+}
+
+class FakeContentPillarRepository implements ContentPillarRepository {
+  final s = _Store<ContentPillar>((p) => p.id);
+  List<ContentPillar> _all() =>
+      s.items.values.toList()
+        ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+
+  @override
+  Stream<List<ContentPillar>> watchAll() => s.watch(_all);
+  @override
+  Future<List<ContentPillar>> getAll() async => _all();
+  @override
+  Future<ContentPillar?> getById(String id) async => s.items[id];
+  @override
+  Future<void> save(ContentPillar pillar) async => s.put(pillar);
+  @override
+  Future<void> delete(String id) async => s.remove(id);
+}

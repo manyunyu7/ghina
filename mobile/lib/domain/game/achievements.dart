@@ -53,6 +53,15 @@ enum AchievementMetric {
 
   /// Days recorded as "FIRE kosong" (local snapshot, see `fire_clear.dart`).
   fireClearDays,
+
+  /// Content posts currently marked posted (`docs/content.md`).
+  contentPosts,
+
+  /// Longest run of consecutive ISO weeks one account met its target.
+  contentBestWeekRun,
+
+  /// Content items with a paid sponsor.
+  contentSponsorsPaid,
 }
 
 class AchievementDef {
@@ -389,6 +398,43 @@ const List<AchievementDef> achievementDefs = [
     target: 100,
   ),
   AchievementDef(
+    id: 'first_content_post',
+    title: 'Tayang Perdana',
+    description: 'Tandai posting kontenmu yang pertama sudah tayang.',
+    icon: 'sparkles',
+    tier: AchievementTier.bronze,
+    metric: AchievementMetric.contentPosts,
+    target: 1,
+  ),
+  AchievementDef(
+    id: 'content_consistency_4',
+    title: 'Kreator Konsisten',
+    description:
+        'Capai target posting mingguan satu akun 4 minggu berturut-turut.',
+    icon: 'calendar',
+    tier: AchievementTier.silver,
+    metric: AchievementMetric.contentBestWeekRun,
+    target: 4,
+  ),
+  AchievementDef(
+    id: 'content_posts_50',
+    title: 'Mesin Konten',
+    description: 'Tayangkan 50 posting.',
+    icon: 'trophy',
+    tier: AchievementTier.gold,
+    metric: AchievementMetric.contentPosts,
+    target: 50,
+  ),
+  AchievementDef(
+    id: 'first_sponsor',
+    title: 'Endorse Pertama',
+    description: 'Terima bayaran sponsor pertamamu.',
+    icon: 'handshake',
+    tier: AchievementTier.silver,
+    metric: AchievementMetric.contentSponsorsPaid,
+    target: 1,
+  ),
+  AchievementDef(
     id: 'goal_7_days',
     title: 'Pemburu Target',
     description: 'Capai target harian di 7 hari berbeda.',
@@ -445,6 +491,8 @@ class AchievementStats {
   }) {
     var transactions = 0, transfers = 0, health = 0, food = 0;
     var tasks = 0, fireTasks = 0;
+    var contentPosts = 0, sponsorsPaid = 0;
+    final targetWeeks = <String, Set<GameDate>>{};
     final seriesCounts = <String, int>{};
     final unseriedIds = <String>[];
     final weightDays = <GameDate>{};
@@ -489,6 +537,23 @@ class AchievementStats {
           }
         case ActivityKind.lesson:
           break;
+        case ActivityKind.content:
+          switch (e.contentType) {
+            case ContentEventType.posted:
+              contentPosts++;
+            case ContentEventType.weeklyTarget:
+              final w = e.contentWeekStart;
+              if (w != null) {
+                targetWeeks
+                    .putIfAbsent(e.contentAccountId ?? '', () => {})
+                    .add(w);
+              }
+            case ContentEventType.sponsorPaid:
+              sponsorsPaid++;
+            case ContentEventType.stage:
+            case null:
+              break;
+          }
       }
     }
     // The first occurrence may predate its seriesId (series id = its own id).
@@ -497,6 +562,11 @@ class AchievementStats {
       if (n != null) seriesCounts[id] = n + 1;
     }
     final bestSeries = seriesCounts.values.fold(0, (a, b) => a > b ? a : b);
+    var bestWeekRun = 0;
+    for (final weeks in targetWeeks.values) {
+      final run = bestWeeklyRun(weeks);
+      if (run > bestWeekRun) bestWeekRun = run;
+    }
 
     // Savings rate: only completed months (the current month is still moving).
     final currentMonth = GameMonth.of(today);
@@ -554,7 +624,23 @@ class AchievementStats {
       AchievementMetric.fireTasksDone: fireTasks,
       AchievementMetric.bestSeriesCompletions: bestSeries,
       AchievementMetric.fireClearDays: fireClearDays,
+      AchievementMetric.contentPosts: contentPosts,
+      AchievementMetric.contentBestWeekRun: bestWeekRun,
+      AchievementMetric.contentSponsorsPaid: sponsorsPaid,
     });
+  }
+
+  /// Longest run of consecutive weeks (Mondays 7 days apart) in [weekStarts].
+  static int bestWeeklyRun(Iterable<GameDate> weekStarts) {
+    final weeks = weekStarts.toSet().toList()..sort();
+    var best = 0, run = 0;
+    GameDate? prev;
+    for (final w in weeks) {
+      run = (prev != null && w.difference(prev) == 7) ? run + 1 : 1;
+      if (run > best) best = run;
+      prev = w;
+    }
+    return best;
   }
 }
 

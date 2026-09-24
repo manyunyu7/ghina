@@ -23,6 +23,7 @@ import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSo
 import { CheckCircle2, ChevronLeft, ChevronRight, ListTodo, Plus, Settings2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState, PageHeader } from "@/components/ui/misc";
+import { SavingHint } from "@/components/ui/saving-hint";
 import { CategoryIcon } from "@/components/icon";
 import {
   BUCKETS,
@@ -49,6 +50,7 @@ import { TaskDialog, type TaskDialogTarget } from "./task-dialog";
 import { CompleteExpenseDialog, MoveDialog, UncompleteDialog } from "./task-dialogs";
 import { scheduleLabel } from "./schedule";
 import type { AreaDTO, BoardData, TaskDTO } from "./types";
+import { LinkPendingIcon } from "@/components/link-pending";
 
 type State = { open: TaskDTO[]; done: TaskDTO[] };
 type Filter = null | "today" | "mepet" | "overdue" | "done";
@@ -147,7 +149,7 @@ export function TaskBoard({ data }: { data: BoardData }) {
   const clock = useLocalClock();
   const base = React.useMemo<State>(() => ({ open: data.tasks, done: data.doneTasks }), [data.tasks, data.doneTasks]);
   const [state, addOptimistic] = React.useOptimistic(base, (s: State, fn: (s: State) => State) => fn(s));
-  const [, startTransition] = React.useTransition();
+  const [saving, startTransition] = React.useTransition();
   const { toasts, push, dismiss } = useToasts();
 
   const [view, setView] = React.useState<string>("focus"); // "focus" | "all" | area id
@@ -450,10 +452,14 @@ export function TaskBoard({ data }: { data: BoardData }) {
         title="Tugas"
         description="🔥 FIRE hari ini/besok · ✨ WANT 1–2 minggu · 📋 SHOULD kapan saja"
         action={
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
+            <SavingHint pending={saving} />
             <Link href="/tasks/areas">
               <Button variant="outline">
-                <Settings2 className="h-4 w-4" /> Kelola area
+                <LinkPendingIcon>
+                  <Settings2 className="h-4 w-4" />
+                </LinkPendingIcon>{" "}
+                Kelola area
               </Button>
             </Link>
             {firstArea && (
@@ -472,7 +478,9 @@ export function TaskBoard({ data }: { data: BoardData }) {
           description="Aktifkan lagi atau buat area baru untuk mulai menambah tugas."
           action={
             <Link href="/tasks/areas">
-              <Button>Kelola area</Button>
+              <Button>
+                <LinkPendingIcon /> Kelola area
+              </Button>
             </Link>
           }
         />

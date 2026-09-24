@@ -10,6 +10,7 @@ import '../../core/streams.dart';
 import '../entities/entities.dart';
 import '../repositories/repositories.dart';
 import 'category_usecases.dart' show categoryIcons;
+import 'content_rules.dart' show computeContentReminders, sortAndCapReminders;
 import 'task_rules.dart';
 import 'transaction_usecases.dart';
 import 'validation.dart';
@@ -852,20 +853,60 @@ final class WatchTaskHome {
   ).distinct();
 }
 
-/// The reminders to schedule (≤ 60, soonest first), recomputed on every task or
-/// area change and every minute; emits only when the list changes. Feed it to
-/// `ReminderScheduler.replaceAll`.
+/// The reminders to schedule (≤ 60 in total, soonest first): task reminders
+/// merged with content post reminders (`[IG-TAYANG] …`, see
+/// `computeContentReminders`) when the content repositories are given.
+/// Recomputed on every change and every minute; emits only when the list
+/// changes. Feed it to `ReminderScheduler.replaceAll`.
 final class WatchReminders {
-  const WatchReminders(this._tasks, this._areas, this._ticks);
+  const WatchReminders(
+    this._tasks,
+    this._areas,
+    this._ticks, {
+    this._posts,
+    this._items,
+    this._accounts,
+  });
   final TaskRepository _tasks;
   final TaskAreaRepository _areas;
   final TickSource _ticks;
+  final ContentPostRepository? _posts;
+  final ContentItemRepository? _items;
+  final SocialAccountRepository? _accounts;
 
-  Stream<List<Reminder>> call({String currency = 'IDR'}) => combineLatest3(
-    _tasks.watchAll(),
-    _areas.watchAll(),
-    _ticks(),
-    (List<Task> t, List<TaskArea> a, DateTime now) =>
-        computeReminders(t, a, now, currency: currency),
-  ).distinct(_listEq);
+  Stream<List<Reminder>> call({String currency = 'IDR'}) {
+    final posts = _posts, items = _items, accounts = _accounts;
+    final content = posts != null && items != null && accounts != null;
+    return combineLatestList(
+      [
+        _tasks.watchAll(),
+        _areas.watchAll(),
+        _ticks(),
+        if (content) ...[
+          posts.watchAll(),
+          items.watchAll(),
+          accounts.watchAll(),
+        ],
+      ],
+      (v) {
+        final now = v[2] as DateTime;
+        final tasks = computeReminders(
+          v[0] as List<Task>,
+          v[1] as List<TaskArea>,
+          now,
+          currency: currency,
+        );
+        if (!content) return tasks;
+        return sortAndCapReminders([
+          ...tasks,
+          ...computeContentReminders(
+            v[3] as List<ContentPost>,
+            v[4] as List<ContentItem>,
+            v[5] as List<SocialAccount>,
+            now,
+          ),
+        ], maxTaskNotifications);
+      },
+    ).distinct(_listEq);
+  }
 }

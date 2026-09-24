@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { writeTombstones } from "@/lib/tombstones";
 import { adjustmentNote } from "@/lib/adjustment";
 import { parsePhotos } from "@/lib/photos";
+import { detachTransactions } from "@/lib/sync-links";
 
 /**
  * The single implementation of how transactions move wallet balances.
@@ -106,7 +107,8 @@ export async function updateLedgerTransaction(db: Db, existing: LedgerTx & { id:
 
 /**
  * Delete a transaction, reverse its balance effect, and tombstone it for sync. Tasks
- * linked to it lose their `transactionId` (docs/tasks.md). Returns the transaction's
+ * linked to it lose their `transactionId` (docs/tasks.md), notes their
+ * `linkedTransactionId`, content sponsors their `transactionId` (docs/notes.md, content.md). Returns the transaction's
  * photo URLs — the caller removes the files after the DB transaction commits
  * (`deleteUnreferencedUploads`).
  */
@@ -115,7 +117,7 @@ export async function deleteLedgerTransaction(
   existing: LedgerTx & { id: string; userId: string },
 ): Promise<string[]> {
   const row = await db.transaction.findUnique({ where: { id: existing.id }, select: { photos: true } });
-  await db.task.updateMany({ where: { userId: existing.userId, transactionId: existing.id }, data: { transactionId: null } });
+  await detachTransactions(db, existing.userId, [existing.id]);
   await db.transaction.delete({ where: { id: existing.id } });
   await applyDeltas(db, ledgerDeltas(existing, null));
   await writeTombstones(db, existing.userId, "transactions", [existing.id]);

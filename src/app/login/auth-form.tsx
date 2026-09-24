@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
-import { AlertCircle } from "lucide-react";
+import { useActionState, type ReactNode } from "react";
+import { useFormStatus } from "react-dom";
+import { AlertCircle, Loader2 } from "lucide-react";
 import { Input, Field } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { authenticate, registerUser, type AuthState } from "./actions";
@@ -47,8 +48,10 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
         />
       </Field>
 
-      <Button type="submit" size="lg" className="w-full" disabled={pending}>
-        {pending ? "Please wait…" : mode === "login" ? "Sign in" : "Create account"}
+      <Button type="submit" size="lg" className="w-full" loading={pending}>
+        {pending
+          ? mode === "login" ? "Masuk…" : "Membuat akun…"
+          : mode === "login" ? "Sign in" : "Create account"}
       </Button>
 
       <p className="text-center text-sm text-muted">
@@ -69,5 +72,21 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
         )}
       </p>
     </form>
+  );
+}
+
+/** "Continue with Google" submit: spinner + disabled while the redirect to Google is pending. */
+export function GoogleSubmitButton({ children }: { children: ReactNode }) {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      aria-busy={pending || undefined}
+      className="flex w-full items-center justify-center gap-3 rounded-lg border border-border bg-surface px-4 py-3 text-sm font-semibold text-foreground shadow-sm transition hover:bg-accent disabled:pointer-events-none disabled:opacity-60"
+    >
+      {pending ? <Loader2 aria-hidden className="h-5 w-5 animate-spin" /> : children}
+      {pending ? "Menghubungkan ke Google…" : "Continue with Google"}
+    </button>
   );
 }

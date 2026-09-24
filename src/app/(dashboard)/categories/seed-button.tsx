@@ -34,9 +34,9 @@ export function SeedButton({
 
   return (
     <div className="flex flex-col items-center gap-2">
-      <Button variant={variant} size={size} onClick={handleSeed} disabled={pending}>
-        <Sparkles className="h-4 w-4" />
-        {pending ? "Adding…" : label}
+      <Button variant={variant} size={size} onClick={handleSeed} loading={pending}>
+        {!pending && <Sparkles className="h-4 w-4" />}
+        {pending ? "Menambahkan…" : label}
       </Button>
       {error && <p className="text-sm text-expense">{error}</p>}
     </div>

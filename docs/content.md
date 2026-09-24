@@ -104,3 +104,64 @@ model ContentPillar { id, userId, name (≤30, unique), color, sortOrder, create
 Entities `socialAccounts`, `contentItems`, `contentPosts`, `contentPillars`; JSON fields as
 JSON values; cascades per the model; photo cleanup like other photo fields; sponsor
 transaction link nulled when that transaction is deleted.
+
+## Clarifications (backend implementation)
+
+Decided while building the backend; the web and mobile follow these.
+
+- **Platforms** (`PLATFORMS` in `src/lib/content.ts`): id, label, short code (IG, TT, YT,
+  X, TH, IN, FB; `other` → first 4 letters of its name or LAIN — used in `[IG-TAYANG] …`),
+  default color, a lucide icon name (lucide has no brand logos), and profile / create /
+  app-deep-link URL templates with `{handle}` (leading `@` dropped, URL-encoded).
+  `platformName` is required for `other` and null otherwise; `targetPerWeek` 1–50 (0 → null).
+- **Pillar** on an item is the pillar **name** (free text ≤ 30, not required to exist).
+  Pillar names are unique per user case-insensitively. Renaming a pillar renames it on
+  the items; deleting it sets their `pillar` to null (case-insensitive match).
+- **Default pillars** are seeded once (ids `pillar-<edukasi|hiburan|promo|bts|personal>-<userId>`,
+  colors `#1CB0F6`, `#FF9600`, `#FF4B4B`, `#CE82FF`, `#58CC02`) — only when the user has
+  no pillars and never deleted a default one.
+- **Stage auto-advance** (`autoStage`): all non-skipped posts posted (≥ 1) → `tayang`;
+  else any post `scheduled` → `terjadwal` if the item is before it; never moves backwards.
+  Applied by whoever changes posts (web actions; mobile locally, then pushes the item) —
+  the sync endpoint doesn't derive it. Mobile also re-applies it after a pull that
+  changed a post's status (two phones posting different accounts offline would
+  otherwise both leave the item at `terjadwal`); a post first seen in a full pull
+  doesn't trigger it, so a stage moved back by hand isn't undone by a re-download. Moving stages by hand is free in both directions.
+- **Posts**: `scheduled` requires `scheduledAt`; `postedAt` only on `posted` (stamped if
+  missing). One post per (item, account) is enforced by the web actions / mobile UI, not
+  the DB. Metrics: `{views, likes, comments, shares, saves, followers}` non-negative
+  integers, each optional; engagement = likes + comments + shares + saves; rate =
+  engagement / views. "Isi performa?" when posted ≥ 3 days ago and no metrics yet.
+- **Weeks** are ISO weeks (Mon–Sun) in the user's local time (server-side default zone
+  `Asia/Jakarta`, overridable per call). Calendar placement: `postedAt` for posted posts,
+  else `scheduledAt`. Week slots per account: `planned` = non-skipped posts placed in the
+  week, `posted` = posted in the week, empty = max(0, target − planned), met = posted ≥ target.
+- **Reports** (`buildContentReport`): posted posts by `postedAt` in the range; expected =
+  round(target × days / 7) (prorated); consistency (weeks met, longest and current streak)
+  on the **full** ISO weeks inside the range — an in-progress week that isn't met yet
+  doesn't break the current streak; best posts by views and by engagement (top 5);
+  averages (views, engagement, rate — over posts with metrics) by pillar, format, local
+  weekday (1–7) and hour (0–23); pillar balance = share of posted posts.
+- **Sponsorship**: `sponsor.amount` ≥ 0 (0 = barter), currency 3 letters (default IDR),
+  `due` YYYY-MM-DD. Marking paid with "record income" creates an `income` transaction via
+  the ledger (chosen wallet, optional income category, note `Endorse <brand>`) and links
+  it; an item never records a second one. Marking it unpaid keeps the transaction and
+  its link (unless the user chooses to delete it too), so marking paid again reuses it;
+  only when the linked transaction is gone does "record income" create a new one.
+  Removing a sponsor whose income is still linked is refused (delete the transaction
+  first) — otherwise re-adding it and paying would record the income twice.
+  `sponsor.transactionId` must be one of the user's **income** transactions; any other
+  id is stored as null (soft link, like a deleted one). Deleting that transaction (any
+  path, incl. reset) sets `sponsor.transactionId = null` and keeps `paid`. Sponsor income per month
+  uses the transaction's date (else due, else the item's creation); per account it is
+  split equally across the item's accounts.
+- **XP** (mobile): per stage newly reached naskah +3, produksi +4, siap +5, terjadwal +6,
+  tayang +10 (`stageXp`); weekly target met +20. A paid sponsor's XP is dated by its
+  linked income transaction's date, else when the device first saw it paid (device-only),
+  else the item's creation — never its `updatedAt`.
+- **Reset all data** keeps accounts, pillars, items and posts (sponsor links nulled).
+
+Server implementation: `src/lib/content.ts` (pure; `scripts/test-content.mjs`),
+`src/lib/content-server.ts` (save/seed/auto-stage/sponsor/calendar/report/idea inbox),
+`src/lib/sync-links.ts` + `src/lib/sync-deletes.ts` (cascades),
+`src/app/(dashboard)/content/actions.ts` (web server actions).

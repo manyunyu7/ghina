@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Modal } from "@/components/ui/modal";
-import { Button } from "@/components/ui/button";
+import { SubmitButton, FormCancelButton } from "@/components/ui/submit-button";
 import { Input, Field } from "@/components/ui/input";
 import { createHealthEntry, updateHealthEntry } from "./actions";
 
@@ -51,17 +51,14 @@ export function HealthForm({
 
 function FormBody({ mode, entry, onClose }: { mode: HealthMode; entry?: HealthFormData; onClose: () => void }) {
   const isEdit = Boolean(entry);
-  const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
   async function handleAction(formData: FormData) {
-    setSubmitting(true);
     setError(null);
     const res = isEdit ? await updateHealthEntry(formData) : await createHealthEntry(formData);
     if (res.ok) onClose();
     else {
       setError(res.error ?? "Something went wrong");
-      setSubmitting(false);
     }
   }
 
@@ -111,12 +108,12 @@ function FormBody({ mode, entry, onClose }: { mode: HealthMode; entry?: HealthFo
       {error && <p className="text-sm text-expense">{error}</p>}
 
       <div className="flex justify-end gap-2 pt-1">
-        <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>
+        <FormCancelButton variant="outline" onClick={onClose}>
           Cancel
-        </Button>
-        <Button type="submit" disabled={submitting}>
-          {submitting ? "Saving…" : isEdit ? "Save changes" : "Save"}
-        </Button>
+        </FormCancelButton>
+        <SubmitButton pendingText="Menyimpan…">
+          {isEdit ? "Save changes" : "Save"}
+        </SubmitButton>
       </div>
     </form>
   );

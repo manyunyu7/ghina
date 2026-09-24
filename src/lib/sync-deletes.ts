@@ -4,6 +4,15 @@ import { deleteLedgerTransaction, type Db } from "@/lib/ledger";
 import { parsePhotos } from "@/lib/photos";
 import { writeTombstones, type SyncEntity } from "@/lib/tombstones";
 import { deleteUnreferencedUploads } from "@/lib/uploads";
+import { parseAudio, parseImageList } from "@/lib/notes";
+import {
+  clearPillar,
+  detachContentItem,
+  detachNote,
+  detachTasks,
+  detachTransactions,
+  stripLabelFromNotes,
+} from "@/lib/sync-links";
 
 /**
  * Every delete of a synced row goes through here (or `deleteLedgerTransaction`),
@@ -31,7 +40,7 @@ export async function deleteWalletCascade(db: Db, userId: string, walletId: stri
     select: { id: true, photos: true },
   });
   const txIds = txs.map((t) => t.id);
-  await db.task.updateMany({ where: { userId, transactionId: { in: txIds } }, data: { transactionId: null } });
+  await detachTransactions(db, userId, txIds);
   await db.transaction.deleteMany({ where: { userId, id: { in: txIds } } });
   await writeTombstones(db, userId, "transactions", txIds);
 
@@ -66,11 +75,69 @@ export async function deleteTaskAreaCascade(db: Db, userId: string, areaId: stri
   if (!(await db.taskArea.findFirst({ where: { id: areaId, userId }, select: { id: true } }))) return;
   const tasks = await db.task.findMany({ where: { userId, areaId }, select: { id: true } });
   const taskIds = tasks.map((t) => t.id);
+  await detachTasks(db, userId, taskIds);
   await db.task.deleteMany({ where: { userId, id: { in: taskIds } } });
   await writeTombstones(db, userId, "tasks", taskIds);
 
   await db.taskArea.delete({ where: { id: areaId } });
   await writeTombstones(db, userId, "taskAreas", [areaId]);
+}
+
+/** Delete a note label; its id is stripped from every note's `labels` (notes re-sync). */
+export async function deleteNoteLabelCascade(db: Db, userId: string, labelId: string) {
+  if (!(await db.noteLabel.findFirst({ where: { id: labelId, userId }, select: { id: true } }))) return;
+  await stripLabelFromNotes(db, userId, labelId);
+  await db.noteLabel.delete({ where: { id: labelId } });
+  await writeTombstones(db, userId, "noteLabels", [labelId]);
+}
+
+/** Delete a note: content items lose `noteId`. Returns its photo + audio URLs (file cleanup). */
+export async function deleteNoteCascade(db: Db, userId: string, noteId: string): Promise<string[]> {
+  const note = await db.note.findFirst({ where: { id: noteId, userId }, select: { photos: true, audio: true } });
+  if (!note) return [];
+  await detachNote(db, userId, noteId);
+  await db.note.delete({ where: { id: noteId } });
+  await writeTombstones(db, userId, "notes", [noteId]);
+  return [...parseImageList(note.photos), ...parseAudio(note.audio).map((a) => a.url)];
+}
+
+/** Delete posts `ids` of the user (tombstoned). */
+async function deletePosts(db: Db, userId: string, where: { contentId?: string; accountId?: string }) {
+  const posts = await db.contentPost.findMany({ where: { userId, ...where }, select: { id: true } });
+  const ids = posts.map((p) => p.id);
+  await db.contentPost.deleteMany({ where: { userId, id: { in: ids } } });
+  await writeTombstones(db, userId, "contentPosts", ids);
+}
+
+/** Delete a social account and all its posts (each tombstoned). */
+export async function deleteSocialAccountCascade(db: Db, userId: string, accountId: string) {
+  if (!(await db.socialAccount.findFirst({ where: { id: accountId, userId }, select: { id: true } }))) return;
+  await deletePosts(db, userId, { accountId });
+  await db.socialAccount.delete({ where: { id: accountId } });
+  await writeTombstones(db, userId, "socialAccounts", [accountId]);
+}
+
+/**
+ * Delete a content item: its posts are deleted (tombstoned), notes lose
+ * `linkedContentId`. Returns its photo URLs (file cleanup).
+ */
+export async function deleteContentItemCascade(db: Db, userId: string, itemId: string): Promise<string[]> {
+  const item = await db.contentItem.findFirst({ where: { id: itemId, userId }, select: { photos: true } });
+  if (!item) return [];
+  await deletePosts(db, userId, { contentId: itemId });
+  await detachContentItem(db, userId, itemId);
+  await db.contentItem.delete({ where: { id: itemId } });
+  await writeTombstones(db, userId, "contentItems", [itemId]);
+  return parseImageList(item.photos);
+}
+
+/** Delete a content pillar: items with that pillar name get `pillar = null`. */
+export async function deleteContentPillarCascade(db: Db, userId: string, pillarId: string) {
+  const pillar = await db.contentPillar.findFirst({ where: { id: pillarId, userId }, select: { name: true } });
+  if (!pillar) return;
+  await clearPillar(db, userId, pillar.name);
+  await db.contentPillar.delete({ where: { id: pillarId } });
+  await writeTombstones(db, userId, "contentPillars", [pillarId]);
 }
 
 /** Whether row `id` of `entity` exists and belongs to `userId`. */
@@ -99,6 +166,18 @@ async function ownsRow(db: Db, userId: string, entity: SyncEntity, id: string): 
       return !!(await db.taskArea.findFirst(q));
     case "tasks":
       return !!(await db.task.findFirst(q));
+    case "noteLabels":
+      return !!(await db.noteLabel.findFirst(q));
+    case "notes":
+      return !!(await db.note.findFirst(q));
+    case "socialAccounts":
+      return !!(await db.socialAccount.findFirst(q));
+    case "contentPillars":
+      return !!(await db.contentPillar.findFirst(q));
+    case "contentItems":
+      return !!(await db.contentItem.findFirst(q));
+    case "contentPosts":
+      return !!(await db.contentPost.findFirst(q));
   }
 }
 
@@ -124,6 +203,22 @@ export async function deleteSyncedRow(db: Db, userId: string, entity: SyncEntity
     case "taskAreas":
       await deleteTaskAreaCascade(db, userId, id);
       return [];
+    case "noteLabels":
+      await deleteNoteLabelCascade(db, userId, id);
+      return [];
+    case "notes":
+      return deleteNoteCascade(db, userId, id);
+    case "socialAccounts":
+      await deleteSocialAccountCascade(db, userId, id);
+      return [];
+    case "contentPillars":
+      await deleteContentPillarCascade(db, userId, id);
+      return [];
+    case "contentItems":
+      return deleteContentItemCascade(db, userId, id);
+    case "contentPosts":
+      await db.contentPost.delete({ where: { id } });
+      break;
     case "budgets":
       await db.budget.delete({ where: { id } });
       break;
@@ -145,6 +240,7 @@ export async function deleteSyncedRow(db: Db, userId: string, entity: SyncEntity
       break;
     }
     case "tasks":
+      await detachTasks(db, userId, [id]);
       await db.task.delete({ where: { id } });
       break;
   }
@@ -163,7 +259,9 @@ export async function deleteSynced(userId: string, entity: SyncEntity, id: strin
  * `syncEpoch`, which makes every mobile client wipe its local copy and re-pull.
  * No tombstones are needed — old ones are dropped too. Subscriptions, planned, tasks
  * and task areas survive with their wallet/category/transaction links nulled
- * (prayers, health and food are untouched). Transaction photo files are removed.
+ * (prayers, health and food are untouched). Notes and the content planner survive too:
+ * notes lose `linkedTransactionId`, sponsors their `transactionId` (paid stays).
+ * Transaction photo files are removed unless a note/content item still uses them.
  */
 export async function resetFinanceData(userId: string) {
   const files = await prisma.$transaction(async (db) => {
@@ -174,6 +272,8 @@ export async function resetFinanceData(userId: string) {
       where: { userId, OR: [{ walletId: { not: null } }, { categoryId: { not: null } }, { transactionId: { not: null } }] },
       data: { walletId: null, categoryId: null, transactionId: null },
     });
+    const txIds = (await db.transaction.findMany({ where: { userId }, select: { id: true } })).map((t) => t.id);
+    await detachTransactions(db, userId, txIds);
     await db.budget.deleteMany({ where: { userId } });
     await db.transaction.deleteMany({ where: { userId } });
     await db.category.deleteMany({ where: { userId } });

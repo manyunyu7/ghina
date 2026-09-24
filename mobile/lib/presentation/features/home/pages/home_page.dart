@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../content/widgets/today_posts_card.dart';
 import '../../../../core/dates.dart';
 import '../../../../core/formatters.dart';
 import '../../../../di/di.dart';
@@ -203,6 +204,7 @@ class _HomePageState extends ConsumerState<HomePage> {
       MonthFlowCard(dash: d, currency: currency),
       GhinaSpace.gapXl,
       const HomeTasksSection(),
+      const TodayPostsCard(padding: EdgeInsets.only(top: 16)),
       if (path != null) ...[GhinaSpace.gapLg, ContinueLearningCard(path: path)],
       GhinaSpace.gapXl,
       const SectionHeader(title: 'Menu'),

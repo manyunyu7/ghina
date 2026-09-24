@@ -19,6 +19,7 @@ import { PRAYER_SELECT, formatLong, toDTO } from "../types";
 import { RangePicker } from "./range-picker";
 import { ColorMap } from "./color-map";
 import { resolveRange } from "./range";
+import { LinkPendingIcon } from "@/components/link-pending";
 
 type SearchParams = { preset?: string; from?: string; to?: string };
 
@@ -51,7 +52,10 @@ export default async function PrayerReportPage({ searchParams }: { searchParams:
         description={`${formatLong(range.from)} – ${formatLong(range.to)}`}
         action={
           <Link href="/prayers" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline">
-            <ArrowLeft className="h-4 w-4" /> Kembali ke pencatatan
+            <LinkPendingIcon>
+              <ArrowLeft className="h-4 w-4" />
+            </LinkPendingIcon>{" "}
+            Kembali ke pencatatan
           </Link>
         }
       />

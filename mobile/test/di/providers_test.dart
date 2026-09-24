@@ -15,6 +15,7 @@ import 'package:ghina/di/game_overrides.dart';
 import 'package:ghina/domain/game/activity.dart';
 import 'package:ghina/domain/game/game_store.dart';
 import 'package:ghina/presentation/state/game/game_providers.dart';
+import 'package:ghina/di/notes_content_providers.dart';
 import 'package:ghina/di/usecase_providers.dart';
 import 'package:ghina/domain/entities/entities.dart';
 import 'package:ghina/domain/repositories/repositories.dart';
@@ -287,5 +288,118 @@ void main() {
         .read(sessionControllerProvider.notifier)
         .signIn('not-an-email', 'x');
     expect(bad.isOk, isFalse);
+  });
+
+  test('notes & content providers are wired end to end', () async {
+    final l = (await c.read(createNoteLabelProvider)(
+      const NoteLabelInput(name: 'Ide Konten', pinnedTab: true),
+    )).valueOrThrow;
+    final n = (await c.read(createNoteProvider)(
+      NoteInput(title: 'Ide', body: 'Rp 25.000 https://x.id', labelIds: [l.id]),
+    )).valueOrThrow;
+    expect(
+      (await next(
+        watchNotesProvider(NoteFilter.all),
+        (v) => v.isNotEmpty,
+      )).single.labels.single.id,
+      l.id,
+    );
+    expect(
+      (await next(watchNoteTabsProvider, (v) => v.isNotEmpty)).single.name,
+      'Ide Konten',
+    );
+    expect(
+      (await next(watchIdeaInboxProvider, (v) => v.isNotEmpty)).single.id,
+      n.id,
+    );
+    expect(
+      (await next(
+        watchNoteProvider(n.id),
+        (v) => v != null,
+      ))!.note.links.single.url,
+      'https://x.id',
+    );
+
+    final a = (await c.read(createSocialAccountProvider)(
+      const SocialAccountInput(
+        platform: SocialPlatform.instagram,
+        handle: '@ghina',
+        targetPerWeek: 2,
+      ),
+    )).valueOrThrow;
+    final conv = (await c.read(convertNoteToContentProvider)(
+      n.id,
+    )).valueOrThrow;
+    final post = (await c.read(createContentPostProvider)(
+      conv.item.id,
+      ContentPostInput(
+        accountId: a.id,
+        scheduledAt: DateTime(2026, 9, 24, 19),
+        remindBefore: 30,
+      ),
+    )).valueOrThrow;
+    final board = await next(
+      watchContentBoardProvider(ContentFilter.all),
+      (b) => b.column(ContentStage.terjadwal).items.isNotEmpty,
+    );
+    expect(board.total, 1);
+    expect((await next(watchIdeaInboxProvider, (v) => v.isEmpty)), isEmpty);
+    final today = await next(watchTodayPostsProvider, (t) => !t.isEmpty);
+    expect(today.posts.single.id, post.id);
+    final reminders = await next(watchRemindersProvider, (r) => r.isNotEmpty);
+    expect(reminders.single.title, '[IG-TAYANG] Ide');
+    final cal = await next(
+      watchContentCalendarProvider(weekRange(DateTime(2026, 9, 24))),
+      (x) => x.days.isNotEmpty,
+    );
+    expect(cal.weeks.single.accounts.single.label, 'IG: 1/2');
+    await c.read(markPostPostedProvider)(post.id);
+    final report = await next(
+      watchContentReportProvider((
+        from: DateTime(2026, 9, 1),
+        to: DateTime(2026, 9, 30),
+      )),
+      (r) => r.totals.posted == 1,
+    );
+    expect(report.accounts.single.posted, 1);
+    expect(
+      (await next(
+        watchContentItemProvider(conv.item.id),
+        (v) => v?.stage == ContentStage.tayang,
+      ))!.note!.id,
+      n.id,
+    );
+    expect(await next(watchContentPillarsProvider, (_) => true), isEmpty);
+    expect(
+      (await c.read(seedDefaultContentPillarsProvider)('u1')).valueOrThrow,
+      5,
+    );
+    expect(
+      (await next(watchContentPillarsProvider, (v) => v.isNotEmpty)),
+      hasLength(5),
+    );
+    expect(await next(watchMetricsDueProvider, (_) => true), isEmpty);
+    expect(
+      (await next(
+        watchSocialAccountsProvider,
+        (v) => v.isNotEmpty,
+      )).single.code,
+      'IG',
+    );
+    expect(
+      (await next(watchAllSocialAccountsProvider, (v) => v.isNotEmpty)),
+      hasLength(1),
+    );
+    expect(
+      await next(
+        watchContentPostProvider(post.id),
+        (v) => v?.post.isPosted ?? false,
+      ),
+      isNotNull,
+    );
+    expect(
+      await next(watchNoteLabelsProvider, (v) => v.isNotEmpty),
+      hasLength(1),
+    );
   });
 }

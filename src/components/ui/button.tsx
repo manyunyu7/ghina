@@ -1,4 +1,5 @@
 import * as React from "react";
+import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Variant = "primary" | "secondary" | "ghost" | "danger" | "outline";
@@ -22,10 +23,12 @@ const sizes: Record<Size, string> = {
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
   size?: Size;
+  /** Shows a spinner and disables the button while an action runs. */
+  loading?: boolean;
 }
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = "primary", size = "md", ...props }, ref) => {
+  ({ className, variant = "primary", size = "md", loading = false, disabled, children, ...props }, ref) => {
     return (
       <button
         ref={ref}
@@ -35,8 +38,14 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           sizes[size],
           className,
         )}
+        disabled={disabled || loading}
+        aria-busy={loading || undefined}
         {...props}
-      />
+      >
+        {loading && <Loader2 aria-hidden className="h-4 w-4 shrink-0 animate-spin" />}
+        {/* Icon-only buttons swap their glyph for the spinner so the size never changes. */}
+        {loading && size === "icon" ? null : children}
+      </button>
     );
   },
 );

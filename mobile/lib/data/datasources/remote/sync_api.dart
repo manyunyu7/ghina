@@ -10,7 +10,10 @@ abstract interface class SyncApi {
   Future<PullResponse> pull(int since);
   Future<PushResponse> push(List<PushMutation> mutations, {String? epoch});
 
-  /// Uploads an image file; returns the server path (`/uploads/…`).
+  /// Uploads an image or audio file (voice notes); returns the server path
+  /// (`/uploads/…`, response `{url, kind}`). The server judges the type by the
+  /// file's bytes — callers check the returned extension (`uploadImageRe`,
+  /// `uploadAudioRe`) before using it.
   Future<String> upload(String filePath);
 }
 
@@ -59,21 +62,26 @@ final class DioSyncApi implements SyncApi {
       'file': await MultipartFile.fromFile(
         filePath,
         filename: name,
-        contentType: DioMediaType('image', _imageSubtype(name)),
+        contentType: _mediaType(name),
       ),
     });
     final r = await _client.dio.post<Json>('/api/mobile/upload', data: form);
     return r.data!['url'] as String;
   });
 
-  static String _imageSubtype(String name) {
+  static DioMediaType _mediaType(String name) {
     final ext = name.contains('.') ? name.split('.').last.toLowerCase() : '';
     return switch (ext) {
-      'png' => 'png',
-      'webp' => 'webp',
-      'gif' => 'gif',
-      'heic' => 'heic',
-      _ => 'jpeg',
+      'png' => DioMediaType('image', 'png'),
+      'webp' => DioMediaType('image', 'webp'),
+      'gif' => DioMediaType('image', 'gif'),
+      'heic' || 'heif' => DioMediaType('image', 'heic'),
+      'm4a' || 'mp4' => DioMediaType('audio', 'mp4'),
+      'aac' => DioMediaType('audio', 'aac'),
+      'mp3' => DioMediaType('audio', 'mpeg'),
+      'ogg' || 'opus' => DioMediaType('audio', 'ogg'),
+      'webm' => DioMediaType('audio', 'webm'),
+      _ => DioMediaType('image', 'jpeg'),
     };
   }
 }

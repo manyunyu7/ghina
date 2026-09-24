@@ -38,6 +38,16 @@ void main() {
     await drain(tester);
   });
 
+  testWidgets('menu links to Konten', (tester) async {
+    final h = Harness();
+    await pumpScreen(tester, h, location: '/profile', routes: _routes);
+    await scrollTo(tester, find.text('Konten'));
+    await tester.tap(find.text('Konten'));
+    await settle(tester, 5);
+    expect(find.text('route:/content'), findsOneWidget);
+    await drain(tester);
+  });
+
   testWidgets('daily goal can be changed', (tester) async {
     final h = Harness();
     await pumpScreen(tester, h, location: '/profile', routes: _routes);

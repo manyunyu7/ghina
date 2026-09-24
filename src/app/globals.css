@@ -72,3 +72,27 @@
 .animate-fade-in {
   animation: fade-in 0.25s ease-out both;
 }
+
+/* Top-of-viewport progress bar shown while a page is loading (nav-pending, loading.tsx). */
+@keyframes nav-progress {
+  0% { transform: translateX(-100%); }
+  60% { transform: translateX(10%); }
+  100% { transform: translateX(100%); }
+}
+
+.nav-progress {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 100;
+  height: 3px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.nav-progress::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--color-primary);
+  animation: nav-progress 1.1s ease-in-out infinite;
+}

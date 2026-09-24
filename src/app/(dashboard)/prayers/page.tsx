@@ -20,6 +20,7 @@ import { todayKey } from "./constants";
 import { PrayerDayEditor } from "./prayer-day-editor";
 import { PrayerCalendar } from "./prayer-calendar";
 import { PRAYER_SELECT, byDate, formatLong, toDTO } from "./types";
+import { LinkPending, LinkPendingIcon } from "@/components/link-pending";
 
 type SearchParams = { month?: string; year?: string; date?: string };
 
@@ -81,7 +82,10 @@ export default async function PrayersPage({ searchParams }: { searchParams: Prom
         action={
           <Link href="/prayers/report">
             <Button variant="outline">
-              <BarChart3 className="h-4 w-4" /> Laporan
+              <LinkPendingIcon>
+                <BarChart3 className="h-4 w-4" />
+              </LinkPendingIcon>{" "}
+              Laporan
             </Button>
           </Link>
         }
@@ -102,11 +106,14 @@ export default async function PrayersPage({ searchParams }: { searchParams: Prom
                 aria-label="Hari sebelumnya"
                 scroll={false}
               >
-                <ChevronLeft className="h-5 w-5" />
+                <LinkPendingIcon className="h-5 w-5">
+                  <ChevronLeft className="h-5 w-5" />
+                </LinkPendingIcon>
               </Link>
               {!isToday && (
                 <Link href="/prayers" scroll={false} className="rounded-lg px-2 py-1 text-sm font-medium text-primary hover:bg-primary-soft">
                   Hari ini
+                  <LinkPending spinner={false} />
                 </Link>
               )}
               <Link
@@ -116,7 +123,9 @@ export default async function PrayersPage({ searchParams }: { searchParams: Prom
                 aria-disabled={isToday}
                 scroll={false}
               >
-                <ChevronRight className="h-5 w-5" />
+                <LinkPendingIcon className="h-5 w-5">
+                  <ChevronRight className="h-5 w-5" />
+                </LinkPendingIcon>
               </Link>
               <span className="ml-2 rounded-full bg-primary-soft px-3 py-1 text-sm font-semibold text-primary tabular-nums">
                 {dayRecorded}/{FARDHU.length}

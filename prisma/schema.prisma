@@ -23,20 +23,26 @@ model User {
   // Rotated by "reset all data" — tells mobile clients to wipe and do a full pull.
   syncEpoch     String    @default(cuid())
 
-  accounts      Account[]
-  sessions      Session[]
-  wallets       Wallet[]
-  categories    Category[]
-  transactions  Transaction[]
-  budgets       Budget[]
-  subscriptions Subscription[]
-  planned       PlannedTransaction[]
-  prayers       PrayerEntry[]
-  health        HealthEntry[]
-  foodLogs      FoodLog[]
-  tombstones    SyncTombstone[]
-  taskAreas     TaskArea[]
-  tasks         Task[]
+  accounts       Account[]
+  sessions       Session[]
+  wallets        Wallet[]
+  categories     Category[]
+  transactions   Transaction[]
+  budgets        Budget[]
+  subscriptions  Subscription[]
+  planned        PlannedTransaction[]
+  prayers        PrayerEntry[]
+  health         HealthEntry[]
+  foodLogs       FoodLog[]
+  tombstones     SyncTombstone[]
+  taskAreas      TaskArea[]
+  tasks          Task[]
+  notes          Note[]
+  noteLabels     NoteLabel[]
+  socialAccounts SocialAccount[]
+  contentItems   ContentItem[]
+  contentPosts   ContentPost[]
+  contentPillars ContentPillar[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -144,6 +150,7 @@ model Transaction {
   toWallet Wallet?   @relation("WalletTransfersIn", fields: [toWalletId], references: [id], onDelete: SetNull)
   category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   tasks    Task[]
+  notes    Note[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -338,6 +345,7 @@ model Task {
   wallet      Wallet?      @relation(fields: [walletId], references: [id], onDelete: SetNull)
   category    Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   transaction Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  notes       Note[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -345,6 +353,154 @@ model Task {
   @@index([userId, done])
   @@index([userId, dueDate])
   @@index([areaId])
+}
+
+// ---------- Notes (docs/notes.md) ----------
+
+// A Keep-like note. JSON columns are validated by src/lib/notes.ts and travel as JSON
+// values on the sync wire.
+model Note {
+  id                  String   @id @default(cuid())
+  userId              String
+  title               String? // ≤ 200
+  body                String   @default("") // Markdown subset, ≤ 50 000 chars
+  checklist           String   @default("[]") // JSON [{id, text, done}] (≤ 200)
+  labels              String   @default("[]") // JSON array of NoteLabel ids
+  color               String? // palette id (NOTE_COLORS), null = default
+  pinned              Boolean  @default(false)
+  archived            Boolean  @default(false)
+  photos              String   @default("[]") // JSON array of /uploads image URLs (≤ 10)
+  audio               String   @default("[]") // JSON [{url, durationSec, transcript}] (≤ 5)
+  links               String   @default("[]") // JSON [{url, title}] (≤ 20)
+  source              String? // share | quick | voice | null
+  linkedTaskId        String?
+  linkedContentId     String?
+  linkedTransactionId String?
+  // Last user edit (web or sync). Server-only, not on the wire: the last-write-wins time,
+  // because `updatedAt` also moves when the server fills link titles or strips a label.
+  editedAt            DateTime @default(now())
+
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  linkedTask        Task?         @relation(fields: [linkedTaskId], references: [id], onDelete: SetNull)
+  linkedContent     ContentItem?  @relation("NoteLinkedContent", fields: [linkedContentId], references: [id], onDelete: SetNull)
+  linkedTransaction Transaction?  @relation(fields: [linkedTransactionId], references: [id], onDelete: SetNull)
+  contentItems      ContentItem[] @relation("ContentSourceNote")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, updatedAt])
+  @@index([linkedTaskId])
+  @@index([linkedContentId])
+  @@index([linkedTransactionId])
+}
+
+model NoteLabel {
+  id        String  @id @default(cuid())
+  userId    String
+  name      String // 1–30, unique per user (case-insensitive, checked in code)
+  color     String  @default("#58CC02")
+  pinnedTab Boolean @default(false) // shown as a tab
+  sortOrder Int     @default(0)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, name])
+}
+
+// ---------- Content planner (docs/content.md) ----------
+
+model SocialAccount {
+  id            String  @id @default(cuid())
+  userId        String
+  platform      String // instagram | tiktok | youtube | x | threads | linkedin | facebook | other
+  platformName  String? // display name when platform = other
+  handle        String // ≤ 60
+  color         String
+  targetPerWeek Int? // posting goal per ISO week, null = none
+  archived      Boolean @default(false)
+  sortOrder     Int     @default(0)
+
+  user  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  posts ContentPost[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model ContentItem {
+  id         String  @id @default(cuid())
+  userId     String
+  title      String // ≤ 200
+  stage      String  @default("ide") // ide | naskah | produksi | siap | terjadwal | tayang
+  format     String? // post | carousel | reel | story | video | short | thread | live | other
+  pillar     String? // ContentPillar name
+  idea       String  @default("") // markdown, ≤ 50 000
+  noteId     String? // source note
+  checklist  String  @default("[]") // JSON [{id, text, done}]
+  photos     String  @default("[]") // JSON /uploads image URLs (≤ 10)
+  assetLinks String  @default("[]") // JSON [{url, label}] (≤ 20)
+  sponsor    String? // JSON {brand, amount, currency, due, paid, transactionId} or null
+
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  note        Note?         @relation("ContentSourceNote", fields: [noteId], references: [id], onDelete: SetNull)
+  posts       ContentPost[]
+  linkedNotes Note[]        @relation("NoteLinkedContent")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, updatedAt])
+  @@index([noteId])
+}
+
+// One per target account (the "variant") of a content item.
+model ContentPost {
+  id           String    @id @default(cuid())
+  userId       String
+  contentId    String
+  accountId    String
+  caption      String    @default("") // ≤ 5000
+  hashtags     String    @default("") // ≤ 1000
+  scheduledAt  DateTime?
+  remindBefore Int? // minutes; null = no reminder
+  status       String    @default("draft") // draft | scheduled | posted | skipped
+  postedAt     DateTime?
+  url          String?
+  metrics      String    @default("{}") // JSON {views, likes, comments, shares, saves, followers}
+  metricsAt    DateTime?
+
+  user    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content ContentItem   @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  account SocialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, updatedAt])
+  @@index([userId, scheduledAt])
+  @@index([contentId])
+  @@index([accountId])
+}
+
+model ContentPillar {
+  id        String @id @default(cuid())
+  userId    String
+  name      String // 1–30, unique per user (case-insensitive, checked in code)
+  color     String @default("#58CC02")
+  sortOrder Int    @default(0)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, name])
 }
 
 // ---------- Mobile sync ----------

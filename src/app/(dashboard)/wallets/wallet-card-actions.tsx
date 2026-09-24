@@ -98,8 +98,8 @@ export function WalletCardActions({
             <Button variant="ghost" onClick={() => setConfirming(false)} disabled={pending}>
               Cancel
             </Button>
-            <Button variant="danger" onClick={handleDelete} disabled={pending}>
-              {pending ? "Deleting…" : "Delete wallet"}
+            <Button variant="danger" onClick={handleDelete} loading={pending}>
+              {pending ? "Menghapus…" : "Delete wallet"}
             </Button>
           </div>
         </div>

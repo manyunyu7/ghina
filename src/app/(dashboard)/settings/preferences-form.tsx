@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Check } from "lucide-react";
 import { CURRENCIES } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { Input, Select, Field } from "@/components/ui/input";
 import { updateProfile, type SettingsActionResult } from "./actions";
 
@@ -14,15 +14,15 @@ export function PreferencesForm({
   defaultName: string;
   defaultCurrency: string;
 }) {
-  const [pending, setPending] = React.useState(false);
   const [result, setResult] = React.useState<SettingsActionResult | null>(null);
 
   async function onSubmit(formData: FormData) {
-    setPending(true);
     setResult(null);
-    const res = await updateProfile(formData);
-    setResult(res);
-    setPending(false);
+    try {
+      setResult(await updateProfile(formData));
+    } catch {
+      setResult({ ok: false, error: "Something went wrong" });
+    }
   }
 
   return (
@@ -50,9 +50,9 @@ export function PreferencesForm({
       </Field>
 
       <div className="flex items-center gap-3">
-        <Button type="submit" disabled={pending}>
-          {pending ? "Saving…" : "Save changes"}
-        </Button>
+        <SubmitButton pendingText="Menyimpan…">
+          {"Save changes"}
+        </SubmitButton>
         {result?.ok && (
           <span className="inline-flex items-center gap-1 text-sm text-income">
             <Check className="h-4 w-4" /> Saved

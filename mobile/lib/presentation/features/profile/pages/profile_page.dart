@@ -550,6 +550,20 @@ class _Menu extends StatelessWidget {
       '/learn',
     ),
     (
+      Icons.sticky_note_2_rounded,
+      Color(0xFFFF9600),
+      'Catatan',
+      'Ide, daftar, & rekaman suara',
+      '/notes',
+    ),
+    (
+      Icons.campaign_rounded,
+      Color(0xFFCE82FF),
+      'Konten',
+      'Rencana & jadwal posting sosmed',
+      '/content',
+    ),
+    (
       Icons.account_balance_wallet_rounded,
       Color(0xFF1CB0F6),
       'Dompet',

@@ -4,6 +4,7 @@ import * as React from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import type { Wallet, Category } from "@prisma/client";
 import { Button } from "@/components/ui/button";
+import { SubmitButton, FormCancelButton } from "@/components/ui/submit-button";
 import { Modal } from "@/components/ui/modal";
 import { TransactionForm, type TransactionFormData } from "./transaction-form";
 import { deleteTransaction } from "./actions";
@@ -19,16 +20,10 @@ export function TransactionActions({
 }) {
   const [editOpen, setEditOpen] = React.useState(false);
   const [confirmOpen, setConfirmOpen] = React.useState(false);
-  const [deleting, setDeleting] = React.useState(false);
 
   async function handleDelete(formData: FormData) {
-    setDeleting(true);
-    try {
-      await deleteTransaction(formData);
-      setConfirmOpen(false);
-    } finally {
-      setDeleting(false);
-    }
+    await deleteTransaction(formData);
+    setConfirmOpen(false);
   }
 
   return (
@@ -68,12 +63,12 @@ export function TransactionActions({
       >
         <form action={handleDelete} className="flex justify-end gap-2 pt-2">
           <input type="hidden" name="id" value={transaction.id} />
-          <Button type="button" variant="outline" onClick={() => setConfirmOpen(false)} disabled={deleting}>
+          <FormCancelButton variant="outline" onClick={() => setConfirmOpen(false)}>
             Cancel
-          </Button>
-          <Button type="submit" variant="danger" disabled={deleting}>
-            {deleting ? "Deleting…" : "Delete"}
-          </Button>
+          </FormCancelButton>
+          <SubmitButton variant="danger" pendingText="Menghapus…">
+            Delete
+          </SubmitButton>
         </form>
       </Modal>
     </>

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Check } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
-import { Button } from "@/components/ui/button";
+import { SubmitButton, FormCancelButton } from "@/components/ui/submit-button";
 import { Input, Field, Label } from "@/components/ui/input";
 import { CategoryIcon } from "@/components/icon";
 import { cn } from "@/lib/utils";
@@ -36,7 +36,6 @@ export function CategoryForm({
   const [color, setColor] = React.useState(category?.color ?? COLOR_PALETTE[0]);
   const [icon, setIcon] = React.useState(category?.icon ?? CATEGORY_ICONS[0]);
   const [error, setError] = React.useState<string | null>(null);
-  const [pending, setPending] = React.useState(false);
 
   // Reset local state during render whenever the modal is (re)opened or the target
   // category changes — the React-recommended alternative to syncing via an effect.
@@ -48,11 +47,9 @@ export function CategoryForm({
     setColor(category?.color ?? COLOR_PALETTE[0]);
     setIcon(category?.icon ?? CATEGORY_ICONS[0]);
     setError(null);
-    setPending(false);
   }
 
   async function handleAction(formData: FormData) {
-    setPending(true);
     setError(null);
     const action = isEdit ? updateCategory : createCategory;
     let result: CategoryActionResult;
@@ -61,7 +58,6 @@ export function CategoryForm({
     } catch {
       result = { ok: false, error: "Something went wrong" };
     }
-    setPending(false);
     if (result.ok) {
       onClose();
     } else {
@@ -185,12 +181,12 @@ export function CategoryForm({
         {error && <p className="text-sm text-expense">{error}</p>}
 
         <div className="flex justify-end gap-2 pt-2">
-          <Button type="button" variant="ghost" onClick={onClose} disabled={pending}>
+          <FormCancelButton variant="ghost" onClick={onClose}>
             Cancel
-          </Button>
-          <Button type="submit" disabled={pending}>
-            {pending ? "Saving…" : isEdit ? "Save changes" : "Create category"}
-          </Button>
+          </FormCancelButton>
+          <SubmitButton pendingText="Menyimpan…">
+            {isEdit ? "Save changes" : "Create category"}
+          </SubmitButton>
         </div>
       </form>
     </Modal>

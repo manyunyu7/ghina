@@ -145,6 +145,94 @@ abstract interface class TaskRepository {
   Future<void> delete(String id);
 }
 
+// ---------------------------------------------------------------- notes & content
+
+abstract interface class NoteRepository {
+  /// Filtered in SQL: [archived] (null = both), [labelId], [search]
+  /// (title/body/checklist/transcripts, case-insensitive). Pinned first, then
+  /// most recently updated.
+  Stream<List<Note>> watch({bool? archived, String? labelId, String? search});
+
+  /// Every note, same order.
+  Stream<List<Note>> watchAll();
+  Future<List<Note>> getAll();
+  Stream<Note?> watchById(String id);
+  Future<Note?> getById(String id);
+
+  /// Insert or update. Pending photos/clips whose file isn't in app storage yet
+  /// are copied there first; pending files dropped from the lists are deleted.
+  /// They are uploaded by the sync engine before the row is pushed.
+  Future<void> save(Note note);
+
+  /// Deletes the row and its pending files. Content items with this `noteId`
+  /// get `noteId = null`.
+  Future<void> delete(String id);
+}
+
+abstract interface class NoteLabelRepository {
+  /// Sorted by `sortOrder`, then name.
+  Stream<List<NoteLabel>> watchAll();
+  Future<List<NoteLabel>> getAll();
+  Future<NoteLabel?> getById(String id);
+  Future<void> save(NoteLabel label);
+
+  /// Deletes the label and removes its id from every note (like the server).
+  Future<void> delete(String id);
+}
+
+abstract interface class SocialAccountRepository {
+  /// Every account incl. archived, sorted by `sortOrder`, platform, handle.
+  Stream<List<SocialAccount>> watchAll();
+  Future<List<SocialAccount>> getAll();
+  Stream<SocialAccount?> watchById(String id);
+  Future<SocialAccount?> getById(String id);
+  Future<void> save(SocialAccount account);
+
+  /// Deletes the account and (cascade) its posts.
+  Future<void> delete(String id);
+}
+
+abstract interface class ContentItemRepository {
+  Stream<List<ContentItem>> watchAll();
+  Future<List<ContentItem>> getAll();
+  Stream<ContentItem?> watchById(String id);
+  Future<ContentItem?> getById(String id);
+
+  /// Insert or update (pending photos like [NoteRepository.save]). Records the
+  /// device-only `stageReachedAt` for newly reached stages.
+  Future<void> save(ContentItem item);
+
+  /// Deletes the item, its posts (cascade) and pending files; notes with
+  /// `linkedContentId` = it get null.
+  Future<void> delete(String id);
+}
+
+abstract interface class ContentPostRepository {
+  Stream<List<ContentPost>> watchAll();
+  Future<List<ContentPost>> getAll({String? contentId});
+  Stream<ContentPost?> watchById(String id);
+  Future<ContentPost?> getById(String id);
+  Future<void> save(ContentPost post);
+  Future<void> delete(String id);
+}
+
+abstract interface class ContentPillarRepository {
+  /// Sorted by `sortOrder`, then name.
+  Stream<List<ContentPillar>> watchAll();
+  Future<List<ContentPillar>> getAll();
+  Future<ContentPillar?> getById(String id);
+  Future<void> save(ContentPillar pillar);
+  Future<void> delete(String id);
+}
+
+/// Whether the server already owns seeding the notes/content defaults (a pull
+/// from a notes/content-aware server succeeded). Before that, the app may seed
+/// them locally as an offline fallback (same deterministic ids).
+abstract interface class DefaultsSeedState {
+  Future<bool> notesServerSeeded();
+  Future<bool> contentServerSeeded();
+}
+
 abstract interface class AuthRepository {
   /// Cached user when a token is stored (works offline), else null.
   Future<AppUser?> restoreSession();

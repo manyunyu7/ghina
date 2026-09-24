@@ -266,8 +266,8 @@ function TransactionFormBody({
           <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>
             Cancel
           </Button>
-          <Button type="submit" disabled={submitting || photosBusy || wallets.length === 0}>
-            {submitting ? "Saving…" : photosBusy ? "Memproses foto…" : isEdit ? "Save changes" : "Add transaction"}
+          <Button type="submit" loading={submitting || photosBusy} disabled={wallets.length === 0}>
+            {submitting ? "Menyimpan…" : photosBusy ? "Memproses foto…" : isEdit ? "Save changes" : "Add transaction"}
           </Button>
         </div>
     </form>

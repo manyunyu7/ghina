@@ -4,7 +4,25 @@ import 'game_date.dart';
 ///
 /// [task] = a completed to-do (`docs/tasks.md`): earns XP by bucket, counts toward
 /// the daily goal and task achievements, never toward the transaction streak.
-enum ActivityKind { transaction, prayer, health, food, lesson, task }
+/// [content] = a content-planner milestone (`docs/content.md`, see
+/// [ContentEventType]): stage XP, on-schedule bonus, weekly target and sponsor
+/// XP plus the content achievements (see `XpRules` / README → Content).
+enum ActivityKind { transaction, prayer, health, food, lesson, task, content }
+
+/// What a [ActivityKind.content] event records.
+enum ContentEventType {
+  /// An item newly reached a pipeline stage (one event per stage after `ide`).
+  stage,
+
+  /// A post was posted (`postedAt`).
+  posted,
+
+  /// An account met its weekly target in an ISO week.
+  weeklyTarget,
+
+  /// A sponsor was marked paid.
+  sponsorPaid,
+}
 
 /// Transaction type, mirrors `Transaction.type` (expense | income | transfer).
 /// Balance adjustments are not activity: the data seam never maps them to
@@ -56,6 +74,15 @@ class ActivityEvent {
     this.taskBucket,
     this.taskSeriesId,
     this.taskAreaId,
+    this.contentType,
+    this.contentItemId,
+    this.contentStage,
+    this.contentStageXp,
+    this.contentAccountId,
+    this.contentPlatform,
+    this.contentOnSchedule = false,
+    this.contentWeekStart,
+    this.contentTarget,
   });
 
   /// A transaction. [createdAt] drives streak/XP; [date] drives monthly stats.
@@ -147,6 +174,84 @@ class ActivityEvent {
     taskAreaId: areaId,
   );
 
+  /// An item reached [stage] (`naskah|produksi|siap|terjadwal|tayang`) at
+  /// [reachedAt]. `id` = `<itemId>:<stage>`. [stageXp] = the stage's XP from the
+  /// shared table (naskah 3, produksi 4, siap 5, terjadwal 6, tayang 10).
+  factory ActivityEvent.contentStage({
+    required String itemId,
+    required String stage,
+    required DateTime reachedAt,
+    int stageXp = 0,
+    DateTime? createdAt,
+  }) => ActivityEvent(
+    kind: ActivityKind.content,
+    id: '$itemId:$stage',
+    at: reachedAt,
+    occurredAt: createdAt,
+    contentType: ContentEventType.stage,
+    contentItemId: itemId,
+    contentStage: stage,
+    contentStageXp: stageXp,
+  );
+
+  /// Post [postId] was posted at [postedAt] on [accountId] ([platform] wire id).
+  /// [onSchedule] = it had a `scheduledAt` and was posted on or before that
+  /// local day; `occurredAt` = `scheduledAt`.
+  factory ActivityEvent.contentPosted({
+    required String postId,
+    required String itemId,
+    required String accountId,
+    required String platform,
+    required DateTime postedAt,
+    DateTime? scheduledAt,
+    bool onSchedule = false,
+  }) => ActivityEvent(
+    kind: ActivityKind.content,
+    id: postId,
+    at: postedAt,
+    occurredAt: scheduledAt,
+    contentType: ContentEventType.posted,
+    contentItemId: itemId,
+    contentAccountId: accountId,
+    contentPlatform: platform,
+    contentOnSchedule: onSchedule,
+  );
+
+  /// [accountId] met its target ([target] posts) in the ISO week starting
+  /// [weekStart]; [at] = `postedAt` of the post that reached it. `id` =
+  /// `<accountId>:<YYYY-MM-DD of weekStart>`.
+  factory ActivityEvent.contentWeeklyTarget({
+    required String accountId,
+    required String platform,
+    required GameDate weekStart,
+    required DateTime at,
+    required int target,
+  }) => ActivityEvent(
+    kind: ActivityKind.content,
+    id: '$accountId:$weekStart',
+    at: at,
+    contentType: ContentEventType.weeklyTarget,
+    contentAccountId: accountId,
+    contentPlatform: platform,
+    contentWeekStart: weekStart,
+    contentTarget: target,
+  );
+
+  /// Item [itemId]'s sponsor is paid; [at] = when the income was recorded (the
+  /// linked transaction's `createdAt`, else the item's `updatedAt`).
+  factory ActivityEvent.contentSponsorPaid({
+    required String itemId,
+    required DateTime at,
+    double amount = 0,
+  }) => ActivityEvent(
+    kind: ActivityKind.content,
+    id: itemId,
+    at: at,
+    amount: amount,
+    contentType: ContentEventType.sponsorPaid,
+    contentItemId: itemId,
+  );
+
   final ActivityKind kind;
 
   /// When it was logged (local or UTC; converted to the local day).
@@ -189,6 +294,29 @@ class ActivityEvent {
 
   /// Area of the task, task events only.
   final String? taskAreaId;
+
+  /// Content events only (see the `ActivityEvent.content*` factories).
+  final ContentEventType? contentType;
+  final String? contentItemId;
+
+  /// Stage wire id (stage events).
+  final String? contentStage;
+
+  /// XP value of the stage in the shared table (stage events).
+  final int? contentStageXp;
+  final String? contentAccountId;
+
+  /// Platform wire id (`instagram`, …).
+  final String? contentPlatform;
+
+  /// Posted on or before the scheduled day (posted events).
+  final bool contentOnSchedule;
+
+  /// Monday of the week (weekly target events).
+  final GameDate? contentWeekStart;
+
+  /// The account's target per week (weekly target events).
+  final int? contentTarget;
 
   /// Local day the activity counts for (XP, streak, daily goal).
   GameDate get day => dayOverride ?? GameDate.fromDateTime(at);

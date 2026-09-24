@@ -15,6 +15,14 @@ import type { SyncEntity } from "@/lib/tombstones";
 import { parsePhotos, photosSchema, removedPhotos, serializePhotos } from "@/lib/photos";
 import { taskAreaSchema } from "@/lib/tasks";
 import { areaToDb, saveTask, TaskError } from "@/lib/tasks-server";
+import { NoteError, saveNote, saveNoteLabel } from "@/lib/notes-server";
+import {
+  ContentError,
+  saveContentItem,
+  saveContentPillar,
+  saveContentPost,
+  saveSocialAccount,
+} from "@/lib/content-server";
 import {
   ALL_PRAYER_IDS,
   defaultStatusFor,
@@ -310,6 +318,87 @@ const tasks: EntityDef = {
   },
 };
 
+/** Map a helper's user-facing error to a sync rejection. */
+async function asSync<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (e) {
+    if (e instanceof TaskError || e instanceof NoteError || e instanceof ContentError) throw new SyncRejection(e.message);
+    throw e;
+  }
+}
+
+// ---------- Notes (docs/notes.md) ----------
+
+// Label names are unique per user (case-insensitive): another id holding it → `duplicate`.
+const noteLabels: EntityDef = {
+  find: (db, id) => db.noteLabel.findUnique({ where: { id } }),
+  changedSince: (db, userId, s) => db.noteLabel.findMany(since(userId, s)),
+  lwwTime: (row) => row.updatedAt,
+  upsert: (db, userId, id, data, existing) => saveNoteLabel(db, userId, id, data, !!existing),
+};
+
+type NoteRow = Row & Awaited<ReturnType<Db["note"]["findUniqueOrThrow"]>>;
+
+// LWW on `editedAt`: `updatedAt` also moves when the server fills link titles or strips a
+// deleted label — those must not make a device's later edit lose.
+const notes: EntityDef<NoteRow> = {
+  find: (db, id) => db.note.findUnique({ where: { id } }),
+  changedSince: (db, userId, s) => db.note.findMany(since(userId, s)),
+  lwwTime: (row) => row.editedAt,
+  async upsert(db, userId, id, data, existing, cleanup) {
+    const saved = await asSync(() => saveNote(db, userId, id, data, existing));
+    cleanup.push(...saved.removedFiles);
+    return "applied";
+  },
+};
+
+// ---------- Content planner (docs/content.md) ----------
+
+const socialAccounts: EntityDef = {
+  find: (db, id) => db.socialAccount.findUnique({ where: { id } }),
+  changedSince: (db, userId, s) => db.socialAccount.findMany(since(userId, s)),
+  lwwTime: (row) => row.updatedAt,
+  async upsert(db, userId, id, data, existing) {
+    await saveSocialAccount(db, userId, id, data, !!existing);
+    return "applied";
+  },
+};
+
+type PillarRow = Row & { name: string; color: string; sortOrder: number; createdAt: Date };
+
+const contentPillars: EntityDef<PillarRow> = {
+  find: (db, id) => db.contentPillar.findUnique({ where: { id } }),
+  changedSince: (db, userId, s) => db.contentPillar.findMany(since(userId, s)),
+  lwwTime: (row) => row.updatedAt,
+  upsert: (db, userId, id, data, existing) => saveContentPillar(db, userId, id, data, existing),
+};
+
+type ItemRow = Row & Awaited<ReturnType<Db["contentItem"]["findUniqueOrThrow"]>>;
+
+const contentItems: EntityDef<ItemRow> = {
+  find: (db, id) => db.contentItem.findUnique({ where: { id } }),
+  changedSince: (db, userId, s) => db.contentItem.findMany(since(userId, s)),
+  lwwTime: (row) => row.updatedAt,
+  async upsert(db, userId, id, data, existing, cleanup) {
+    const saved = await asSync(() => saveContentItem(db, userId, id, data, existing));
+    cleanup.push(...saved.removedFiles);
+    return "applied";
+  },
+};
+
+// Stage auto-advance (docs/content.md) is applied by the client that changes the posts;
+// the server stores what it is sent.
+const contentPosts: EntityDef = {
+  find: (db, id) => db.contentPost.findUnique({ where: { id } }),
+  changedSince: (db, userId, s) => db.contentPost.findMany(since(userId, s)),
+  lwwTime: (row) => row.updatedAt,
+  async upsert(db, userId, id, data, existing) {
+    await asSync(() => saveContentPost(db, userId, id, data, !!existing));
+    return "applied";
+  },
+};
+
 export const ENTITY_DEFS: Record<SyncEntity, EntityDef> = {
   wallets: wallets as unknown as EntityDef,
   categories,
@@ -322,4 +411,10 @@ export const ENTITY_DEFS: Record<SyncEntity, EntityDef> = {
   food: food as unknown as EntityDef,
   taskAreas,
   tasks,
+  noteLabels,
+  notes: notes as unknown as EntityDef,
+  socialAccounts,
+  contentPillars: contentPillars as unknown as EntityDef,
+  contentItems: contentItems as unknown as EntityDef,
+  contentPosts,
 };
