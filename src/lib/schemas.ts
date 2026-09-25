@@ -32,13 +32,24 @@ export const categorySchema = z.object({
   icon: z.enum(CATEGORY_ICONS as [string, ...string[]]),
 });
 
-export const TRANSACTION_TYPES = ["expense", "income", "transfer", "adjustment"] as const;
-/** Types that are real money in/out — the only ones summed in income/expense totals. */
+export const TRANSACTION_TYPES = ["expense", "income", "transfer", "adjustment", "investment"] as const;
+/**
+ * Types that are real money in/out — the only ones summed in income/expense totals.
+ * Transfers, balance adjustments and `investment` (trade cash, docs/investments.md) never are.
+ */
 export const CASHFLOW_TYPES = ["income", "expense"] as const;
+/**
+ * Types with a signed amount, no category and no destination wallet: a balance
+ * `adjustment` (docs/balance-adjustment.md) and an `investment` trade's cash
+ * (docs/investments.md). Both move only their wallet's balance by `+amount`.
+ */
+export const SIGNED_TRANSACTION_TYPES = ["adjustment", "investment"] as const;
+export const isSignedType = (type: string) => (SIGNED_TRANSACTION_TYPES as readonly string[]).includes(type);
 
 /**
  * amount > 0 for expense/income/transfer. A balance `adjustment` (docs/balance-adjustment.md)
- * has a signed, non-zero amount (new balance − old balance).
+ * has a signed, non-zero amount (new balance − old balance); so does `investment`
+ * (buy/fee negative, sell positive).
  */
 export const transactionSchema = z
   .object({
@@ -54,8 +65,13 @@ export const transactionSchema = z
     date: z.coerce.date(),
   })
   .superRefine((t, ctx) => {
-    if (t.type === "adjustment") {
-      if (t.amount === 0) ctx.addIssue({ code: "custom", path: ["amount"], message: "Adjustment amount must not be 0" });
+    if (isSignedType(t.type)) {
+      if (t.amount === 0)
+        ctx.addIssue({
+          code: "custom",
+          path: ["amount"],
+          message: t.type === "adjustment" ? "Adjustment amount must not be 0" : "Investment amount must not be 0",
+        });
     } else if (!(t.amount > 0)) {
       ctx.addIssue({ code: "custom", path: ["amount"], message: "Amount must be greater than 0" });
     }

@@ -16,7 +16,8 @@ import {
   AreaChart,
   Area,
 } from "recharts";
-import { formatCompactCurrency, formatCurrency } from "@/lib/utils";
+import { Money } from "@/components/money/money";
+import { useMoneyFormat } from "@/components/money/balance-privacy";
 
 const INCOME = "#16a34a";
 const EXPENSE = "#ef4444";
@@ -26,8 +27,10 @@ type MonthlyPoint = { month: string; income: number; expense: number };
 type CashflowPoint = { month: string; net: number };
 type DonutSlice = { name: string; value: number; color: string };
 
-function axisCurrency(currency: string) {
-  return (value: number) => formatCompactCurrency(value, currency);
+/** Y-axis ticks: blank while balances are hidden. */
+function useAxisCurrency(currency: string) {
+  const money = useMoneyFormat();
+  return (value: number) => money.axis(value, currency);
 }
 
 /** Shared tooltip styling matching the design tokens. */
@@ -48,6 +51,7 @@ export function IncomeExpenseChart({
   data: MonthlyPoint[];
   currency: string;
 }) {
+  const axisCurrency = useAxisCurrency(currency);
   return (
     <ResponsiveContainer width="100%" height={300}>
       <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
@@ -63,7 +67,7 @@ export function IncomeExpenseChart({
           axisLine={false}
           width={56}
           tick={{ fill: "var(--color-muted)", fontSize: 12 }}
-          tickFormatter={axisCurrency(currency)}
+          tickFormatter={axisCurrency}
         />
         <Tooltip
           cursor={{ fill: "var(--color-accent)", opacity: 0.4 }}
@@ -78,7 +82,7 @@ export function IncomeExpenseChart({
                       className="mr-1.5 inline-block h-2 w-2 rounded-full align-middle"
                       style={{ background: p.color }}
                     />
-                    {p.name}: {formatCurrency(Number(p.value), currency)}
+                    {p.name}: <Money amount={Number(p.value)} currency={currency} />
                   </p>
                 ))}
               </TooltipBox>
@@ -158,7 +162,7 @@ export function CategoryDonut({
                   <TooltipBox>
                     <p className="font-medium text-foreground">{p.name}</p>
                     <p className="text-muted">
-                      {formatCurrency(value, currency)} · {pct}%
+                      <Money amount={value} currency={currency} /> · {pct}%
                     </p>
                   </TooltipBox>
                 );
@@ -169,7 +173,7 @@ export function CategoryDonut({
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
           <span className="text-xs text-muted">Total</span>
           <span className="text-sm font-bold text-foreground">
-            {formatCompactCurrency(total, currency)}
+            <Money amount={total} currency={currency} compact />
           </span>
         </div>
       </div>
@@ -185,7 +189,7 @@ export function CategoryDonut({
               />
               <span className="min-w-0 flex-1 truncate text-foreground">{slice.name}</span>
               <span className="w-20 shrink-0 text-right text-xs tabular-nums text-muted">
-                {formatCompactCurrency(slice.value, currency)}
+                <Money amount={slice.value} currency={currency} compact />
               </span>
               <span className="w-8 shrink-0 text-right text-xs tabular-nums text-muted-soft">
                 {pct}%
@@ -207,6 +211,7 @@ export function CashflowChart({
   data: CashflowPoint[];
   currency: string;
 }) {
+  const axisCurrency = useAxisCurrency(currency);
   return (
     <ResponsiveContainer width="100%" height={240}>
       <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
@@ -228,7 +233,7 @@ export function CashflowChart({
           axisLine={false}
           width={56}
           tick={{ fill: "var(--color-muted)", fontSize: 12 }}
-          tickFormatter={axisCurrency(currency)}
+          tickFormatter={axisCurrency}
         />
         <Tooltip
           content={({ active, payload, label }) => {
@@ -238,7 +243,7 @@ export function CashflowChart({
               <TooltipBox>
                 <p className="mb-0.5 font-medium text-foreground">{label}</p>
                 <p className={value >= 0 ? "text-income" : "text-expense"}>
-                  Net: {formatCurrency(value, currency)}
+                  Net: <Money amount={value} currency={currency} />
                 </p>
               </TooltipBox>
             );

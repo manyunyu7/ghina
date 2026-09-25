@@ -4,6 +4,7 @@ import { parsePhotos } from "@/lib/photos";
 import { parseRecurrence, parseSchedule } from "@/lib/tasks";
 import { parseAudio, parseChecklist, parseImageList, parseLabelIds, parseLinks } from "@/lib/notes";
 import { parseAssetLinks, parseMetrics, parseSponsor } from "@/lib/content";
+import { parseHabitSchedule, parseHabitTarget, parseReminders, parseTriggers } from "@/lib/habits";
 
 /** Wire fields per entity (Prisma field names minus userId) — see docs/mobile-sync.md. */
 export const ENTITY_FIELDS: Record<SyncEntity, readonly string[]> = {
@@ -45,6 +46,19 @@ export const ENTITY_FIELDS: Record<SyncEntity, readonly string[]> = {
     "id", "contentId", "accountId", "caption", "hashtags", "scheduledAt", "remindBefore", "status", "postedAt", "url",
     "metrics", "metricsAt", "createdAt", "updatedAt",
   ],
+  habits: [
+    "id", "name", "emoji", "color", "kind", "schedule", "target", "reminders", "private", "why", "startDate",
+    "archived", "sortOrder", "createdAt", "updatedAt",
+  ],
+  habitLogs: ["id", "habitId", "date", "type", "value", "note", "triggers", "at", "createdAt", "updatedAt"],
+  assets: [
+    "id", "kind", "symbol", "name", "currency", "priceMode", "manualPrice", "manualPriceAt", "unit", "walletId",
+    "archived", "sortOrder", "createdAt", "updatedAt",
+  ],
+  assetTrades: [
+    "id", "assetId", "type", "date", "quantity", "price", "fee", "amount", "ratio", "note", "cashTransactionId",
+    "createdAt", "updatedAt",
+  ],
 };
 
 /** Columns stored as JSON text that travel as JSON values on the wire. */
@@ -66,6 +80,8 @@ const JSON_FIELDS: Partial<Record<SyncEntity, Record<string, (raw: unknown) => u
     sponsor: parseSponsor,
   },
   contentPosts: { metrics: parseMetrics },
+  habits: { schedule: parseHabitSchedule, target: parseHabitTarget, reminders: parseReminders },
+  habitLogs: { triggers: parseTriggers },
 };
 
 /** Pick the wire fields of a row; Dates become ISO strings, missing values null. */

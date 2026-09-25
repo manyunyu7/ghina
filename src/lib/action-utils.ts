@@ -2,6 +2,8 @@ import { z } from "zod";
 import { NoteError } from "@/lib/notes-server";
 import { ContentError } from "@/lib/content-server";
 import { TaskError } from "@/lib/tasks-server";
+import { HabitError } from "@/lib/habits-server";
+import { InvestmentError } from "@/lib/investments-server";
 
 /**
  * Helpers for server actions that return `{ ok: true, … } | { ok: false, error }`
@@ -19,7 +21,14 @@ export async function runAction<T extends object>(tag: string, fn: () => Promise
     return { ok: true, ...(await fn()) };
   } catch (e) {
     if (e instanceof z.ZodError) return { ok: false, error: e.issues[0]?.message ?? "Data tidak valid" };
-    if (e instanceof UserError || e instanceof NoteError || e instanceof ContentError || e instanceof TaskError)
+    if (
+      e instanceof UserError ||
+      e instanceof NoteError ||
+      e instanceof ContentError ||
+      e instanceof TaskError ||
+      e instanceof HabitError ||
+      e instanceof InvestmentError
+    )
       return { ok: false, error: e.message };
     console.error(`[${tag} action]`, e);
     return { ok: false, error: "Terjadi kesalahan, coba lagi" };

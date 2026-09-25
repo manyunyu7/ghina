@@ -9,13 +9,16 @@ import {
   Settings, Repeat, Moon, HeartPulse, Utensils, TrendingUp, BarChart3, ListTodo, Menu, X,
   StickyNote,
   Clapperboard,
+  Flame,
+  LineChart,
 } from "lucide-react";
 import { NAV_ITEMS } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { AppDownload } from "@/components/app-download";
 import { NavPending } from "@/components/nav-pending";
+import { BalanceToggle } from "@/components/money/balance-privacy";
 
-const ICONS = { LayoutDashboard, ArrowLeftRight, Wallet, Target, Tags, PieChart, Settings, Repeat, Moon, HeartPulse, Utensils, TrendingUp, BarChart3, ListTodo, StickyNote, Clapperboard };
+const ICONS = { LayoutDashboard, ArrowLeftRight, Wallet, Target, Tags, PieChart, Settings, Repeat, Moon, HeartPulse, Utensils, TrendingUp, BarChart3, ListTodo, StickyNote, Clapperboard, Flame, LineChart };
 
 /** Ghina's money-tree mascot, the brand mark next to the wordmark. */
 function Logo({ className }: { className?: string }) {
@@ -63,9 +66,12 @@ export function Sidebar({ user }: { user: { name?: string | null; email?: string
           <Logo className="h-8 w-8" />
           <span className="text-lg font-bold">Ghina</span>
         </div>
-        <button onClick={() => setOpen(true)} className="rounded-lg p-2 hover:bg-accent" aria-label="Open menu">
-          <Menu className="h-5 w-5" />
-        </button>
+        <div className="flex items-center gap-1">
+          <BalanceToggle />
+          <button onClick={() => setOpen(true)} className="rounded-lg p-2 hover:bg-accent" aria-label="Open menu">
+            <Menu className="h-5 w-5" />
+          </button>
+        </div>
       </div>
 
       {/* Mobile drawer */}
@@ -93,6 +99,7 @@ export function Sidebar({ user }: { user: { name?: string | null; email?: string
         <div className="mb-8 flex items-center gap-2 px-2">
           <Logo className="h-9 w-9" />
           <span className="text-xl font-bold tracking-tight">Ghina</span>
+          <BalanceToggle className="ml-auto" />
         </div>
         {nav}
         <UserCard user={user} />

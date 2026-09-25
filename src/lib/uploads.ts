@@ -5,6 +5,8 @@ import { sniffImageType } from "@/lib/photos";
 import { MAX_BYTES_BY_KIND, sniffMediaType, type MediaKind } from "@/lib/media";
 import { prisma } from "@/lib/prisma";
 
+const NOT_AN_IMAGE = "File bukan gambar yang didukung (JPEG, PNG, WebP, GIF atau HEIC)";
+
 const UPLOAD_DIR = join(process.cwd(), "public", "uploads");
 
 /**
@@ -19,10 +21,10 @@ const isUploadPath = (u: string) => /^\/uploads\/[A-Za-z0-9-]+\.[a-z0-9]+$/.test
  * client-sent MIME type and file name are not trusted — and decides the extension.
  */
 export async function saveUpload(file: File, maxBytes: number): Promise<string> {
-  if (file.size > maxBytes) throw new Error(`Image is too large (max ${Math.round(maxBytes / 1024 / 1024)} MB)`);
+  if (file.size > maxBytes) throw new Error(`Foto terlalu besar (maks ${Math.round(maxBytes / 1024 / 1024)} MB)`);
   const bytes = Buffer.from(await file.arrayBuffer());
   const ext = sniffImageType(bytes);
-  if (!ext) throw new Error("Please upload an image file (JPEG, PNG, WebP, GIF or HEIC)");
+  if (!ext) throw new Error(NOT_AN_IMAGE);
   const name = `${randomUUID()}.${ext}`;
   await mkdir(UPLOAD_DIR, { recursive: true });
   await writeFile(join(UPLOAD_DIR, name), bytes);
@@ -49,13 +51,13 @@ export async function saveMediaUpload(
       kinds.length === 1 && kinds[0] === "audio"
         ? "Unggah file audio (M4A/AAC, MP3, Ogg/Opus atau WebM)"
         : kinds.length === 1
-          ? "Please upload an image file (JPEG, PNG, WebP, GIF or HEIC)"
+          ? NOT_AN_IMAGE
           : "Unggah gambar (JPEG, PNG, WebP, GIF, HEIC) atau audio (M4A/AAC, MP3, Ogg/Opus, WebM)",
     );
   }
   const max = MAX_BYTES_BY_KIND[type.kind];
   if (bytes.length > max) {
-    throw new Error(type.kind === "image" ? `Image is too large (max ${mb(max)} MB)` : `Audio terlalu besar (maks ${mb(max)} MB)`);
+    throw new Error(type.kind === "image" ? `Foto terlalu besar (maks ${mb(max)} MB)` : `Audio terlalu besar (maks ${mb(max)} MB)`);
   }
   const name = `${randomUUID()}.${type.ext}`;
   await mkdir(UPLOAD_DIR, { recursive: true });

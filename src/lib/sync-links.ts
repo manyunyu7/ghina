@@ -14,13 +14,15 @@ type Db = Prisma.TransactionClient;
 
 /**
  * Transactions `ids` are being deleted: tasks lose `transactionId`, notes lose
- * `linkedTransactionId`, and a content item's `sponsor.transactionId` pointing at one of
+ * `linkedTransactionId`, asset trades lose `cashTransactionId` (the trade stays;
+ * docs/investments.md), and a content item's `sponsor.transactionId` pointing at one of
  * them becomes null (`paid` stays as it was).
  */
 export async function detachTransactions(db: Db, userId: string, ids: readonly string[]) {
   if (ids.length === 0) return;
   const list = [...ids];
   await db.task.updateMany({ where: { userId, transactionId: { in: list } }, data: { transactionId: null } });
+  await db.assetTrade.updateMany({ where: { userId, cashTransactionId: { in: list } }, data: { cashTransactionId: null } });
   await db.note.updateMany({ where: { userId, linkedTransactionId: { in: list } }, data: { linkedTransactionId: null } });
   const set = new Set(list);
   const items = await db.contentItem.findMany({

@@ -104,8 +104,16 @@ function TransactionFormBody({
   // onSubmit (not `action`) so a failed save doesn't reset the fields React-19 style.
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    await save(e.currentTarget, { withNewPhotos: true });
+  }
+
+  /**
+   * Saves the form. `withNewPhotos: false` drops the not-yet-saved photos so a photo
+   * problem never blocks the transaction itself (the user can add them again later).
+   */
+  async function save(form: HTMLFormElement, { withNewPhotos }: { withNewPhotos: boolean }) {
     if (submitting || photosBusy) return;
-    const formData = new FormData(e.currentTarget);
+    const formData = new FormData(form);
     setSubmitting(true);
     setError(null);
     // Photos: kept URLs (edit) in order, then the new, already-compressed files.
@@ -115,7 +123,8 @@ function TransactionFormBody({
       formData.set("photosManaged", "1");
       for (const p of photos) if (p.kind === "existing") formData.append("keepPhotos", p.url);
     }
-    for (const p of photos) if (p.kind === "new") formData.append("photos", p.file, p.file.name);
+    const newPhotos = withNewPhotos ? photos.filter((p) => p.kind === "new") : [];
+    for (const p of newPhotos) if (p.kind === "new") formData.append("photos", p.file, p.file.name);
     try {
       if (isEdit) {
         await updateTransaction(formData);
@@ -124,22 +133,17 @@ function TransactionFormBody({
       }
       onClose();
     } catch (e) {
-      // Production hides server error messages; keep the form open with a hint.
-      const msg = e instanceof Error ? e.message : "";
-      setError(
-        /At most \d+ photos/.test(msg)
-          ? "Maksimal 5 foto per transaksi."
-          : /too large|Body exceeded/i.test(msg)
-            ? "Foto terlalu besar. Coba kurangi jumlah atau ukuran foto."
-            : "Gagal menyimpan transaksi. Periksa isian lalu coba lagi.",
-      );
+      setError(saveErrorMessage(e, newPhotos.length));
     } finally {
       setSubmitting(false);
     }
   }
 
+  const hasNewPhotos = photos.some((p) => p.kind === "new");
+  const formRef = React.useRef<HTMLFormElement>(null);
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
         {isEdit && transaction && <input type="hidden" name="id" value={transaction.id} />}
 
         {/* Type toggle */}
@@ -189,6 +193,17 @@ function TransactionFormBody({
             required
             placeholder="0"
             defaultValue={transaction ? String(transaction.amount) : ""}
+          />
+        </Field>
+
+        {/* The note sits right under the amount: it is what the list shows as the title. */}
+        <Field label="Catatan (opsional)">
+          <Textarea
+            name="note"
+            rows={2}
+            maxLength={500}
+            placeholder="Contoh: makan siang bareng tim"
+            defaultValue={transaction?.note ?? ""}
           />
         </Field>
 
@@ -248,18 +263,24 @@ function TransactionFormBody({
           <Input name="date" type="date" required defaultValue={toDateInput(transaction?.date)} />
         </Field>
 
-        <Field label="Note">
-          <Textarea name="note" placeholder="Optional note" defaultValue={transaction?.note ?? ""} />
-        </Field>
-
         <Field label={`Foto (maks ${MAX_TRANSACTION_PHOTOS})`}>
           <PhotoField items={photos} onChange={setPhotos} onBusyChange={setPhotosBusy} disabled={submitting} />
         </Field>
 
         {error && (
-          <p role="alert" className="rounded-lg bg-expense-soft px-3 py-2 text-sm text-expense">
-            {error}
-          </p>
+          <div role="alert" className="space-y-2 rounded-lg bg-expense-soft px-3 py-2 text-sm text-expense">
+            <p>{error}</p>
+            {hasNewPhotos && (
+              <button
+                type="button"
+                className="font-medium underline underline-offset-2"
+                disabled={submitting}
+                onClick={() => formRef.current && save(formRef.current, { withNewPhotos: false })}
+              >
+                Simpan tanpa foto baru
+              </button>
+            )}
+          </div>
         )}
 
         <div className="flex justify-end gap-2 pt-1">
@@ -272,4 +293,24 @@ function TransactionFormBody({
         </div>
     </form>
   );
+}
+
+/**
+ * What to tell the user when saving failed. Production hides server error messages
+ * (only the dev message or a digest arrives), and a proxy limit (HTTP 413) surfaces
+ * as an "unexpected response", so photo trouble is also inferred from the request.
+ */
+export function saveErrorMessage(e: unknown, newPhotoCount: number): string {
+  const msg = e instanceof Error ? e.message : "";
+  if (/At most \d+ photos/.test(msg)) return "Maksimal 5 foto per transaksi.";
+  if (/too large|terlalu besar|Body exceeded|413/i.test(msg)) {
+    return "Foto terlalu besar untuk diunggah. Hapus atau ganti fotonya, atau simpan tanpa foto baru.";
+  }
+  if (/image file|bukan (file )?gambar|Unggah gambar/i.test(msg)) {
+    return "Salah satu file bukan gambar yang didukung (JPEG, PNG, WebP, GIF, HEIC).";
+  }
+  if (newPhotoCount > 0) {
+    return "Transaksi belum tersimpan: foto gagal diunggah. Coba lagi, atau simpan tanpa foto baru.";
+  }
+  return "Gagal menyimpan transaksi. Periksa isian lalu coba lagi.";
 }

@@ -7,6 +7,7 @@ import { deleteUnreferencedUploads } from "@/lib/uploads";
 import { ensureDefaultTaskAreas } from "@/lib/tasks-server";
 import { ensureDefaultNoteLabel, queueNoteLinkTitles } from "@/lib/notes-server";
 import { ensureDefaultContentPillars } from "@/lib/content-server";
+import { ensureDividendCategoryForPull } from "@/lib/investments-server";
 import { ENTITY_DEFS, SyncRejection } from "@/lib/mobile/entities";
 import { serializeRow } from "@/lib/mobile/serialize";
 
@@ -27,6 +28,8 @@ export async function pull(user: User, sinceMs: number) {
   // Default `Ide Konten` label and content pillars (seeded once; docs/notes.md, content.md).
   await ensureDefaultNoteLabel(prisma, user.id);
   await ensureDefaultContentPillars(prisma, user.id);
+  // "Dividen" income category for users with assets (seeded once; docs/investments.md).
+  await ensureDividendCategoryForPull(prisma, user.id);
 
   const changes = {} as Record<SyncEntity, Record<string, unknown>[]>;
   for (const entity of SYNC_ENTITIES) {

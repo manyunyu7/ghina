@@ -12,6 +12,7 @@ import { usePlanner } from "./planner";
 import { formatDateKey, useToast } from "./ui";
 import type { ContentItemDTO } from "./types";
 import { LinkPending } from "@/components/link-pending";
+import { Money } from "@/components/money/money";
 
 const todayKey = () => {
   const d = new Date();
@@ -105,7 +106,7 @@ export function SponsorStatus({ item, dirty }: { item: ContentItemDTO; dirty: bo
           {s.paid ? "Lunas" : overdue ? "Lewat jatuh tempo" : "Belum dibayar"}
         </span>
         <span className="text-sm text-foreground">
-          {s.brand} · {barter ? "Barter" : formatCurrency(s.amount, s.currency)}
+          {s.brand} · {barter ? "Barter" : <Money amount={s.amount} currency={s.currency} />}
           {s.due && !s.paid && <span className="text-muted"> · jatuh tempo {formatDateKey(s.due)}</span>}
         </span>
         {s.paid && s.transactionId && (

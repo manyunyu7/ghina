@@ -21,6 +21,7 @@ valid 90 days. Missing/invalid/expired token → `401 {"error":"unauthorized"}`.
 | POST | `/api/mobile/auth/google` | `{idToken}` | `{token, user}` |
 | GET | `/api/mobile/me` | – | `{user}` |
 | PATCH | `/api/mobile/me` | `{name?, currency?}` | `{user}` |
+| GET | `/api/mobile/prices?symbols=stock:BBCA,crypto:BTC` | – | `{serverTime, prices: Quote[]}` — see "Prices" |
 | POST | `/api/mobile/upload` | multipart, field `file`: an image (JPEG/PNG/WebP/GIF/HEIC, ≤ 5 MB) or an audio clip (M4A/MP4-AAC, raw AAC/ADTS, MP3, Ogg/Opus, WebM; ≤ 20 MB), detected by file signature — the sent MIME type and name are ignored; SVG, HTML, WAV etc. → 400 | `{url, kind}` e.g. `{"url":"/uploads/abc.jpg","kind":"image"}` / `{"url":"/uploads/def.m4a","kind":"audio"}` (extension from the detected type: jpg/png/webp/gif/heic/heif, m4a/aac/mp3/ogg/webm) |
 
 `user` = `{id, name, email, image, currency, syncEpoch}`.
@@ -65,12 +66,18 @@ with UUID v4 ids, the server keeps its existing cuid ids — both are valid.
 | `contentPillars` | ContentPillar | id, name, color, sortOrder, createdAt, updatedAt |
 | `contentItems` | ContentItem | id, title, stage, format, pillar, idea, noteId, checklist, photos, assetLinks, sponsor, createdAt, updatedAt |
 | `contentPosts` | ContentPost | id, contentId, accountId, caption, hashtags, scheduledAt, remindBefore, status, postedAt, url, metrics, metricsAt, createdAt, updatedAt |
+| `habits` | Habit | id, name, emoji, color, kind, schedule, target, reminders, private, why, startDate, archived, sortOrder, createdAt, updatedAt |
+| `habitLogs` | HabitLog | id, habitId, date, type, value, note, triggers, at, createdAt, updatedAt |
+| `assets` | Asset | id, kind, symbol, name, currency, priceMode, manualPrice, manualPriceAt, unit, walletId, archived, sortOrder, createdAt, updatedAt |
+| `assetTrades` | AssetTrade | id, assetId, type, date, quantity, price, fee, amount, ratio, note, cashTransactionId, createdAt, updatedAt |
 
 `transactions.photos` is a JSON array of strings (docs/transaction-photos.md);
 `taskAreas.schedule` and `tasks.recurrence` are JSON objects or `null` (docs/tasks.md) —
 never JSON-encoded strings. The same holds for the notes/content JSON fields:
 `notes.checklist/labels/photos/audio/links`, `contentItems.checklist/photos/assetLinks`
-(arrays), `contentItems.sponsor` (object or null) and `contentPosts.metrics` (object).
+(arrays), `contentItems.sponsor` (object or null) and `contentPosts.metrics` (object),
+`habits.schedule`/`habits.target` (objects), `habits.reminders` and `habitLogs.triggers`
+(arrays).
 Old app versions ignore the keys and tombstones of entities they don't know.
 
 Schema changes the server makes for sync:
@@ -98,13 +105,21 @@ Schema changes the server makes for sync:
 - `Note` has `editedAt DateTime` — server-only, **not** on the wire: the last-write-wins
   timestamp for notes, because `updatedAt` also moves when the server fills link titles
   (see "Notes") or strips a deleted label.
+- New models `Habit`, `HabitLog` (docs/habits.md) and `Asset`, `AssetTrade` (synced),
+  `SecurityPrice`, `PortfolioSnapshot` (server-only, docs/investments.md) — additive
+  `CREATE TABLE`s only. HabitLog → Habit and AssetTrade → Asset cascade; Asset.walletId
+  and AssetTrade.cashTransactionId `SetNull`. `@@unique([habitId, date, type])` on
+  HabitLog, `@@unique([userId, kind, symbol])` on Asset (the server additionally enforces
+  case-insensitive symbols), `cashTransactionId @unique`.
+- `Transaction.type` may be `investment` (docs/investments.md) — no column change.
 
 ## Wallet balances
 
 `wallet.balance` is **server-authoritative**. The server changes it only through
 transactions (and the initial balance when a wallet is created). Effect of a transaction:
 income `+amount` to `walletId`; expense `−amount` from `walletId`; transfer `−amount`
-from `walletId` and `+amount` to `toWalletId`; adjustment `+amount` (signed) to `walletId`.
+from `walletId` and `+amount` to `toWalletId`; adjustment and investment `+amount`
+(signed) to `walletId`.
 Editing a wallet's balance (web or mobile) never overwrites it — it records an
 `adjustment` transaction for the difference (docs/balance-adjustment.md). Editing a transaction reverses the old
 effect and applies the new one; deleting reverses it. The server implements this once in
@@ -145,6 +160,13 @@ Relations, mirrored on both sides:
 - Delete a content pillar → content items whose `pillar` equals its name
   (case-insensitive) get `pillar = null`. Renaming a pillar (sync upsert or web) renames
   it on those items too (updated rows re-sync).
+- Delete a habit → its logs are deleted (tombstoned).
+- Delete an asset → its trades are deleted (tombstoned), each with its linked cash
+  transaction (next rule).
+- Delete a trade → its linked transaction (`cashTransactionId`: the `investment` or the
+  dividend `income`) is deleted through the ledger — balance reversed, tombstoned.
+- Delete a transaction (any path) → trades with that `cashTransactionId` get `null` (the
+  trade stays). Delete a wallet → assets with that `walletId` get `null`.
 - Deleting a transaction by any path (sync, web, wallet cascade, reset) deletes its photo
   files after the DB change commits — unless another transaction/food/note/content row
   still references the same file (best effort). A note converted to a transaction shares
@@ -158,7 +180,8 @@ same rules locally when it deletes (and when it receives a tombstone).
 budgets (subscriptions/planned stay, with `walletId`/`categoryId` nulled; task areas and
 tasks stay, with `walletId`/`categoryId`/`transactionId` nulled; notes, labels, social
 accounts, content items/posts/pillars stay, with `notes.linkedTransactionId` and
-`sponsor.transactionId` nulled — `paid` kept; prayers, health and food stay), removes the
+`sponsor.transactionId` nulled — `paid` kept; habits and their logs stay; assets and
+trades stay with `walletId`/`cashTransactionId` nulled; prayers, health and food stay), removes the
 deleted transactions' photo files (except ones a note/content item still uses), drops
 all tombstones and assigns a new `syncEpoch`. Clients see the new
 epoch and do a full re-pull, so no tombstones are needed.
@@ -180,14 +203,15 @@ models anywhere else.
     "subscriptions": [ … ], "planned": [ … ], "prayers": [ … ], "health": [ … ], "food": [ … ],
     "taskAreas": [ … ], "tasks": [ … ],
     "noteLabels": [ … ], "notes": [ … ], "socialAccounts": [ … ],
-    "contentPillars": [ … ], "contentItems": [ … ], "contentPosts": [ … ]
+    "contentPillars": [ … ], "contentItems": [ … ], "contentPosts": [ … ],
+    "habits": [ … ], "habitLogs": [ … ], "assets": [ … ], "assetTrades": [ … ]
   },
   "deleted": [ { "entity": "transactions", "id": "…", "deletedAt": "…" } ]
 }
 ```
 
 - `changes.X` = rows with `updatedAt >= since`; `deleted` = tombstones with `deletedAt >= since`.
-  All 17 keys are always present (possibly `[]`). Archived wallets, areas, notes and
+  All 21 keys are always present (possibly `[]`). Archived wallets, areas, notes and
   accounts are included.
 - Default task areas: before building the response, if the user has **no** `TaskArea`
   rows at all, the server creates Kerjaan (`area-kerjaan-<userId>`, code `KERJA`, Mon–Fri
@@ -207,6 +231,12 @@ models anywhere else.
   first successful pull it may seed the same ids/fields locally (a later push is an
   upsert of the same id). Reset drops tombstones, so after a reset a user without
   pillars/that label gets them again.
+- Dividend category, seeded **once** for users with at least one asset: before building
+  the response the server creates the income category `Dividen`
+  (`category-dividen-<userId>`, color `#10b981`, icon `circle-dollar-sign`) unless an income
+  category named "Dividen" (case-insensitive) exists, that id exists, or it has a
+  tombstone (the user deleted it). Mobile may create the same id/fields locally when it
+  records a dividend and has no Dividen category (a later push is an upsert of the same id).
 - A full pull (`since` 0/absent) always returns `deleted: []` — the client starts empty.
 - An id never appears in both `changes` and `deleted` of one response.
 - `serverTime` = the request start time minus 5 seconds; the client stores it as its next
@@ -255,12 +285,15 @@ Rules:
 - Mutations are applied **in order**, each in its own DB transaction. One failing does not
   stop the rest.
   Client order (Flutter outbox): referenced rows first (wallets, categories, areas,
-  transactions, other upserts, notes, content items, posts); deletes of unique-keyed rows
+  transactions, other upserts, notes, content items, posts; habits before habit logs;
+  assets before trades — a trade's linked transaction is a transaction, so it goes first); deletes of unique-keyed rows
   (labels, areas, budgets, prayers) before those upserts so a re-created name/slot is free;
   pillar deletes then pillar upserts after the items; every other delete **last** — a
   server delete cascade (nulling a link, a pillar, a sponsor's transaction) bumps the
   affected rows' `updatedAt`, which would make the device's own queued edits of those rows
-  lose last-write-wins if they were sent after it.
+  lose last-write-wins if they were sent after it. Deleting a trade: queue the trade's
+  delete **before** its linked transaction's delete (the server's trade delete already
+  removes the transaction; the second delete is an idempotent `applied`).
 - `upsert` data holds the full row minus id/createdAt/updatedAt. Same validation as the
   web forms (zod), same ownership checks (referenced wallet/category must belong to the user).
 - Last write wins: if the server row's `updatedAt` (for wallets and notes: `editedAt`) is
@@ -278,7 +311,8 @@ Rules:
 - `transactions` upsert/delete adjust wallet balances via `src/lib/ledger.ts` (including
   `adjustment`: `+amount` signed). Clients must tolerate unknown future `type` values from
   a pull (skip or show generically; never crash).
-- `prayers` and `budgets` have unique keys (`date+prayer`, `categoryId+month+year`). If
+- `prayers`, `budgets`, `habitLogs` and `assets` have unique keys (`date+prayer`,
+  `categoryId+month+year`, `habitId+date+type`, `kind+symbol` case-insensitive). If
   another row with a different id already holds that key, the mutation returns
   `duplicate`. The client then deletes its local row; the server row arrives on the pull.
 - Upserting or deleting a row whose id exists but belongs to another user → `rejected`
@@ -311,7 +345,7 @@ from a pull.
 |---|---|---|
 | wallets | name, type, balance?, currency, color, icon, archived? | type ∈ cash/bank/ewallet/credit/savings/investment; currency ∈ IDR/USD/EUR/GBP/JPY/SGD/MYR; color `#rrggbb`; name 1–60; `balance` only used on create (default 0); `archived` default false |
 | categories | name, type, color, icon | type ∈ expense/income; icon must be one of the web's `CATEGORY_ICONS` (`src/lib/constants.ts`) |
-| transactions | walletId, toWalletId, categoryId, type, amount, note, date | type ∈ expense/income/transfer/adjustment; amount > 0, except `adjustment`: signed, finite, non-zero; wallets/category must be the user's; transfer needs a different `toWalletId` and is stored with `categoryId = null` (non-transfers with `toWalletId = null`) — the client should store the same; `adjustment` with a non-null `categoryId` or `toWalletId` → rejected |
+| transactions | walletId, toWalletId, categoryId, type, amount, note, date | type ∈ expense/income/transfer/adjustment/investment; amount > 0, except `adjustment` and `investment`: signed, finite, non-zero; wallets/category must be the user's; transfer needs a different `toWalletId` and is stored with `categoryId = null` (non-transfers with `toWalletId = null`) — the client should store the same; `adjustment`/`investment` with a non-null `categoryId` or `toWalletId` → rejected |
 | budgets | categoryId, amount, month, year | category must be the user's **expense** category; month 1–12; amount > 0 |
 | subscriptions | name, amount, currency, cycle, nextBilling, categoryId, walletId, color, icon, note, active | cycle ∈ weekly/monthly/yearly; currency any 1–8 chars; note ≤ 200; `active` default true |
 | planned | type, amount, note, categoryId, walletId, date, done | type ∈ expense/income; note ≤ 200; `done` default false |
@@ -327,6 +361,10 @@ from a pull.
 | contentPillars | name, color?, sortOrder? | see "Content pillars" below |
 | contentItems | title, stage?, format?, pillar?, idea?, noteId?, checklist?, photos?, assetLinks?, sponsor? | see "Content items" below |
 | contentPosts | contentId, accountId, caption?, hashtags?, scheduledAt?, remindBefore?, status?, postedAt?, url?, metrics?, metricsAt? | see "Content posts" below |
+| habits | name, emoji?, color?, kind?, schedule?, target?, reminders?, private?, why?, startDate, archived?, sortOrder? | see "Habits" below |
+| habitLogs | habitId, date, type, value?, note?, triggers?, at? | see "Habit logs" below |
+| assets | kind, symbol, name?, currency?, priceMode?, manualPrice?, manualPriceAt?, unit?, walletId?, archived?, sortOrder? | see "Assets" below |
+| assetTrades | assetId, type, date, quantity?, price?, fee?, amount?, ratio?, note?, cashTransactionId? | see "Asset trades" below |
 
 Empty/whitespace `note` becomes `null`; `""` ids become `null`.
 
@@ -489,6 +527,75 @@ commit unless another row still references it. Upload pending local files first.
 - The server does not enforce one post per (item, account); clients (and the web
   actions) refuse adding the same account twice to an item.
 
+#### Habits and habit logs (docs/habits.md)
+
+Pure rules: `src/lib/habits.ts` (`scripts/test-habits.mjs`; mobile mirrors it). Upserts
+carry the full row (missing optional fields get defaults). Messages are Indonesian.
+
+- **habits**: `name` one line 1–60. `emoji` one line ≤ 32 UTF-16 units or null. `color`
+  `#rrggbb` (default `#58CC02`). `kind` build/quit (default build). `schedule`
+  `{"type":"daily"}` | `{"type":"weekdays","days":[1..7]}` (≥ 1, stored deduplicated +
+  sorted) | `{"type":"perWeek","times":1..7}`; `target` `{"type":"check"}` |
+  `{"type":"count","goal":>0..10000,"unit":one line ≤ 20, default "kali"}` |
+  `{"type":"duration","goal":1..1440 integer minutes}` — objects, a JSON **string** →
+  `rejected`; missing/null → daily / check. **Quit habits are stored as daily + check**
+  whatever is sent (normalized). `reminders` ≤ 5 `HH:mm`, deduplicated + sorted.
+  `private` bool, `why` ≤ 500 (trimmed, empty → null), `startDate` real `YYYY-MM-DD`
+  (required), `archived` bool, `sortOrder` integer.
+- **habitLogs**: `habitId` the user's habit, else `rejected` ("Kebiasaan tidak ditemukan").
+  `date` real `YYYY-MM-DD`. `type` done/skip/relapse/urge — build: done/skip; quit:
+  done/relapse/urge (others → `rejected`). `value`: build check done → stored as 1; build
+  count/duration done → required, 0–100000 (duration integer); quit done → 1; skip → null;
+  relapse/urge → integer 1–1000 (default 1). `note` ≤ 1000 (trimmed, empty → null).
+  `triggers` array ≤ 10 of one-line tags ≤ 30 (deduplicated case-insensitively), only
+  kept on relapse/urge (else `[]`). `at` ISO with Z/offset or null.
+  (habitId, date, type) held by another id → `duplicate` (client deletes its local row and
+  merges its value into the pulled one). One row per day and type: counts go in `value`
+  (increment the existing row, never add a second row).
+
+#### Assets and asset trades (docs/investments.md)
+
+Pure rules: `src/lib/investments.ts` (`scripts/test-investments.mjs`; mobile mirrors it).
+
+- **assets**: `kind` stock/fund/gold/crypto/bond/other. `symbol`: stock/crypto uppercased
+  (`.JK`/`-IDR` stripped), stock `^[A-Z0-9][A-Z0-9-]{0,11}$`, crypto `^[A-Z0-9]{1,15}$`;
+  other kinds one line 1–20 (case kept). Another asset of the user with the same kind +
+  symbol (case-insensitive) → `duplicate`. `name` one line ≤ 100 or null. `currency` 3
+  letters (uppercased, default IDR). `priceMode` auto/manual — stored as `manual` for
+  every kind but stock/crypto (default auto for those). `manualPrice` ≥ 0 or null,
+  `manualPriceAt` ISO or null. `unit` one line ≤ 20, default per kind (lembar / koin /
+  gram / unit). `walletId`: soft link — not the user's wallet → stored null. `archived`,
+  `sortOrder` integer.
+- **assetTrades**: `assetId` the user's asset, else `rejected` ("Aset tidak ditemukan").
+  `type` buy/sell/dividend/split/fee; `date` ISO with Z/offset. Per type (irrelevant
+  fields are stored null, `fee` 0): buy/sell `quantity` > 0 (units/shares, never lots),
+  `price` > 0, `fee` ≥ 0; dividend `amount` > 0; split `ratio` > 0 and ≠ 1; fee
+  `amount` > 0. `note` ≤ 500.
+- **Sanity check**: holdings are derived in date order (then createdAt, then id); an
+  upsert that makes a sell exceed the held quantity where it didn't before → `rejected`
+  ("Jumlah jual (X) melebihi kepemilikan (Y) per YYYY-MM-DD"). Deletes are always applied.
+- **Cash link** (`cashTransactionId`): the client creates the wallet transaction itself
+  and pushes it **before** the trade — buy `investment` −(q·p + fee), sell `investment`
+  +(q·p − fee), fee `investment` −amount, dividend `income` +amount (category Dividen),
+  split none (`tradeCashEffect`, rounded to 2 decimals). The server checks the link: a
+  transaction that isn't the user's (e.g. deleted offline) → stored null; wrong type or
+  sign, or one already linked to another trade → `rejected`. Editing a trade offline: push
+  the updated transaction, then the trade. See Deletes for cascades.
+
+### Prices
+
+`GET /api/mobile/prices?symbols=stock:BBCA,crypto:BTC` (auth required) — up to 50
+`kind:SYMBOL` items (kind stock/crypto, case-insensitive, `.JK`/`-IDR` tolerated,
+duplicates dropped); anything else → 400. Response `{serverTime, prices}` in request
+order, each:
+`{kind, symbol, name, price, prevClose, change, changePct, currency, asOf, fetchedAt,
+source, stale, error}` — `price`/`prevClose`/`change`/`changePct`/`name`/`asOf`/`fetchedAt`
+may be null (never fetched); `stale` true when the cache rules say the price is old (a
+refresh failed or is backing off); `error` null or `not_found` (unknown symbol — use it to
+validate a new asset) / `unavailable` (timeout, 5xx) / `rate_limited`. The server
+refreshes stale symbols from Yahoo first (cache rules in docs/investments.md), so the
+call can take up to ~5 s. Mobile caches the last response for offline display.
+
 ### JSON conventions
 
 - Numbers are JSON numbers, never strings (`amount`, `balance`, `weight` may be
@@ -535,5 +642,11 @@ timeout, size cap); `node scripts/test-content.mjs` unit-tests src/lib/content.t
 (platforms, schemas, auto-stage, weeks/consistency, reports, sponsorship). The e2e script
 also covers notes/labels/accounts/pillars/items/posts sync (validation, soft links,
 cascades, seeding, audio uploads, file cleanup, reset) and the notes/content web actions.
+`node scripts/test-habits.mjs` unit-tests src/lib/habits.ts (schemas, streaks, rates,
+insights); `node scripts/test-investments.mjs` unit-tests src/lib/investments.ts (holdings,
+cash effect, fees, lots) and src/lib/prices.ts with a mocked fetch. The e2e script also
+covers habits/logs and assets/trades sync (validation, duplicates, sanity check, cash
+links, cascades, balances, reset), the prices endpoint (seeded test tickers, no network)
+and the habits/investments web actions.
 `node scripts/test-prayer-quality.mjs` unit-tests the scoring module,
 report ranges and the ledger's adjustment effect (no server needed).

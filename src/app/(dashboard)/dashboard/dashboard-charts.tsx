@@ -12,7 +12,8 @@ import {
   Tooltip,
   CartesianGrid,
 } from "recharts";
-import { formatCompactCurrency, formatCurrency } from "@/lib/utils";
+import { Money } from "@/components/money/money";
+import { useMoneyFormat } from "@/components/money/balance-privacy";
 
 export type DonutSlice = { name: string; value: number; color: string };
 export type MonthlyBar = { month: string; income: number; expense: number };
@@ -35,6 +36,7 @@ export function SpendingDonut({
   currency: string;
   total: number;
 }) {
+  const money = useMoneyFormat();
   return (
     <div className="flex flex-col items-center gap-5 sm:flex-row">
       <div className="relative h-44 w-44 shrink-0">
@@ -57,14 +59,14 @@ export function SpendingDonut({
             </Pie>
             <Tooltip
               contentStyle={TOOLTIP_STYLE}
-              formatter={(value) => formatCurrency(Number(value), currency)}
+              formatter={(value) => money.format(Number(value), currency)}
             />
           </PieChart>
         </ResponsiveContainer>
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
           <span className="text-xs text-muted">Spent</span>
           <span className="text-sm font-bold text-foreground">
-            {formatCompactCurrency(total, currency)}
+            <Money amount={total} currency={currency} compact />
           </span>
         </div>
       </div>
@@ -81,7 +83,7 @@ export function SpendingDonut({
               <span className="min-w-0 flex-1 truncate text-foreground">{slice.name}</span>
               <span className="text-xs text-muted">{pct}%</span>
               <span className="w-20 text-right text-xs font-medium text-foreground">
-                {formatCompactCurrency(slice.value, currency)}
+                <Money amount={slice.value} currency={currency} compact />
               </span>
             </li>
           );
@@ -98,6 +100,7 @@ export function IncomeExpenseBars({
   data: MonthlyBar[];
   currency: string;
 }) {
+  const money = useMoneyFormat();
   return (
     <div className="h-64 w-full">
       <ResponsiveContainer width="100%" height="100%">
@@ -114,13 +117,13 @@ export function IncomeExpenseBars({
             axisLine={false}
             width={48}
             tick={{ fontSize: 11, fill: "var(--color-muted)" }}
-            tickFormatter={(v: number) => formatCompactCurrency(v, currency)}
+            tickFormatter={(v: number) => money.axis(v, currency)}
           />
           <Tooltip
             cursor={{ fill: "var(--color-accent)", opacity: 0.5 }}
             contentStyle={TOOLTIP_STYLE}
             formatter={(value, name) => [
-              formatCurrency(Number(value), currency),
+              money.format(Number(value), currency),
               name === "income" ? "Income" : "Expense",
             ]}
           />

@@ -10,6 +10,7 @@ import { CategoryIcon } from "@/components/icon";
 import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import { PlannedForm, type PlannedFormData } from "./planned-form";
 import { deletePlanned, togglePlannedDone, convertPlanned } from "./actions";
+import { Money } from "@/components/money/money";
 
 type Item = PlannedFormData & { done: boolean };
 
@@ -106,7 +107,7 @@ function PlannedCard({
           </p>
           <p className={cn("text-sm font-medium", isExpense ? "text-expense" : "text-income")}>
             {isExpense ? "-" : "+"}
-            {formatCurrency(item.amount, currency)}
+            <Money amount={item.amount} currency={currency} />
           </p>
 
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">

@@ -13,8 +13,8 @@ import {
 } from "lucide-react";
 import { requireUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
+import { getNetWorth } from "@/lib/investments-server";
 import {
-  getTotalBalance,
   getMonthlyTotals,
   getSpendingByCategory,
   getRecentTransactions,
@@ -22,7 +22,7 @@ import {
   monthRange,
   currentMonth,
 } from "@/lib/queries";
-import { formatCurrency, formatDate, MONTHS, cn } from "@/lib/utils";
+import { formatDate, MONTHS, cn } from "@/lib/utils";
 import { walletIconFor, COLOR_PALETTE } from "@/lib/constants";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,15 +36,18 @@ import { getFireTasks } from "../tasks/data";
 import { FireTodayCard } from "../tasks/fire-today-card";
 import { getTodayContentPosts } from "../content/data";
 import { ContentTodayCard } from "../content/today-card";
+import { HabitsTodayCard } from "../habits/today-card";
 import { LinkPendingIcon } from "@/components/link-pending";
+import { Money } from "@/components/money/money";
 
 export default async function DashboardPage() {
   const user = await requireUser();
   const cm = currentMonth();
   const range = monthRange(cm.year, cm.month);
 
-  const [totalBalance, totals, spending, recent, wallets, fire, contentToday] = await Promise.all([
-    getTotalBalance(user.id),
+  const [netWorth, totals, spending, recent, wallets, fire, contentToday] = await Promise.all([
+    // Net worth: wallets + investments (docs/investments.md).
+    getNetWorth(user.id),
     getMonthlyTotals(user.id, range),
     getSpendingByCategory(user.id, range),
     getRecentTransactions(user.id, 6),
@@ -139,27 +142,22 @@ export default async function DashboardPage() {
 
       {/* Stat cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          label="Total Balance"
-          value={formatCurrency(totalBalance, user.currency)}
-          icon={WalletIcon}
-          tone="primary"
-        />
+        <NetWorthCard netWorth={netWorth} currency={user.currency} />
         <StatCard
           label="Income this month"
-          value={formatCurrency(totals.income, user.currency)}
+          value={<Money amount={totals.income} currency={user.currency} />}
           icon={TrendingUp}
           tone="income"
         />
         <StatCard
           label="Expense this month"
-          value={formatCurrency(totals.expense, user.currency)}
+          value={<Money amount={totals.expense} currency={user.currency} />}
           icon={TrendingDown}
           tone="expense"
         />
         <StatCard
           label="Net this month"
-          value={formatCurrency(totals.net, user.currency)}
+          value={<Money amount={totals.net} currency={user.currency} />}
           icon={Scale}
           tone={totals.net >= 0 ? "income" : "expense"}
         />
@@ -170,6 +168,9 @@ export default async function DashboardPage() {
 
       {/* Content posts scheduled today (docs/content.md) */}
       {contentToday.length > 0 && <ContentTodayCard posts={contentToday} />}
+
+      {/* Habits due today; private ones masked (docs/habits.md) */}
+      <HabitsTodayCard userId={user.id} />
 
       {/* Charts row */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -228,7 +229,7 @@ export default async function DashboardPage() {
                         {w.name}
                       </span>
                       <span className="text-sm font-semibold text-foreground">
-                        {formatCurrency(w.balance, w.currency)}
+                        <Money amount={w.balance} currency={w.currency} />
                       </span>
                     </li>
                   );
@@ -289,7 +290,7 @@ export default async function DashboardPage() {
                         )}
                       >
                         {sign}
-                        {formatCurrency(Math.abs(t.amount), t.wallet.currency)}
+                        <Money amount={Math.abs(t.amount)} currency={t.wallet.currency} />
                       </span>
                     </li>
                   );
@@ -321,8 +322,8 @@ export default async function DashboardPage() {
                     <span
                       className={cn("text-xs font-medium", over ? "text-expense" : "text-muted")}
                     >
-                      {formatCurrency(b.spent, user.currency)} /{" "}
-                      {formatCurrency(b.amount, user.currency)}
+                      <Money amount={b.spent} currency={user.currency} /> /{" "}
+                      <Money amount={b.amount} currency={user.currency} />
                     </span>
                   </div>
                   <Progress value={pct} color={b.color} />
@@ -367,7 +368,7 @@ function StatCard({
   tone,
 }: {
   label: string;
-  value: string;
+  value: React.ReactNode;
   icon: LucideIcon;
   tone: "primary" | "income" | "expense";
 }) {
@@ -407,5 +408,30 @@ function ViewAll({ href }: { href: string }) {
         <ArrowRight className="h-3.5 w-3.5" />
       </LinkPendingIcon>
     </Link>
+  );
+}
+
+/** Net worth = cash (wallets) + investments (portfolio value), docs/investments.md. */
+function NetWorthCard({ netWorth, currency }: { netWorth: { cash: number; investments: number; total: number }; currency: string }) {
+  return (
+    <Card>
+      <CardContent className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm text-muted">Kekayaan bersih</p>
+          <p className="mt-1 truncate text-xl font-bold tracking-tight text-foreground" data-testid="net-worth">
+            <Money amount={netWorth.total} currency={currency} />
+          </p>
+          <p className="mt-0.5 truncate text-xs text-muted">
+            Kas <Money amount={netWorth.cash} currency={currency} compact /> ·{" "}
+            <Link href="/investments" className="font-medium text-primary hover:underline">
+              Investasi <Money amount={netWorth.investments} currency={currency} compact />
+            </Link>
+          </p>
+        </div>
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary">
+          <WalletIcon className="h-5 w-5" />
+        </div>
+      </CardContent>
+    </Card>
   );
 }

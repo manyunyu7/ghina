@@ -6,9 +6,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge, Progress } from "@/components/ui/misc";
 import { CategoryIcon } from "@/components/icon";
 import { PhotoBadge } from "@/components/photo-viewer";
-import { formatCurrency, formatDate, cn } from "@/lib/utils";
+import { formatDate, cn } from "@/lib/utils";
 import { BudgetActions } from "./budget-actions";
 import type { BudgetEditData } from "./budget-form";
+import { Money } from "@/components/money/money";
 
 export type BudgetTx = { id: string; note: string | null; amount: number; date: string; photos: string[] };
 
@@ -53,7 +54,7 @@ export function BudgetCard({
               {over && <Badge variant="expense">Over budget</Badge>}
             </div>
             <p className="mt-0.5 text-xs text-muted">
-              {formatCurrency(spent, currency)} of {formatCurrency(amount, currency)}
+              <Money amount={spent} currency={currency} /> of <Money amount={amount} currency={currency} />
             </p>
           </div>
           <BudgetActions budget={editData} month={month} year={year} />
@@ -70,8 +71,8 @@ export function BudgetCard({
             )}
           >
             {remaining < 0
-              ? `${formatCurrency(Math.abs(remaining), currency)} over`
-              : `${formatCurrency(remaining, currency)} left`}
+              ? <><Money amount={Math.abs(remaining)} currency={currency} /> over</>
+              : <><Money amount={remaining} currency={currency} /> left</>}
           </span>
         </div>
 
@@ -79,11 +80,11 @@ export function BudgetCard({
         <div className="grid grid-cols-3 gap-2 rounded-lg bg-background px-3 py-2 text-center">
           <div>
             <p className="text-[11px] text-muted-soft">Expected</p>
-            <p className="text-xs font-semibold tabular-nums text-foreground">{formatCurrency(amount, currency)}</p>
+            <p className="text-xs font-semibold tabular-nums text-foreground"><Money amount={amount} currency={currency} /></p>
           </div>
           <div>
             <p className="text-[11px] text-muted-soft">Actual</p>
-            <p className="text-xs font-semibold tabular-nums text-foreground">{formatCurrency(spent, currency)}</p>
+            <p className="text-xs font-semibold tabular-nums text-foreground"><Money amount={spent} currency={currency} /></p>
           </div>
           <div>
             <p className="text-[11px] text-muted-soft">Difference</p>
@@ -94,7 +95,7 @@ export function BudgetCard({
               )}
             >
               {spent > amount ? "+" : "−"}
-              {formatCurrency(Math.abs(spent - amount), currency)}
+              <Money amount={Math.abs(spent - amount)} currency={currency} />
             </p>
           </div>
         </div>
@@ -126,7 +127,7 @@ export function BudgetCard({
                       </p>
                     </div>
                     <span className="shrink-0 tabular-nums text-expense">
-                      −{formatCurrency(t.amount, currency)}
+                      −<Money amount={t.amount} currency={currency} />
                     </span>
                   </li>
                 ))}

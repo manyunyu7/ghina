@@ -6,10 +6,11 @@ import { TrendingUp, ArrowDownCircle, ArrowUpCircle, Repeat, History, CalendarCl
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/misc";
 import { CategoryIcon } from "@/components/icon";
-import { formatCurrency, formatDate, cn } from "@/lib/utils";
+import { formatDate, cn } from "@/lib/utils";
 import { PlannedList } from "./planned-list";
 import { AddPlannedButton } from "./add-planned-button";
 import type { PlannedFormData } from "./planned-form";
+import { Money } from "@/components/money/money";
 
 type PlannedItem = PlannedFormData & { done: boolean };
 type SubItem = { id: string; name: string; amount: number; currency: string; color: string; icon: string; date: string };
@@ -86,19 +87,19 @@ export function ForecastView({
         <StatTile
           icon={<ArrowDownCircle className="h-5 w-5" />}
           label="Projected out"
-          value={formatCurrency(projectedExpense, currency)}
+          value={<Money amount={projectedExpense} currency={currency} />}
           tint="bg-expense-soft text-expense"
         />
         <StatTile
           icon={<ArrowUpCircle className="h-5 w-5" />}
           label="Projected in"
-          value={formatCurrency(projectedIncome, currency)}
+          value={<Money amount={projectedIncome} currency={currency} />}
           tint="bg-income-soft text-income"
         />
         <StatTile
           icon={<TrendingUp className="h-5 w-5" />}
           label="Projected net"
-          value={`${net < 0 ? "-" : "+"}${formatCurrency(Math.abs(net), currency)}`}
+          value={<Money amount={net} currency={currency} sign="auto" />}
           tint={net < 0 ? "bg-expense-soft text-expense" : "bg-primary-soft text-primary"}
         />
       </div>
@@ -170,7 +171,7 @@ export function ForecastView({
                     icon={s.icon}
                     title={s.name}
                     date={formatDate(s.date)}
-                    amount={`-${formatCurrency(s.amount, s.currency || currency)}`}
+                    amount={<Money amount={s.amount} currency={s.currency || currency} sign="-" />}
                   />
                 ))}
               </Card>
@@ -192,7 +193,7 @@ export function ForecastView({
                     icon={a.icon}
                     title={a.name}
                     date="avg / month"
-                    amount={`~${formatCurrency(a.avg, currency)}`}
+                    amount={<>~<Money amount={a.avg} currency={currency} /></>}
                   />
                 ))}
               </Card>
@@ -240,7 +241,7 @@ function ReadonlyRow({
   icon: string;
   title: string;
   date: string;
-  amount: string;
+  amount: React.ReactNode;
 }) {
   return (
     <div className="flex items-center gap-3 p-3">
@@ -267,7 +268,7 @@ function StatTile({
 }: {
   icon: React.ReactNode;
   label: string;
-  value: string;
+  value: React.ReactNode;
   tint: string;
 }) {
   return (

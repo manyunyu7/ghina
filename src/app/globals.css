@@ -73,6 +73,18 @@
   animation: fade-in 0.25s ease-out both;
 }
 
+/* Balance privacy eye toggle: a small pop when it flips. */
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 /* Top-of-viewport progress bar shown while a page is loading (nav-pending, loading.tsx). */
 @keyframes nav-progress {
   0% { transform: translateX(-100%); }

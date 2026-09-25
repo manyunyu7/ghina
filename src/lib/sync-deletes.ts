@@ -29,8 +29,8 @@ import {
 /**
  * Delete a wallet: its transactions (either side of a transfer) are deleted and
  * tombstoned WITHOUT touching the other wallet's balance (same as the old DB cascade);
- * subscriptions/planned/tasks lose their walletId, tasks linked to a deleted
- * transaction lose their transactionId.
+ * subscriptions/planned/tasks/assets lose their walletId, tasks linked to a deleted
+ * transaction lose their transactionId, trades their cashTransactionId (holdings unchanged).
  */
 export async function deleteWalletCascade(db: Db, userId: string, walletId: string): Promise<string[]> {
   // Every query is scoped to the user: a foreign id deletes nothing.
@@ -47,6 +47,7 @@ export async function deleteWalletCascade(db: Db, userId: string, walletId: stri
   await db.subscription.updateMany({ where: { userId, walletId }, data: { walletId: null } });
   await db.plannedTransaction.updateMany({ where: { userId, walletId }, data: { walletId: null } });
   await db.task.updateMany({ where: { userId, walletId }, data: { walletId: null } });
+  await db.asset.updateMany({ where: { userId, walletId }, data: { walletId: null } });
 
   await db.wallet.delete({ where: { id: walletId } });
   await writeTombstones(db, userId, "wallets", [walletId]);
@@ -140,6 +141,46 @@ export async function deleteContentPillarCascade(db: Db, userId: string, pillarI
   await writeTombstones(db, userId, "contentPillars", [pillarId]);
 }
 
+/** Delete a habit and all its logs (each tombstoned). */
+export async function deleteHabitCascade(db: Db, userId: string, habitId: string) {
+  if (!(await db.habit.findFirst({ where: { id: habitId, userId }, select: { id: true } }))) return;
+  const logs = await db.habitLog.findMany({ where: { userId, habitId }, select: { id: true } });
+  const ids = logs.map((l) => l.id);
+  await db.habitLog.deleteMany({ where: { userId, id: { in: ids } } });
+  await writeTombstones(db, userId, "habitLogs", ids);
+  await db.habit.delete({ where: { id: habitId } });
+  await writeTombstones(db, userId, "habits", [habitId]);
+}
+
+/**
+ * Delete a trade and its linked cash transaction (investment / dividend income) through
+ * the ledger, so the wallet balance is reversed (docs/investments.md). Returns the
+ * transaction's photo URLs (file cleanup).
+ */
+export async function deleteAssetTradeCascade(db: Db, userId: string, tradeId: string): Promise<string[]> {
+  const trade = await db.assetTrade.findFirst({ where: { id: tradeId, userId }, select: { cashTransactionId: true } });
+  if (!trade) return [];
+  let files: string[] = [];
+  if (trade.cashTransactionId) {
+    const tx = await db.transaction.findFirst({ where: { id: trade.cashTransactionId, userId } });
+    if (tx) files = await deleteLedgerTransaction(db, tx);
+  }
+  await db.assetTrade.delete({ where: { id: tradeId } });
+  await writeTombstones(db, userId, "assetTrades", [tradeId]);
+  return files;
+}
+
+/** Delete an asset: every trade goes too (with its linked cash transaction, balances reversed). */
+export async function deleteAssetCascade(db: Db, userId: string, assetId: string): Promise<string[]> {
+  if (!(await db.asset.findFirst({ where: { id: assetId, userId }, select: { id: true } }))) return [];
+  const trades = await db.assetTrade.findMany({ where: { userId, assetId }, select: { id: true } });
+  const files: string[] = [];
+  for (const t of trades) files.push(...(await deleteAssetTradeCascade(db, userId, t.id)));
+  await db.asset.delete({ where: { id: assetId } });
+  await writeTombstones(db, userId, "assets", [assetId]);
+  return files;
+}
+
 /** Whether row `id` of `entity` exists and belongs to `userId`. */
 async function ownsRow(db: Db, userId: string, entity: SyncEntity, id: string): Promise<boolean> {
   const q = { where: { id, userId }, select: { id: true } } as const;
@@ -178,6 +219,14 @@ async function ownsRow(db: Db, userId: string, entity: SyncEntity, id: string): 
       return !!(await db.contentItem.findFirst(q));
     case "contentPosts":
       return !!(await db.contentPost.findFirst(q));
+    case "habits":
+      return !!(await db.habit.findFirst(q));
+    case "habitLogs":
+      return !!(await db.habitLog.findFirst(q));
+    case "assets":
+      return !!(await db.asset.findFirst(q));
+    case "assetTrades":
+      return !!(await db.assetTrade.findFirst(q));
   }
 }
 
@@ -216,6 +265,16 @@ export async function deleteSyncedRow(db: Db, userId: string, entity: SyncEntity
       return [];
     case "contentItems":
       return deleteContentItemCascade(db, userId, id);
+    case "habits":
+      await deleteHabitCascade(db, userId, id);
+      return [];
+    case "habitLogs":
+      await db.habitLog.delete({ where: { id } });
+      break;
+    case "assets":
+      return deleteAssetCascade(db, userId, id);
+    case "assetTrades":
+      return deleteAssetTradeCascade(db, userId, id);
     case "contentPosts":
       await db.contentPost.delete({ where: { id } });
       break;
@@ -261,6 +320,8 @@ export async function deleteSynced(userId: string, entity: SyncEntity, id: strin
  * and task areas survive with their wallet/category/transaction links nulled
  * (prayers, health and food are untouched). Notes and the content planner survive too:
  * notes lose `linkedTransactionId`, sponsors their `transactionId` (paid stays).
+ * Habits are untouched. Assets and trades survive (portfolio history is not wallet data):
+ * assets lose `walletId`, trades `cashTransactionId`; portfolio snapshots stay.
  * Transaction photo files are removed unless a note/content item still uses them.
  */
 export async function resetFinanceData(userId: string) {
@@ -272,6 +333,7 @@ export async function resetFinanceData(userId: string) {
       where: { userId, OR: [{ walletId: { not: null } }, { categoryId: { not: null } }, { transactionId: { not: null } }] },
       data: { walletId: null, categoryId: null, transactionId: null },
     });
+    await db.asset.updateMany({ where: { userId, walletId: { not: null } }, data: { walletId: null } });
     const txIds = (await db.transaction.findMany({ where: { userId }, select: { id: true } })).map((t) => t.id);
     await detachTransactions(db, userId, txIds);
     await db.budget.deleteMany({ where: { userId } });

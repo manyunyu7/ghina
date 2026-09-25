@@ -1,5 +1,6 @@
 import { TrendingUp, TrendingDown, PiggyBank, Percent, BarChart3, PieChart, Wallet as WalletIcon, ArrowDownToLine } from "lucide-react";
 import { requireUser } from "@/lib/auth-helpers";
+import { getNetWorth } from "@/lib/investments-server";
 import {
   getMonthlyTotals,
   getSpendingByCategory,
@@ -9,13 +10,14 @@ import {
   currentMonth,
   type DateRange,
 } from "@/lib/queries";
-import { formatCurrency, cn, MONTHS } from "@/lib/utils";
+import { cn, MONTHS } from "@/lib/utils";
 import { walletIconFor } from "@/lib/constants";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState, PageHeader } from "@/components/ui/misc";
 import { CategoryIcon } from "@/components/icon";
 import { PeriodSelector } from "./period-selector";
 import { IncomeExpenseChart, CategoryDonut, CashflowChart } from "./charts";
+import { Money } from "@/components/money/money";
 
 const UNCATEGORIZED_COLOR = "#94a3b8";
 
@@ -162,8 +164,9 @@ export default async function ReportsPage({
       pct: totalIncomeCat > 0 ? (s.total / totalIncomeCat) * 100 : 0,
     }));
 
-  // Net worth across wallets (current stored balances).
-  const netWorth = wallets.reduce((sum, w) => sum + w.balance, 0);
+  // Net worth: wallets (current stored balances) + investment market value (docs/investments.md).
+  const { investments: investmentValue } = await getNetWorth(user.id);
+  const netWorth = wallets.reduce((sum, w) => sum + w.balance, 0) + investmentValue;
   const walletRows = [...wallets].sort((a, b) => b.balance - a.balance);
 
   const hasData = totalIncome > 0 || totalExpense > 0;
@@ -216,7 +219,7 @@ export default async function ReportsPage({
                   <div className="min-w-0">
                     <p className="text-sm text-muted">{s.label}</p>
                     <p className={cn("mt-1 truncate text-xl font-bold", s.valueClass)}>
-                      {formatCurrency(s.value, user.currency)}
+                      <Money amount={s.value} currency={user.currency} />
                     </p>
                   </div>
                   <div
@@ -303,7 +306,7 @@ export default async function ReportsPage({
                             {c.name}
                           </span>
                           <span className="shrink-0 text-sm font-semibold tabular-nums text-foreground">
-                            {formatCurrency(c.total, user.currency)}
+                            <Money amount={c.total} currency={user.currency} />
                           </span>
                           <span className="w-10 shrink-0 text-right text-xs tabular-nums text-muted">
                             {c.pct.toFixed(0)}%
@@ -373,7 +376,7 @@ export default async function ReportsPage({
                             {c.name}
                           </span>
                           <span className="shrink-0 text-sm font-semibold tabular-nums text-income">
-                            {formatCurrency(c.total, user.currency)}
+                            <Money amount={c.total} currency={user.currency} />
                           </span>
                           <span className="w-10 shrink-0 text-right text-xs tabular-nums text-muted">
                             {c.pct.toFixed(0)}%
@@ -401,7 +404,7 @@ export default async function ReportsPage({
             </CardHeader>
             <CardContent>
               <p className="mb-4 text-2xl font-bold text-foreground">
-                {formatCurrency(netWorth, user.currency)}
+                <Money amount={netWorth} currency={user.currency} />
               </p>
               {walletRows.length === 0 ? (
                 <p className="py-4 text-center text-sm text-muted">No wallets yet.</p>
@@ -428,7 +431,7 @@ export default async function ReportsPage({
                               w.balance >= 0 ? "text-foreground" : "text-expense",
                             )}
                           >
-                            {formatCurrency(w.balance, w.currency)}
+                            <Money amount={w.balance} currency={w.currency} />
                           </span>
                         </div>
                         <div className="h-2 w-full overflow-hidden rounded-full bg-accent">

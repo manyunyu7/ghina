@@ -4,10 +4,11 @@ import { prisma } from "@/lib/prisma";
 import { getWallets, getCategories } from "@/lib/queries";
 import { Card } from "@/components/ui/card";
 import { EmptyState, PageHeader } from "@/components/ui/misc";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 import { monthlyAmount, yearlyAmount, nextOccurrence } from "./presets";
 import { SubscriptionList } from "./subscription-list";
 import { AddSubscriptionButton } from "./add-subscription-button";
+import { Money } from "@/components/money/money";
 
 export default async function SubscriptionsPage() {
   const user = await requireUser();
@@ -71,13 +72,13 @@ export default async function SubscriptionsPage() {
             <StatTile
               icon={<CircleDollarSign className="h-5 w-5" />}
               label="Per month"
-              value={formatCurrency(perMonth, currency)}
+              value={<Money amount={perMonth} currency={currency} />}
               tint="bg-primary-soft text-primary"
             />
             <StatTile
               icon={<Repeat className="h-5 w-5" />}
               label="Per year"
-              value={formatCurrency(perYear, currency)}
+              value={<Money amount={perYear} currency={currency} />}
               tint="bg-accent text-foreground"
             />
             <StatTile
@@ -111,7 +112,7 @@ function StatTile({
 }: {
   icon: React.ReactNode;
   label: string;
-  value: string;
+  value: React.ReactNode;
   sub?: string;
   tint: string;
 }) {

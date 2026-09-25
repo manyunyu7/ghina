@@ -5,9 +5,10 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { AlarmClock, Check, Clock, MoveRight, Repeat, StickyNote, Wallet } from "lucide-react";
 import { MEPET_LABEL, OVERDUE_COLOR, OVERDUE_LABEL, bucketInfo, type LocalClock } from "@/lib/tasks";
-import { cn, formatCurrency } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { formatDueDate, recurrenceLabel, taskStatus } from "./format";
 import type { AreaDTO, TaskDTO } from "./types";
+import { Money } from "@/components/money/money";
 
 type CardProps = {
   task: TaskDTO;
@@ -121,7 +122,7 @@ export function TaskCardBody({
           {task.amount != null && (
             <span className="inline-flex items-center gap-0.5 rounded-full bg-income-soft px-1.5 py-px text-[11px] font-medium text-income">
               <Wallet className="h-3 w-3" />
-              {formatCurrency(task.amount, currency)}
+              <Money amount={task.amount} currency={currency} />
               {task.transactionId && <Check className="h-3 w-3" aria-label="Pengeluaran tercatat" />}
             </span>
           )}

@@ -8,10 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/misc";
 import { Modal } from "@/components/ui/modal";
 import { CategoryIcon } from "@/components/icon";
-import { formatCurrency, formatDate, cn } from "@/lib/utils";
+import { formatDate, cn } from "@/lib/utils";
 import { cycleLabel, nextOccurrence, daysUntil } from "./presets";
 import { SubscriptionForm, type SubscriptionFormData } from "./subscription-form";
 import { deleteSubscription, toggleSubscription, markSubscriptionPaid } from "./actions";
+import { Money } from "@/components/money/money";
 
 type Sub = SubscriptionFormData;
 
@@ -107,7 +108,7 @@ function SubscriptionCard({
             <div className="min-w-0">
               <p className="truncate font-semibold text-foreground">{sub.name}</p>
               <p className="text-sm text-muted">
-                {formatCurrency(sub.amount, sub.currency || currency)}
+                <Money amount={sub.amount} currency={sub.currency || currency} />
                 <span className="text-muted-soft"> {cycleLabel(sub.cycle)}</span>
               </p>
             </div>

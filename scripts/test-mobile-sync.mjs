@@ -6,7 +6,8 @@
 //
 // Creates throwaway users (mobile-test-*@example.test) and deletes them at the end.
 // Also exercises the web delete / reset helpers directly (via jiti) to confirm they
-// write tombstones and rotate the sync epoch. Also covers tasks/areas and transaction photos.
+// write tombstones and rotate the sync epoch. Also covers tasks/areas, transaction photos,
+// notes/content, habits and investments (incl. the prices endpoint with seeded test tickers).
 import { randomUUID } from "node:crypto";
 import http from "node:http";
 import { existsSync } from "node:fs";
@@ -123,7 +124,7 @@ async function main() {
   check("epoch matches user", full.epoch === user.syncEpoch, full.epoch);
   check("starter wallet present", full.changes.wallets.length === 1 && full.changes.wallets[0].name === "Cash");
   check("default categories present", full.changes.categories.length >= 10, full.changes.categories.length);
-  check("all 17 entity keys present", Object.keys(full.changes).length === 17 &&
+  check("all 21 entity keys present", Object.keys(full.changes).length === 21 &&
     ["taskAreas", "tasks", "noteLabels", "notes", "socialAccounts", "contentPillars", "contentItems", "contentPosts"].every((k) => Array.isArray(full.changes[k])), Object.keys(full.changes));
   {
     const areas = full.changes.taskAreas;
@@ -848,6 +849,7 @@ async function main() {
   }
 
   await notesAndContent({ user, token, tokenB, userBId, KERJA, W1, png, upload, exists });
+  await habitsAndInvestments({ user, token, tokenB });
 
   // Leave a wallet + photo transaction + linked task for the reset check below.
   const WR = randomUUID(), TR = randomUUID(), TKR = randomUUID();
@@ -906,12 +908,332 @@ async function main() {
       nr && nr.linkedTransactionId === null && ir && JSON.parse(ir.sponsor).transactionId === null && JSON.parse(ir.sponsor).paid === true &&
       (await prisma.contentPillar.count({ where: { userId: user.id } })) > 0, { nr, ir });
     check("reset keeps a transaction photo a note still uses", (await fetch(BASE + resetCtx.sharedPhoto)).status === 200);
+    const hr = await prisma.habit.findUnique({ where: { id: resetCtx.habitId } });
+    const ar = await prisma.asset.findUnique({ where: { id: resetCtx.assetId } });
+    const trr = await prisma.assetTrade.findUnique({ where: { id: resetCtx.tradeId } });
+    check("reset keeps habits (+logs) and assets/trades; asset walletId + trade cash link nulled",
+      hr && (await prisma.habitLog.count({ where: { habitId: resetCtx.habitId } })) > 0 && ar && ar.walletId === null && trr && trr.cashTransactionId === null &&
+      (await prisma.portfolioSnapshot.count({ where: { userId: user.id } })) === 1, { hr: !!hr, ar, trr });
   }
   r = await api("POST", "/api/mobile/sync", { token, body: { epoch: user.syncEpoch, mutations: [mut("wallets", randomUUID(), wallet("zombie", 0))] } });
   check("push with old epoch → 409 + new epoch, nothing applied", r.status === 409 && r.json.epoch === after.syncEpoch, r.json);
   check("zombie wallet not created", (await prisma.wallet.count({ where: { userId: user.id } })) === 0);
   r = await api("GET", `/api/mobile/sync?since=${cursor3}`, { token });
   check("pull reports new epoch", r.json.epoch === after.syncEpoch);
+}
+
+// ---------- Habits + investments (docs/habits.md, docs/investments.md) ----------
+// Test tickers seeded as fresh SecurityPrice rows (deleted at the end) so nothing here
+// ever calls Yahoo.
+const TEST_STOCK = "ZTST";
+const TEST_CRYPTO = "ZTSTC";
+
+async function habitsAndInvestments({ user, token, tokenB }) {
+  const push = async (mutations, tk = token) => api("POST", "/api/mobile/sync", { token: tk, body: { mutations } });
+  const pullSince = async (c, tk = token) => (await api("GET", `/api/mobile/sync?since=${c}`, { token: tk })).json;
+  const errOf = (r, i = 0) => r.json?.results?.[i]?.error ?? "";
+  const bal = async (id) => (await prisma.wallet.findUnique({ where: { id } }))?.balance;
+  const txCount = (id) => prisma.transaction.count({ where: { id } });
+  const today = new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10); // WIB
+  const dayAgo = (n) => new Date(Date.now() + 7 * 3600_000 - n * 86_400_000).toISOString().slice(0, 10);
+  const iso = (d) => `${d}T05:00:00.000Z`;
+  let r;
+
+  await prisma.securityPrice.deleteMany({ where: { symbol: { in: [TEST_STOCK, TEST_CRYPTO] } } });
+  const fresh = { asOf: new Date(), fetchedAt: new Date(), checkedAt: new Date(), currency: "IDR", source: "yahoo" };
+  await prisma.securityPrice.create({ data: { kind: "stock", symbol: TEST_STOCK, name: "PT Uji Coba Tbk", price: 1000, prevClose: 950, change: 50, changePct: (50 / 950) * 100, ...fresh } });
+  await prisma.securityPrice.create({ data: { kind: "crypto", symbol: TEST_CRYPTO, name: "Test Coin IDR", price: 2_000_000, prevClose: 2_000_000, change: 0, changePct: 0, ...fresh } });
+
+  // ---------- Habits: sync ----------
+  console.log("habits: sync");
+  r = await api("GET", "/api/mobile/sync", { token });
+  check("pull has habits/habitLogs/assets/assetTrades keys (21 total)", Object.keys(r.json.changes).length === 21 &&
+    ["habits", "habitLogs", "assets", "assetTrades"].every((k) => Array.isArray(r.json.changes[k])), Object.keys(r.json.changes));
+  const c0 = r.json.serverTime;
+  const HB = randomUUID(), HQ = randomUUID(), HX = randomUUID();
+  const L1 = randomUUID(), L2 = randomUUID(), L3 = randomUUID(), L4 = randomUUID(), L5 = randomUUID();
+  r = await push([
+    mut("habits", HB, { name: "Minum air", emoji: "💧", kind: "build", target: { type: "count", goal: 8, unit: "gelas" }, reminders: ["21:00", "07:00"], startDate: dayAgo(10) }),
+    mut("habits", HQ, { name: "Rokok", kind: "quit", private: true, why: "Demi paru-paru", schedule: { type: "perWeek", times: 3 }, startDate: dayAgo(30) }),
+    mut("habits", HX, { name: "bad", startDate: dayAgo(1), schedule: '{"type":"daily"}' }),
+    mut("habitLogs", L1, { habitId: HB, date: today, type: "done", value: 5 }),
+    mut("habitLogs", L2, { habitId: HQ, date: dayAgo(3), type: "relapse", value: 2, triggers: ["stres", "Stres", "malam"], note: "  kalah  ", at: new Date().toISOString() }),
+    mut("habitLogs", L3, { habitId: HQ, date: today, type: "urge", value: 3, triggers: ["bosan"] }),
+    mut("habitLogs", L4, { habitId: HB, date: today, type: "relapse" }),
+    mut("habitLogs", L5, { habitId: randomUUID(), date: today, type: "done" }),
+  ]);
+  check("habit/log upserts: applied ×2, schedule string rejected, logs applied ×2, relapse on build rejected, unknown habit rejected",
+    eq(statuses(r), ["applied", "applied", "rejected", "applied", "applied", "applied", "rejected", "rejected"]), r.json);
+  check("Indonesian rejection messages", /hanya bisa dicatat selesai atau libur/.test(errOf(r, 6)) && errOf(r, 7) === "Kebiasaan tidak ditemukan", [errOf(r, 6), errOf(r, 7)]);
+  let pulled = await pullSince(c0);
+  const hq = byId(pulled.changes.habits, HQ);
+  const hb = byId(pulled.changes.habits, HB);
+  check("habit wire shape: JSON objects/arrays, quit normalized to daily/check",
+    hq && eq(hq.schedule, { type: "daily" }) && eq(hq.target, { type: "check" }) && hq.private === true && hq.why === "Demi paru-paru" &&
+    eq(hb.target, { type: "count", goal: 8, unit: "gelas" }) && eq(hb.reminders, ["07:00", "21:00"]) && hb.emoji === "💧" &&
+    eq(Object.keys(hb), ["id", "name", "emoji", "color", "kind", "schedule", "target", "reminders", "private", "why", "startDate", "archived", "sortOrder", "createdAt", "updatedAt"]), { hq, hb });
+  const l2 = byId(pulled.changes.habitLogs, L2);
+  check("log wire shape: triggers array (dedup), note trimmed, at ISO", l2 && eq(l2.triggers, ["stres", "malam"]) && l2.note === "kalah" && /Z$/.test(l2.at) && l2.value === 2 &&
+    eq(Object.keys(l2), ["id", "habitId", "date", "type", "value", "note", "triggers", "at", "createdAt", "updatedAt"]), l2);
+  r = await push([mut("habitLogs", randomUUID(), { habitId: HB, date: today, type: "done", value: 8 })]);
+  check("same (habit, date, type) with another id → duplicate", eq(statuses(r), ["duplicate"]), r.json);
+  r = await push([mut("habitLogs", L1, { habitId: HB, date: today, type: "done", value: 7 }, ago(3_600_000))]);
+  check("older clientUpdatedAt → skipped (LWW)", eq(statuses(r), ["skipped"]) && (await prisma.habitLog.findUnique({ where: { id: L1 } })).value === 5);
+  r = await push([mut("habitLogs", L1, { habitId: HB, date: today, type: "done", value: 8 })]);
+  check("log update applied", eq(statuses(r), ["applied"]) && (await prisma.habitLog.findUnique({ where: { id: L1 } })).value === 8);
+  r = await push([mut("habits", HB, { name: "hijack", startDate: today }), mut("habitLogs", L1, { habitId: HB, date: today, type: "done", value: 1 })], tokenB);
+  check("other user's habit/log id → rejected Not found", eq(statuses(r), ["rejected", "rejected"]) && errOf(r) === "Not found", r.json);
+  r = await push([mut("habitLogs", randomUUID(), { habitId: HQ, date: today, type: "skip" })]);
+  check("skip on quit habit → rejected", eq(statuses(r), ["rejected"]), r.json);
+  const c1 = (await api("GET", `/api/mobile/sync?since=${Date.now()}`, { token })).json.serverTime;
+  r = await push([del("habits", HQ)]);
+  pulled = await pullSince(c1);
+  check("habit delete tombstones its logs", eq(statuses(r), ["applied"]) && (await prisma.habitLog.count({ where: { habitId: HQ } })) === 0 &&
+    [HQ, L2, L3].every((id) => pulled.deleted.some((d) => d.id === id)) && pulled.deleted.find((d) => d.id === L2).entity === "habitLogs", pulled.deleted);
+
+  // ---------- Investments: sync ----------
+  console.log("investments: sync");
+  const RDN = randomUUID(), A1 = randomUUID(), A2 = randomUUID(), AG = randomUUID();
+  const TXB = randomUUID(), TB = randomUUID(), TXS = randomUUID(), TS = randomUUID(), TXD = randomUUID(), TD = randomUUID();
+  r = await push([
+    mut("wallets", RDN, { name: "RDN", type: "investment", balance: 20_000_000, currency: "IDR", color: "#6366f1", icon: "wallet", archived: false }),
+    mut("assets", A1, { kind: "stock", symbol: "ztst", walletId: RDN }),
+    mut("assets", A2, { kind: "stock", symbol: "ZTST" }),
+    mut("assets", AG, { kind: "gold", symbol: "Antam", priceMode: "auto", manualPrice: 1_500_000, manualPriceAt: now(), walletId: randomUUID() }),
+    mut("assets", randomUUID(), { kind: "stock", symbol: "!!" }),
+  ]);
+  check("asset upserts: applied, duplicate (kind+symbol), applied, invalid symbol rejected", eq(statuses(r), ["applied", "applied", "duplicate", "applied", "rejected"]), r.json);
+  const ag = await prisma.asset.findUnique({ where: { id: AG } });
+  const a1 = await prisma.asset.findUnique({ where: { id: A1 } });
+  check("asset normalization: symbol upper, stock auto/lembar; gold manual/gram, foreign wallet → null",
+    a1.symbol === TEST_STOCK && a1.priceMode === "auto" && a1.unit === "lembar" && a1.walletId === RDN && ag.priceMode === "manual" && ag.unit === "gram" && ag.walletId === null, { a1, ag });
+  r = await api("GET", "/api/mobile/sync", { token });
+  const divId = `category-dividen-${user.id}`;
+  const divCat = byId(r.json.changes.categories, divId);
+  check("pull seeds the Dividen income category for users with assets", divCat?.name === "Dividen" && divCat.type === "income", divCat);
+
+  // buy 1000 @ 1000 + fee 1500: the client pushes the investment tx first, then the trade
+  r = await push([
+    mut("transactions", TXB, { walletId: RDN, toWalletId: null, categoryId: null, type: "investment", amount: -1_001_500, note: "Beli ZTST 10 lot @ 1.000", date: iso(dayAgo(5)) }),
+    mut("assetTrades", TB, { assetId: A1, type: "buy", date: iso(dayAgo(5)), quantity: 1000, price: 1000, fee: 1500, cashTransactionId: TXB }),
+  ]);
+  check("buy: investment tx + trade applied, RDN balance −1,001,500", eq(statuses(r), ["applied", "applied"]) && (await bal(RDN)) === 18_998_500, { r: r.json, bal: await bal(RDN) });
+  r = await push([
+    mut("transactions", randomUUID(), { walletId: RDN, categoryId: divId, type: "investment", amount: -5, date: now() }),
+    mut("transactions", randomUUID(), { walletId: RDN, toWalletId: A1, type: "investment", amount: -5, date: now() }),
+    mut("transactions", randomUUID(), { walletId: RDN, type: "investment", amount: 0, date: now() }),
+  ]);
+  check("investment tx with category / toWalletId / 0 → rejected", eq(statuses(r), ["rejected", "rejected", "rejected"]), r.json);
+  r = await push([mut("assetTrades", randomUUID(), { assetId: A1, type: "sell", date: iso(dayAgo(4)), quantity: 1500, price: 1100 })]);
+  check("selling more than held → rejected (Indonesian)", eq(statuses(r), ["rejected"]) && /melebihi kepemilikan/.test(errOf(r)), r.json);
+  r = await push([mut("assetTrades", randomUUID(), { assetId: A1, type: "sell", date: iso(dayAgo(6)), quantity: 100, price: 1100 })]);
+  check("selling before the buy (date order) → rejected", eq(statuses(r), ["rejected"]), r.json);
+  r = await push([
+    mut("transactions", TXS, { walletId: RDN, type: "investment", amount: 548_625, date: iso(dayAgo(3)) }),
+    mut("assetTrades", TS, { assetId: A1, type: "sell", date: iso(dayAgo(3)), quantity: 500, price: 1100, fee: 1375, cashTransactionId: TXS }),
+    mut("assetTrades", randomUUID(), { assetId: A1, type: "fee", date: iso(dayAgo(2)), amount: 100, cashTransactionId: TXB }),
+    mut("assetTrades", randomUUID(), { assetId: A1, type: "buy", date: iso(dayAgo(2)), quantity: 1, price: 1, cashTransactionId: TXS }),
+  ]);
+  check("sell applied; linking a tx another trade holds / with the wrong sign → rejected",
+    eq(statuses(r), ["applied", "applied", "rejected", "rejected"]) && /sudah terhubung/.test(errOf(r, 2)) && /negatif/.test(errOf(r, 3)), r.json);
+  check("RDN balance after sell", (await bal(RDN)) === 18_998_500 + 548_625);
+  r = await push([
+    mut("transactions", TXD, { walletId: RDN, categoryId: divId, type: "income", amount: 25_000, note: "Dividen ZTST", date: iso(dayAgo(1)) }),
+    mut("assetTrades", TD, { assetId: A1, type: "dividend", date: iso(dayAgo(1)), amount: 25_000, cashTransactionId: TXD }),
+    mut("assetTrades", randomUUID(), { assetId: A1, type: "split", date: iso(dayAgo(1)), ratio: 2, cashTransactionId: randomUUID() }),
+  ]);
+  check("dividend (income tx in Dividen) + split with a missing tx link → applied (link stored null)", eq(statuses(r), ["applied", "applied", "applied"]) &&
+    (await prisma.assetTrade.findFirst({ where: { assetId: A1, type: "split" } })).cashTransactionId === null, r.json);
+  r = await push([mut("assetTrades", TB, { assetId: A1, type: "buy", date: iso(dayAgo(2)), quantity: 1000, price: 1000, fee: 1500, cashTransactionId: TXB })]);
+  check("moving the buy after the sell → rejected; row unchanged", eq(statuses(r), ["rejected"]) && (await prisma.assetTrade.findUnique({ where: { id: TB } })).date.toISOString() === iso(dayAgo(5)), r.json);
+  r = await push([mut("assetTrades", TB, { assetId: A1, type: "buy", date: iso(dayAgo(5)), quantity: 1000, price: 1000, fee: 1500, cashTransactionId: TXB })], tokenB);
+  check("other user's trade id → rejected", eq(statuses(r), ["rejected"]) && errOf(r) === "Not found");
+  pulled = await pullSince(c1);
+  const tb = byId(pulled.changes.assetTrades, TB);
+  const a1w = byId(pulled.changes.assets, A1);
+  check("trade/asset wire shape", tb && tb.cashTransactionId === TXB && tb.quantity === 1000 && tb.amount === null && tb.fee === 1500 &&
+    eq(Object.keys(tb), ["id", "assetId", "type", "date", "quantity", "price", "fee", "amount", "ratio", "note", "cashTransactionId", "createdAt", "updatedAt"]) &&
+    eq(Object.keys(a1w), ["id", "kind", "symbol", "name", "currency", "priceMode", "manualPrice", "manualPriceAt", "unit", "walletId", "archived", "sortOrder", "createdAt", "updatedAt"]) &&
+    byId(pulled.changes.transactions, TXB)?.type === "investment" && byId(pulled.changes.transactions, TXB)?.amount === -1_001_500, { tb, a1w });
+
+  const jitiQ = createJiti(import.meta.url, { alias: { "@": join(root, "src") } });
+  const { getMonthlyTotals, monthRange } = await jitiQ.import(join(root, "src/lib/queries.ts"));
+  {
+    const d = new Date();
+    const range = monthRange(d.getFullYear(), d.getMonth() + 1);
+    const t = await getMonthlyTotals(user.id, range);
+    const sum = async (type) =>
+      (await prisma.transaction.aggregate({ where: { userId: user.id, type, date: { gte: range.start, lte: range.end } }, _sum: { amount: true } }))._sum.amount ?? 0;
+    check("investment txs excluded from income/expense totals (dividend income counted)",
+      t.income === (await sum("income")) && t.expense === (await sum("expense")) && (await prisma.transaction.count({ where: { userId: user.id, type: "investment" } })) === 2, t);
+  }
+
+  // deletes
+  const c2 = (await api("GET", `/api/mobile/sync?since=${Date.now()}`, { token })).json.serverTime;
+  const before = await bal(RDN);
+  r = await push([del("assetTrades", TS), del("transactions", TXS)]);
+  pulled = await pullSince(c2);
+  check("trade delete deletes its linked tx (balance reversed); the queued tx delete is idempotent",
+    eq(statuses(r), ["applied", "applied"]) && (await txCount(TXS)) === 0 && (await bal(RDN)) === before - 548_625 &&
+    pulled.deleted.some((d) => d.id === TS && d.entity === "assetTrades") && pulled.deleted.some((d) => d.id === TXS && d.entity === "transactions"), pulled.deleted);
+  r = await push([del("transactions", TXD)]);
+  check("deleting a linked tx keeps the trade, link → null (re-synced)", eq(statuses(r), ["applied"]) &&
+    (await prisma.assetTrade.findUnique({ where: { id: TD } })).cashTransactionId === null && byId((await pullSince(c2)).changes.assetTrades, TD)?.cashTransactionId === null);
+  const c3 = (await api("GET", `/api/mobile/sync?since=${Date.now()}`, { token })).json.serverTime;
+  r = await push([del("assets", A1)]);
+  pulled = await pullSince(c3);
+  check("asset delete: trades + linked txs deleted (balance reversed), all tombstoned", eq(statuses(r), ["applied"]) &&
+    (await prisma.assetTrade.count({ where: { assetId: A1 } })) === 0 && (await txCount(TXB)) === 0 && (await bal(RDN)) === 20_000_000 &&
+    [A1, TB, TD, TXB].every((id) => pulled.deleted.some((d) => d.id === id)), { bal: await bal(RDN), del: pulled.deleted });
+
+  // wallet delete → assets lose walletId, linked trades lose their tx
+  const A3 = randomUUID(), TX3 = randomUUID(), T3 = randomUUID();
+  await push([
+    mut("assets", A3, { kind: "crypto", symbol: TEST_CRYPTO, walletId: RDN }),
+    mut("transactions", TX3, { walletId: RDN, type: "investment", amount: -1_000_000, date: iso(dayAgo(1)) }),
+    mut("assetTrades", T3, { assetId: A3, type: "buy", date: iso(dayAgo(1)), quantity: 0.5, price: 2_000_000, cashTransactionId: TX3 }),
+  ]);
+  r = await push([del("wallets", RDN)]);
+  check("wallet delete: asset walletId null, trade kept with cashTransactionId null", eq(statuses(r), ["applied"]) &&
+    (await prisma.asset.findUnique({ where: { id: A3 } })).walletId === null && (await prisma.assetTrade.findUnique({ where: { id: T3 } })).cashTransactionId === null);
+
+  // ---------- Prices endpoint ----------
+  console.log("prices endpoint");
+  r = await api("GET", `/api/mobile/prices?symbols=stock:${TEST_STOCK}`);
+  check("prices without token → 401", r.status === 401);
+  r = await api("GET", "/api/mobile/prices?symbols=fund:ABC", { token });
+  check("bad kind → 400", r.status === 400 && r.json.error, r.json);
+  r = await api("GET", `/api/mobile/prices?symbols=${Array.from({ length: 51 }, (_, i) => `stock:Q${i}`).join(",")}`, { token });
+  check("> 50 symbols → 400", r.status === 400 && /max 50/.test(r.json.error), r.json);
+  r = await api("GET", `/api/mobile/prices?symbols=stock:${TEST_STOCK.toLowerCase()},crypto:${TEST_CRYPTO}-IDR,stock:${TEST_STOCK}.JK`, { token });
+  const pq = r.json?.prices;
+  check("prices: cached quotes in order, deduped, full shape", r.status === 200 && pq.length === 2 && pq[0].symbol === TEST_STOCK && pq[0].price === 1000 &&
+    pq[0].change === 50 && pq[0].stale === false && pq[0].error === null && pq[0].name === "PT Uji Coba Tbk" && pq[1].kind === "crypto" &&
+    eq(Object.keys(pq[0]), ["kind", "symbol", "name", "price", "prevClose", "change", "changePct", "currency", "asOf", "fetchedAt", "source", "stale", "error"]), r.json);
+
+  // ---------- Web actions ----------
+  console.log("habits/investments: web actions");
+  const stubDir = await mkdtemp(join(tmpdir(), "ghina-stubs-"));
+  await writeFile(join(stubDir, "auth.mjs"), "export async function requireUser() { return globalThis.__ghinaTestUser; }\n");
+  await writeFile(join(stubDir, "cache.mjs"), "export function revalidatePath() {}\n");
+  globalThis.__ghinaTestUser = await prisma.user.findUnique({ where: { id: user.id } });
+  const jitiW = createJiti(import.meta.url, {
+    alias: { "@/lib/auth-helpers": join(stubDir, "auth.mjs"), "next/cache": join(stubDir, "cache.mjs"), "@": join(root, "src") },
+    moduleCache: false,
+  });
+  const ha = await jitiW.import(join(root, "src/app/(dashboard)/habits/actions.ts"));
+  const ia = await jitiW.import(join(root, "src/app/(dashboard)/investments/actions.ts"));
+  const is = await jitiW.import(join(root, "src/lib/investments-server.ts"));
+
+  let a = await ha.createHabit({ name: "Baca buku", target: { type: "duration", goal: 20 }, startDate: dayAgo(3) });
+  const WH = a.id;
+  check("createHabit", a.ok && (await prisma.habit.findUnique({ where: { id: WH } }))?.name === "Baca buku", a);
+  check("createHabit validation (Indonesian)", (await ha.createHabit({ name: "" })).error === "Nama wajib diisi");
+  check("string-id guard", !(await ha.updateHabit({ not: "" }, { name: "x" })).ok && !(await ha.deleteHabit(123)).ok);
+  a = await ha.checkInHabit(WH, { date: today, add: 10 });
+  a = await ha.checkInHabit(WH, { date: today, add: 15, note: "bab 3" });
+  check("checkInHabit adds progress (10+15 ≥ 20 → met), journal note", a.ok && a.today.progress === 25 && a.today.met && a.today.streak.current === 1 &&
+    (await prisma.habitLog.findFirst({ where: { habitId: WH, type: "done" } })).note === "bab 3", a);
+  a = await ha.setHabitSkip(WH, dayAgo(1), true);
+  const a2 = await ha.setHabitSkip(WH, dayAgo(2), true);
+  const a3 = await ha.setHabitSkip(WH, dayAgo(3), true);
+  check("setHabitSkip: max 2 per 7 days", a.ok && a2.ok && !a3.ok && /Maksimal 2/.test(a3.error), a3);
+  a = await ha.updateHabit(WH, { kind: "quit" });
+  a = await ha.createHabit({ name: "Begadang", kind: "quit", startDate: dayAgo(9), private: true });
+  const WQ = a.id;
+  a = await ha.logUrge(WQ, { date: today, triggers: ["medsos"] });
+  a = await ha.logUrge(WQ, { date: today });
+  check("logUrge increments", a.ok && a.urgesToday === 2, a);
+  a = await ha.urgeToRelapse(WQ, { date: today, triggers: ["capek"], note: "jam 2 pagi" });
+  const urgeRow = await prisma.habitLog.findFirst({ where: { habitId: WQ, type: "urge" } });
+  const relRow = await prisma.habitLog.findFirst({ where: { habitId: WQ, type: "relapse" } });
+  check("urgeToRelapse: urge 2→1, relapse +1, previous streak 9 days, today 0", a.ok && urgeRow.value === 1 && relRow.value === 1 && a.previousStreak === 9 &&
+    a.today.streak.current === 0 && JSON.parse(relRow.triggers).includes("capek"), { a, urgeRow, relRow });
+  a = await ha.logRelapse(WQ, { date: today, count: 2, triggers: ["Capek", "malam"] });
+  const rel2 = await prisma.habitLog.findFirst({ where: { habitId: WQ, type: "relapse" } });
+  check("logRelapse adds to the day's row, merges triggers", a.ok && rel2.value === 3 && eq(JSON.parse(rel2.triggers), ["capek", "malam"]), rel2);
+  check("relapse on a build habit → error", !(await ha.logRelapse(HB, { date: today })).ok);
+  a = await ha.setHabitLogNote(WQ, dayAgo(5), "relapse", "x");
+  check("journal note needs an existing log", !a.ok);
+  a = await ha.fetchHabits({ today });
+  check("fetchHabits: overview with today", a.ok && a.habits.some((x) => x.id === WQ && x.today.relapses === 3 && x.private) && a.habits.some((x) => x.id === HB && x.today.progress === 8), a.ok ? a.habits.map((x) => x.name) : a);
+  a = await ha.fetchHabitDetail(WQ, { from: dayAgo(13), to: today, today });
+  check("fetchHabitDetail: insights", a.ok && a.detail.insights.relapses.total === 3 && a.detail.insights.urges.total === 1 && a.detail.insights.topTriggers[0].tag === "capek" &&
+    a.detail.insights.heatmap.length === 14 && a.detail.logs.length === 2, a.ok ? a.detail.insights.topTriggers : a);
+  check("fetchHabitDetail bad range", !(await ha.fetchHabitDetail(WQ, { from: today, to: dayAgo(1), today })).ok);
+  a = await ha.reorderHabits([WQ, HB, WH]);
+  check("reorderHabits", a.ok && (await prisma.habit.findUnique({ where: { id: WQ } })).sortOrder === 0 && (await prisma.habit.findUnique({ where: { id: WH } })).sortOrder === 2);
+  a = await ha.deleteHabit(WH);
+  check("deleteHabit tombstones habit + logs", a.ok && (await prisma.syncTombstone.count({ where: { entityId: WH, entity: "habits" } })) === 1 &&
+    (await prisma.habitLog.count({ where: { habitId: WH } })) === 0);
+
+  const W = await prisma.wallet.create({ data: { userId: user.id, name: "RDN web", type: "investment", balance: 50_000_000 } });
+  a = await ia.createAsset({ kind: "stock", symbol: TEST_STOCK.toLowerCase(), walletId: W.id });
+  const WA = a.id;
+  check("createAsset: validated via cached price, name auto-filled", a.ok && a.name === "PT Uji Coba Tbk", a);
+  check("createAsset duplicate → Indonesian error", (await ia.createAsset({ kind: "stock", symbol: TEST_STOCK })).error === "Aset dengan kode ini sudah ada");
+  a = await ia.createAsset({ kind: "gold", symbol: "Antam", manualPrice: 1_400_000 });
+  check("duplicate gold (Antam exists from sync) → error", !a.ok);
+  a = await ia.createAsset({ kind: "fund", symbol: "Sucor MM", unit: "unit", manualPrice: 1500 });
+  const WF = a.id;
+  check("manual fund asset", a.ok && (await prisma.asset.findUnique({ where: { id: WF } })).manualPriceAt instanceof Date);
+  a = await ia.createTrade({ assetId: WA, type: "buy", date: dayAgo(4), quantity: 2000, price: 900, fee: 2700 });
+  const WT1 = a.id;
+  const tx1 = a.cashTransactionId && (await prisma.transaction.findUnique({ where: { id: a.cashTransactionId } }));
+  check("createTrade (buy, default cash on asset wallet): investment tx −1,802,700, balance", a.ok && tx1?.type === "investment" && tx1.amount === -1_802_700 &&
+    tx1.walletId === W.id && tx1.categoryId === null && tx1.note === "Beli ZTST 20 lot @ 900" && (await bal(W.id)) === 50_000_000 - 1_802_700, { a, tx1 });
+  a = await ia.updateTrade(WT1, { quantity: 1000 });
+  check("updateTrade: linked tx follows (−902,700: fee kept), balance adjusted", a.ok && a.cashTransactionId === tx1.id &&
+    (await prisma.transaction.findUnique({ where: { id: tx1.id } })).amount === -902_700 && (await bal(W.id)) === 50_000_000 - 902_700, a);
+  a = await ia.createTrade({ assetId: WA, type: "sell", date: dayAgo(3), quantity: 1500, price: 1000 });
+  check("createTrade oversell → Indonesian error, nothing written", !a.ok && /melebihi kepemilikan/.test(a.error) && (await bal(W.id)) === 50_000_000 - 902_700, a);
+  a = await ia.createTrade({ assetId: WA, type: "sell", date: dayAgo(2), quantity: 400, price: 1100, fee: 1100 }, false);
+  const WT2 = a.id;
+  check("createTrade with cash false → no tx", a.ok && a.cashTransactionId === null && (await bal(W.id)) === 50_000_000 - 902_700, a);
+  a = await ia.updateTrade(WT2, {}, { walletId: W.id });
+  check("updateTrade turning cash on → tx +438,900", a.ok && (await prisma.transaction.findUnique({ where: { id: a.cashTransactionId } })).amount === 438_900 &&
+    (await bal(W.id)) === 50_000_000 - 902_700 + 438_900, a);
+  a = await ia.createTrade({ assetId: WA, type: "dividend", date: dayAgo(1), amount: 30_000 });
+  const div = await prisma.transaction.findUnique({ where: { id: a.cashTransactionId } });
+  check("dividend → income in the Dividen category", a.ok && div.type === "income" && div.amount === 30_000 && div.categoryId === divId && div.note === "Dividen ZTST", div);
+  a = await ia.createTrade({ assetId: WF, type: "buy", date: dayAgo(1), quantity: 1000, price: 1450 }, { walletId: W.id });
+  a = await ia.createTrade({ assetId: WA, type: "buy", date: today, quantity: 100, price: 1000 }, { walletId: "nope" });
+  check("createTrade with a foreign wallet → error", !a.ok && a.error === "Dompet tidak ditemukan", a);
+  a = await ia.setManualPrice(WF, 1600, today);
+  check("setManualPrice", a.ok && (await prisma.asset.findUnique({ where: { id: WF } })).manualPrice === 1600);
+  a = await ia.fetchPortfolio({ refresh: false });
+  const pf = a.portfolio;
+  const hz = pf?.holdings.find((x) => x.asset.id === WA);
+  // ZTST: bought 1000 @ 900 (+2700 fee) = 902,700; sold 400 → avg 902.7, cost 541,620, 600 shares; value 600×1000
+  check("fetchPortfolio: ZTST holding + valuation", a.ok && hz.holding.shares === 600 && Math.abs(hz.holding.cost - 541_620) < 1e-6 &&
+    hz.valuation.marketValue === 600_000 && Math.abs(hz.valuation.dayChange - 30_000) < 1e-6 && hz.priceSource === "auto" && hz.holding.dividends === 30_000, hz);
+  const hf = pf.holdings.find((x) => x.asset.id === WF);
+  check("manual price valuation", hf.priceSource === "manual" && hf.valuation.marketValue === 1_600_000, hf.valuation);
+  check("summary + allocation", Math.abs(pf.summary.marketValue - pf.holdings.reduce((s, x) => s + x.value, 0)) < 1e-6 && pf.summary.marketValue >= 2_200_000 &&
+    pf.summary.byKind.length >= 2 && Math.abs(pf.summary.byAsset.reduce((s, x) => s + x.pct, 0) - 100) < 1e-6, pf.summary);
+  check("snapshot recorded for today", (await prisma.portfolioSnapshot.count({ where: { userId: user.id } })) === 1);
+  a = await ia.fetchPortfolioHistory({ from: dayAgo(30), to: today });
+  check("fetchPortfolioHistory", a.ok && a.history.length === 1 && a.history[0].value === pf.summary.marketValue, a);
+  const nw = await is.getNetWorth(user.id, { refresh: false });
+  const cashSum = (await prisma.wallet.findMany({ where: { userId: user.id, archived: false } })).reduce((s, w) => s + w.balance, 0);
+  check("getNetWorth = wallets + portfolio", Math.abs(nw.cash - cashSum) < 1e-6 && Math.abs(nw.investments - pf.summary.marketValue) < 1e-6 && Math.abs(nw.total - cashSum - nw.investments) < 1e-6, nw);
+  a = await ia.fetchAssetDetail(WA);
+  check("fetchAssetDetail: trades newest first + quote", a.ok && a.detail.trades.length === 3 && a.detail.trades[0].type === "dividend" && a.detail.quote?.price === 1000, a.ok ? a.detail.trades.map((t) => t.type) : a);
+  a = await ia.updateTrade(WT1, { date: dayAgo(1) });
+  check("updateTrade moving the buy after the sell → error", !a.ok && /melebihi/.test(a.error), a);
+  const balBefore = await bal(W.id);
+  a = await ia.deleteTrade(WT2);
+  check("deleteTrade reverses its cash", a.ok && (await bal(W.id)) === balBefore - 438_900);
+  a = await ia.lookupSymbol("stock", TEST_STOCK);
+  check("lookupSymbol from cache", a.ok && a.status === "ok" && a.quote.name === "PT Uji Coba Tbk", a);
+  check("lookupSymbol invalid", !(await ia.lookupSymbol("stock", "!!")).ok && !(await ia.lookupSymbol("fund", "X")).ok);
+
+  // leave data for the reset check
+  resetCtx.habitId = HB;
+  resetCtx.assetId = WA;
+  resetCtx.tradeId = WT1;
+  resetCtx.walletAssetId = WA;
+  await rm(stubDir, { recursive: true, force: true });
 }
 
 // ---------- Notes + content planner (docs/notes.md, docs/content.md) ----------
@@ -1393,6 +1715,7 @@ try {
     ...(await prisma.foodLog.findMany({ where, select: { photoUrl: true } })).map((x) => JSON.stringify(x.photoUrl)),
   ].join(" ");
   for (const u of new Set(refs.match(/\/uploads\/[A-Za-z0-9-]+\.[a-z0-9]+/g) ?? [])) await rm(join(root, "public", u), { force: true });
+  await prisma.securityPrice.deleteMany({ where: { symbol: { in: [TEST_STOCK, TEST_CRYPTO] } } });
   // Clean up the throwaway users (DB cascades remove their data and tombstones).
   await prisma.user.deleteMany({ where: { email: { in: createdEmails } } });
   await prisma.$disconnect();

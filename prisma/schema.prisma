@@ -23,26 +23,31 @@ model User {
   // Rotated by "reset all data" — tells mobile clients to wipe and do a full pull.
   syncEpoch     String    @default(cuid())
 
-  accounts       Account[]
-  sessions       Session[]
-  wallets        Wallet[]
-  categories     Category[]
-  transactions   Transaction[]
-  budgets        Budget[]
-  subscriptions  Subscription[]
-  planned        PlannedTransaction[]
-  prayers        PrayerEntry[]
-  health         HealthEntry[]
-  foodLogs       FoodLog[]
-  tombstones     SyncTombstone[]
-  taskAreas      TaskArea[]
-  tasks          Task[]
-  notes          Note[]
-  noteLabels     NoteLabel[]
-  socialAccounts SocialAccount[]
-  contentItems   ContentItem[]
-  contentPosts   ContentPost[]
-  contentPillars ContentPillar[]
+  accounts           Account[]
+  sessions           Session[]
+  wallets            Wallet[]
+  categories         Category[]
+  transactions       Transaction[]
+  budgets            Budget[]
+  subscriptions      Subscription[]
+  planned            PlannedTransaction[]
+  prayers            PrayerEntry[]
+  health             HealthEntry[]
+  foodLogs           FoodLog[]
+  tombstones         SyncTombstone[]
+  taskAreas          TaskArea[]
+  tasks              Task[]
+  notes              Note[]
+  noteLabels         NoteLabel[]
+  socialAccounts     SocialAccount[]
+  contentItems       ContentItem[]
+  contentPosts       ContentPost[]
+  contentPillars     ContentPillar[]
+  habits             Habit[]
+  habitLogs          HabitLog[]
+  assets             Asset[]
+  assetTrades        AssetTrade[]
+  portfolioSnapshots PortfolioSnapshot[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -106,6 +111,7 @@ model Wallet {
   subscriptions Subscription[]
   planned       PlannedTransaction[]
   tasks         Task[]
+  assets        Asset[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -140,17 +146,18 @@ model Transaction {
   walletId   String
   toWalletId String? // destination wallet for type = transfer
   categoryId String?
-  type       String   @default("expense") // expense | income | transfer | adjustment
-  amount     Float // > 0, except adjustment: signed, non-zero (docs/balance-adjustment.md)
+  type       String   @default("expense") // expense | income | transfer | adjustment | investment
+  amount     Float // > 0, except adjustment/investment: signed, non-zero (docs/balance-adjustment.md, docs/investments.md)
   note       String?
   date       DateTime @default(now())
 
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  wallet   Wallet    @relation("WalletTransactions", fields: [walletId], references: [id], onDelete: Cascade)
-  toWallet Wallet?   @relation("WalletTransfersIn", fields: [toWalletId], references: [id], onDelete: SetNull)
-  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  tasks    Task[]
-  notes    Note[]
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  wallet     Wallet      @relation("WalletTransactions", fields: [walletId], references: [id], onDelete: Cascade)
+  toWallet   Wallet?     @relation("WalletTransfersIn", fields: [toWalletId], references: [id], onDelete: SetNull)
+  category   Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  tasks      Task[]
+  notes      Note[]
+  assetTrade AssetTrade?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -501,6 +508,148 @@ model ContentPillar {
   updatedAt DateTime @updatedAt
 
   @@unique([userId, name])
+}
+
+// ---------- Habits (docs/habits.md) ----------
+
+// A habit to build (olahraga, baca buku) or to quit (rokok, begadang). JSON columns are
+// validated by src/lib/habits.ts and travel as JSON values on the sync wire.
+model Habit {
+  id        String  @id @default(cuid())
+  userId    String
+  name      String // 1–60
+  emoji     String? // one emoji, optional
+  color     String  @default("#58CC02")
+  kind      String  @default("build") // build | quit
+  schedule  String  @default("{\"type\":\"daily\"}") // JSON {"type":"daily"} | {"type":"weekdays","days":[1..7]} | {"type":"perWeek","times":1..7}
+  target    String  @default("{\"type\":\"check\"}") // JSON {"type":"check"} | {"type":"count","goal","unit"} | {"type":"duration","goal"}
+  reminders String  @default("[]") // JSON ["07:00", …] local HH:mm, ≤ 5
+  private   Boolean @default(false) // masked outside the Habits screen
+  why       String? // ≤ 500 — "alasan" shown on the emergency screen
+  startDate String // YYYY-MM-DD; streaks count from here
+  archived  Boolean @default(false)
+  sortOrder Int     @default(0)
+
+  user User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  logs HabitLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, updatedAt])
+}
+
+// One row per habit / local day / type (done | skip | relapse | urge).
+model HabitLog {
+  id       String    @id @default(cuid())
+  userId   String
+  habitId  String
+  date     String // local YYYY-MM-DD
+  type     String // done | skip | relapse | urge
+  value    Float? // done: progress (1 for check); relapse/urge: count that day; skip: null
+  note     String? // ≤ 1000 — journal
+  triggers String    @default("[]") // JSON ["bosan","stres", …] ≤ 10 (relapse/urge only)
+  at       DateTime? // when it happened (relapse/urge time of day)
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  habit Habit @relation(fields: [habitId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([habitId, date, type])
+  @@index([userId, updatedAt])
+  @@index([userId, date])
+}
+
+// ---------- Investments (docs/investments.md) ----------
+
+// An instrument the user holds or watches. Holdings are derived from its trades.
+model Asset {
+  id            String    @id @default(cuid())
+  userId        String
+  kind          String // stock | fund | gold | crypto | bond | other
+  symbol        String // stock: IDX ticker "BBCA"; crypto: "BTC"; others: free code ≤ 20
+  name          String?
+  currency      String    @default("IDR")
+  priceMode     String    @default("auto") // auto (stock/crypto only) | manual
+  manualPrice   Float? // per unit, when priceMode = manual
+  manualPriceAt DateTime?
+  unit          String    @default("lembar") // lembar | unit | gram | koin | …
+  walletId      String? // the investment wallet / RDN
+  archived      Boolean   @default(false)
+  sortOrder     Int       @default(0)
+
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  wallet Wallet?      @relation(fields: [walletId], references: [id], onDelete: SetNull)
+  trades AssetTrade[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, kind, symbol])
+  @@index([userId, updatedAt])
+}
+
+model AssetTrade {
+  id                String   @id @default(cuid())
+  userId            String
+  assetId           String
+  type              String // buy | sell | dividend | split | fee
+  date              DateTime
+  quantity          Float? // buy/sell: units (shares, not lots)
+  price             Float? // buy/sell: per unit
+  fee               Float    @default(0) // buy/sell: broker fee + tax
+  amount            Float? // dividend: cash received; fee: the fee
+  ratio             Float? // split: new units per old unit
+  note              String?
+  cashTransactionId String?  @unique // the linked wallet transaction (investment / dividend income)
+
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  asset           Asset        @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  cashTransaction Transaction? @relation(fields: [cashTransactionId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, updatedAt])
+  @@index([assetId, date])
+}
+
+// Latest market price per instrument, shared across users (not user data, not synced).
+model SecurityPrice {
+  id        String    @id @default(cuid())
+  kind      String // stock | crypto
+  symbol    String // BBCA, BTC
+  name      String?
+  price     Float
+  prevClose Float?
+  change    Float?
+  changePct Float?
+  currency  String    @default("IDR")
+  asOf      DateTime // market time of the price
+  source    String    @default("yahoo")
+  fetchedAt DateTime // last successful fetch
+  checkedAt DateTime? // last attempt (success or failure)
+  error     String? // last failure, null after a success
+
+  @@unique([kind, symbol])
+}
+
+// Daily portfolio value for the history chart (server-only, not synced).
+model PortfolioSnapshot {
+  id     String @id @default(cuid())
+  userId String
+  date   String // local YYYY-MM-DD (Asia/Jakarta)
+  value  Float // market value
+  cost   Float // cost basis
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, date])
 }
 
 // ---------- Mobile sync ----------

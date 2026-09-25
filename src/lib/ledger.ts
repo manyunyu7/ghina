@@ -10,7 +10,8 @@ import { detachTransactions } from "@/lib/sync-links";
  * `wallet.balance` for a transaction anywhere else.
  *
  * income: +amount to wallet · expense: −amount · transfer: −amount from source, +amount to destination
- * · adjustment: +amount (signed) to wallet — a balance correction (docs/balance-adjustment.md).
+ * · adjustment: +amount (signed) to wallet — a balance correction (docs/balance-adjustment.md)
+ * · investment: +amount (signed) to wallet — a trade's cash (buy −, sell +; docs/investments.md).
  * Editing reverses the old effect and applies the new one; deleting reverses it.
  */
 
@@ -34,7 +35,7 @@ export function effects(t: LedgerTx): Record<string, number> {
   };
   if (t.type === "income") add(t.walletId, t.amount);
   else if (t.type === "expense") add(t.walletId, -t.amount);
-  else if (t.type === "adjustment") add(t.walletId, t.amount);
+  else if (t.type === "adjustment" || t.type === "investment") add(t.walletId, t.amount);
   else if (t.type === "transfer" && t.toWalletId) {
     add(t.walletId, -t.amount);
     add(t.toWalletId, t.amount);
@@ -81,6 +82,12 @@ export async function validateTransactionRefs(
   if (p.type === "adjustment") {
     if (p.toWalletId) throw new Error("A balance adjustment has no destination wallet");
     if (p.categoryId) throw new Error("A balance adjustment has no category");
+    return { toWalletId: null, categoryId: null };
+  }
+
+  if (p.type === "investment") {
+    if (p.toWalletId) throw new Error("An investment transaction has no destination wallet");
+    if (p.categoryId) throw new Error("An investment transaction has no category");
     return { toWalletId: null, categoryId: null };
   }
 

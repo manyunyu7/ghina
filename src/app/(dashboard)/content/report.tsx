@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/misc";
 import { FORMATS, localParts, type BestPost, type ContentReport, type GroupStat, type SponsorSummary } from "@/lib/content";
 import { addDaysKey, daysInMonth } from "@/lib/tasks";
-import { cn, formatCompactCurrency, formatCurrency } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { fetchContentReport } from "./actions";
 import { usePlanner } from "./planner";
 import { AverageBars, MonthBars, type AvgPoint } from "./report-charts";
@@ -27,6 +27,8 @@ import {
 } from "./ui";
 import { platformLabel } from "@/lib/content";
 import type { SocialAccountDTO } from "./types";
+import { Money } from "@/components/money/money";
+import { useMoneyFormat } from "@/components/money/balance-privacy";
 
 type Preset = "7" | "30" | "bulan" | "bulanlalu" | "90" | "tahun" | "kustom";
 const PRESETS: { id: Preset; label: string }[] = [
@@ -442,7 +444,8 @@ function SponsorCard({
 }) {
   const months = sponsors.byMonth.filter((m) => m.month >= range.from.slice(0, 7) && m.month <= range.to.slice(0, 7));
   const inRange = months.reduce((s, m) => s + m.amount, 0);
-  const fmt = (v: number) => formatCurrency(v, currency);
+  const money = useMoneyFormat();
+  const fmt = (v: number) => money.format(v, currency);
   const none = sponsors.byMonth.length === 0 && sponsors.unpaid.length === 0;
   return (
     <Card>
@@ -458,7 +461,7 @@ function SponsorCard({
             <div>
               <p className="mb-1 text-xs font-medium text-muted">Per bulan (lunas, dalam rentang)</p>
               {months.length ? (
-                <MonthBars data={months.map((m) => ({ label: formatMonthKey(m.month), amount: m.amount, count: m.count }))} format={(v) => formatCompactCurrency(v, currency)} />
+                <MonthBars data={months.map((m) => ({ label: formatMonthKey(m.month), amount: m.amount, count: m.count }))} format={(v) => money.compact(v, currency)} />
               ) : (
                 <p className="text-sm text-muted">Tidak ada sponsor lunas di rentang ini.</p>
               )}
@@ -497,7 +500,7 @@ function SponsorCard({
                             <span className="font-medium text-foreground">{u.brand}</span> <span className="text-muted">· {u.title}</span>
                           </span>
                           <span className="shrink-0 text-right tabular-nums">
-                            <span className="block font-semibold text-foreground">{u.amount ? formatCurrency(u.amount, u.currency) : "Barter"}</span>
+                            <span className="block font-semibold text-foreground">{u.amount ? <Money amount={u.amount} currency={u.currency} /> : "Barter"}</span>
                             <span className={cn("block text-[11px]", u.overdue ? "text-expense" : "text-muted")}>{u.due ? formatDateKey(u.due) : "tanpa tempo"}</span>
                           </span>
                         </button>

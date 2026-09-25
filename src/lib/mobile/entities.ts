@@ -23,6 +23,8 @@ import {
   saveContentPost,
   saveSocialAccount,
 } from "@/lib/content-server";
+import { HabitError, saveHabit, saveHabitLog } from "@/lib/habits-server";
+import { InvestmentError, saveAsset, saveTrade } from "@/lib/investments-server";
 import {
   ALL_PRAYER_IDS,
   defaultStatusFor,
@@ -323,7 +325,14 @@ async function asSync<T>(fn: () => Promise<T>): Promise<T> {
   try {
     return await fn();
   } catch (e) {
-    if (e instanceof TaskError || e instanceof NoteError || e instanceof ContentError) throw new SyncRejection(e.message);
+    if (
+      e instanceof TaskError ||
+      e instanceof NoteError ||
+      e instanceof ContentError ||
+      e instanceof HabitError ||
+      e instanceof InvestmentError
+    )
+      throw new SyncRejection(e.message);
     throw e;
   }
 }
@@ -399,6 +408,54 @@ const contentPosts: EntityDef = {
   },
 };
 
+// ---------- Habits (docs/habits.md) ----------
+
+const habits: EntityDef = {
+  find: (db, id) => db.habit.findUnique({ where: { id } }),
+  changedSince: (db, userId, s) => db.habit.findMany(since(userId, s)),
+  lwwTime: (row) => row.updatedAt,
+  async upsert(db, userId, id, data, existing) {
+    await saveHabit(db, userId, id, data, !!existing);
+    return "applied";
+  },
+};
+
+// (habitId, date, type) is unique: another id holding it → `duplicate` (like prayers).
+const habitLogs: EntityDef = {
+  find: (db, id) => db.habitLog.findUnique({ where: { id } }),
+  changedSince: (db, userId, s) => db.habitLog.findMany(since(userId, s)),
+  lwwTime: (row) => row.updatedAt,
+  async upsert(db, userId, id, data, existing) {
+    const r = await asSync(() => saveHabitLog(db, userId, id, data, !!existing));
+    return r.outcome;
+  },
+};
+
+// ---------- Investments (docs/investments.md) ----------
+
+// (kind, symbol) is unique per user (case-insensitive): another id holding it → `duplicate`.
+const assets: EntityDef = {
+  find: (db, id) => db.asset.findUnique({ where: { id } }),
+  changedSince: (db, userId, s) => db.asset.findMany(since(userId, s)),
+  lwwTime: (row) => row.updatedAt,
+  async upsert(db, userId, id, data, existing) {
+    const r = await saveAsset(db, userId, id, data, !!existing);
+    return r.outcome;
+  },
+};
+
+// Holdings must never go negative in date order (→ rejected). The linked cash transaction
+// is pushed by the client as a normal `transactions` upsert before the trade.
+const assetTrades: EntityDef = {
+  find: (db, id) => db.assetTrade.findUnique({ where: { id } }),
+  changedSince: (db, userId, s) => db.assetTrade.findMany(since(userId, s)),
+  lwwTime: (row) => row.updatedAt,
+  async upsert(db, userId, id, data, existing) {
+    await asSync(() => saveTrade(db, userId, id, data, !!existing));
+    return "applied";
+  },
+};
+
 export const ENTITY_DEFS: Record<SyncEntity, EntityDef> = {
   wallets: wallets as unknown as EntityDef,
   categories,
@@ -417,4 +474,8 @@ export const ENTITY_DEFS: Record<SyncEntity, EntityDef> = {
   contentPillars: contentPillars as unknown as EntityDef,
   contentItems: contentItems as unknown as EntityDef,
   contentPosts,
+  habits,
+  habitLogs,
+  assets,
+  assetTrades,
 };

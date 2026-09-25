@@ -26,11 +26,12 @@ import {
   stageInfo,
   type StageId,
 } from "@/lib/content";
-import { cn, formatCurrency } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { createContentItem, moveContentStage } from "./actions";
 import { usePlanner } from "./planner";
 import { AccountAvatar, formatDateTime, handleText, PillarChip, pillarColor, useNow, useToast } from "./ui";
 import type { ContentItemDTO, ContentPostDTO } from "./types";
+import { useMoneyFormat } from "@/components/money/balance-privacy";
 
 /** Mouse/pen only — touch goes through the long-press TouchSensor so swiping still scrolls. */
 class MousePointerSensor extends PointerSensor {
@@ -300,6 +301,7 @@ function CardBody({
   overlay?: boolean;
 }) {
   const { data, accountById, tz } = usePlanner();
+  const money = useMoneyFormat();
   const [menu, setMenu] = React.useState(false);
   const now = useNow();
   const next = posts
@@ -391,7 +393,7 @@ function CardBody({
                 "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-semibold",
                 item.sponsor.paid ? "bg-income-soft text-income" : "bg-amber-100 text-amber-800",
               )}
-              title={`Sponsor ${item.sponsor.brand}${item.sponsor.amount ? ` · ${formatCurrency(item.sponsor.amount, item.sponsor.currency)}` : " · barter"}`}
+              title={`Sponsor ${item.sponsor.brand}${item.sponsor.amount ? ` · ${money.format(item.sponsor.amount, item.sponsor.currency)}` : " · barter"}`}
             >
               <BadgeDollarSign className="h-3 w-3" />
               {item.sponsor.paid ? "Lunas" : "Belum dibayar"}

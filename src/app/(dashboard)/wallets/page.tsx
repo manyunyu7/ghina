@@ -2,13 +2,15 @@ import Link from "next/link";
 import { History, Wallet as WalletIcon } from "lucide-react";
 import { requireUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
-import { formatCurrency } from "@/lib/utils";
 import { walletIconFor, WALLET_TYPES } from "@/lib/constants";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge, EmptyState, PageHeader } from "@/components/ui/misc";
 import { AddWalletButton } from "./add-wallet-button";
 import { WalletCardActions } from "./wallet-card-actions";
 import { LinkPendingIcon } from "@/components/link-pending";
+import { Money } from "@/components/money/money";
+import { BalanceToggle } from "@/components/money/balance-privacy";
+import { getPortfolio } from "@/lib/investments-server";
 
 export default async function WalletsPage() {
   const user = await requireUser();
@@ -20,6 +22,14 @@ export default async function WalletsPage() {
   });
 
   const total = wallets.reduce((sum, w) => sum + w.balance, 0);
+
+  // Portfolio value per investment wallet (assets linked to it), cached prices only.
+  const portfolioByWallet = new Map<string, number>();
+  if (await prisma.asset.count({ where: { userId: user.id, archived: false, walletId: { not: null } } })) {
+    const { holdings } = await getPortfolio(user.id, { refresh: false, snapshot: false });
+    for (const h of holdings)
+      if (h.asset.walletId) portfolioByWallet.set(h.asset.walletId, (portfolioByWallet.get(h.asset.walletId) ?? 0) + h.value);
+  }
   const typeLabel = (value: string) =>
     WALLET_TYPES.find((t) => t.value === value)?.label ?? value;
 
@@ -34,9 +44,12 @@ export default async function WalletsPage() {
       <Card className="mb-6 bg-primary text-white">
         <CardContent className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-white/80">Total balance</p>
+            <div className="flex items-center gap-1">
+              <p className="text-sm font-medium text-white/80">Total balance</p>
+              <BalanceToggle className="-my-1 p-1 text-white/80 hover:bg-white/15 hover:text-white" />
+            </div>
             <p className="mt-1 text-3xl font-bold tracking-tight">
-              {formatCurrency(total, user.currency)}
+              <Money amount={total} currency={user.currency} />
             </p>
           </div>
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/15">
@@ -92,8 +105,17 @@ export default async function WalletsPage() {
                   <div>
                     <p className="text-xs text-muted">Balance</p>
                     <p className="mt-0.5 text-2xl font-bold tracking-tight text-foreground">
-                      {formatCurrency(w.balance, w.currency)}
+                      <Money amount={w.balance} currency={w.currency} />
                     </p>
+                    {portfolioByWallet.has(w.id) && (
+                      <p className="mt-0.5 text-xs text-muted" data-testid="wallet-portfolio">
+                        + portofolio{" "}
+                        <Link href="/investments" className="font-medium text-primary hover:underline">
+                          <Money amount={portfolioByWallet.get(w.id)!} currency={w.currency} />
+                        </Link>{" "}
+                        · total <Money amount={w.balance + portfolioByWallet.get(w.id)!} currency={w.currency} />
+                      </p>
+                    )}
                   </div>
 
                   <div className="flex items-center justify-between gap-2">

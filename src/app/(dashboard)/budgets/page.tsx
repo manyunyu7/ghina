@@ -3,13 +3,14 @@ import { requireUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { getCategories, monthRange, currentMonth } from "@/lib/queries";
 import { parsePhotos } from "@/lib/photos";
-import { formatCurrency, cn, MONTHS } from "@/lib/utils";
+import { cn, MONTHS } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState, PageHeader, Progress } from "@/components/ui/misc";
 import { AddBudgetButton } from "./add-budget-button";
 import { MonthSelector } from "./month-selector";
 import { BudgetCard, type BudgetTx } from "./budget-card";
 import type { BudgetEditData } from "./budget-form";
+import { Money } from "@/components/money/money";
 
 type SearchParams = { month?: string; year?: string };
 
@@ -123,7 +124,7 @@ export default async function BudgetsPage({
                 <div>
                   <p className="text-sm text-muted">Total budgeted</p>
                   <p className="mt-1 text-2xl font-bold text-foreground">
-                    {formatCurrency(totalBudgeted, user.currency)}
+                    <Money amount={totalBudgeted} currency={user.currency} />
                   </p>
                 </div>
                 <div className="text-right">
@@ -134,7 +135,7 @@ export default async function BudgetsPage({
                       totalOver ? "text-expense" : "text-foreground",
                     )}
                   >
-                    {formatCurrency(totalSpent, user.currency)}
+                    <Money amount={totalSpent} currency={user.currency} />
                   </p>
                 </div>
               </div>
@@ -152,8 +153,8 @@ export default async function BudgetsPage({
                   )}
                 >
                   {totalRemaining < 0
-                    ? `${formatCurrency(Math.abs(totalRemaining), user.currency)} over`
-                    : `${formatCurrency(totalRemaining, user.currency)} left`}
+                    ? <><Money amount={Math.abs(totalRemaining)} currency={user.currency} /> over</>
+                    : <><Money amount={totalRemaining} currency={user.currency} /> left</>}
                 </span>
               </div>
             </CardContent>

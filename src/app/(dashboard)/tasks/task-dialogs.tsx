@@ -8,6 +8,7 @@ import { Field, Label, Select } from "@/components/ui/input";
 import { BUCKETS, type BucketId } from "@/lib/tasks";
 import { cn, formatCurrency } from "@/lib/utils";
 import type { AreaDTO, TaskDTO, WalletOption } from "./types";
+import { Money } from "@/components/money/money";
 
 /** "Catat pengeluaran Rp X?" when completing a task with an amount. */
 export function CompleteExpenseDialog({
@@ -101,7 +102,7 @@ export function UncompleteDialog({
         <div className="space-y-4">
           <p className="text-sm text-muted">
             Tugas &ldquo;{task.title}&rdquo; sudah mencatat pengeluaran
-            {task.amount != null && <span className="font-semibold text-foreground"> {formatCurrency(task.amount, currency)}</span>}.
+            {task.amount != null && <span className="font-semibold text-foreground"> <Money amount={task.amount} currency={currency} /></span>}.
             Hapus juga pengeluarannya (saldo dompet dikembalikan)?
           </p>
           <div className="flex flex-wrap justify-end gap-2">

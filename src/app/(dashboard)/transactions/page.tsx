@@ -3,7 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { requireUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { getWallets, getCategories, getMonthlyTotals, monthRange, currentMonth } from "@/lib/queries";
-import { formatCurrency, formatDate, cn } from "@/lib/utils";
+import { formatDate, cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge, EmptyState, PageHeader } from "@/components/ui/misc";
 import { CategoryIcon } from "@/components/icon";
@@ -15,6 +15,7 @@ import { ADJUSTMENT_LABEL } from "@/lib/adjustment";
 import { TRANSACTION_TYPES } from "@/lib/schemas";
 import { parsePhotos } from "@/lib/photos";
 import { PhotoBadge } from "@/components/photo-viewer";
+import { Money } from "@/components/money/money";
 
 const ADJUSTMENT_COLOR = "#0284c7";
 
@@ -116,7 +117,7 @@ export default async function TransactionsPage({
               <div>
                 <p className="text-sm text-muted">{s.label} this month</p>
                 <p className={cn("mt-1 text-xl font-bold", s.className)}>
-                  {formatCurrency(s.value, user.currency)}
+                  <Money amount={s.value} currency={user.currency} />
                 </p>
               </div>
               <div className={cn("flex h-10 w-10 items-center justify-center rounded-full bg-accent", s.className)}>
@@ -213,7 +214,7 @@ export default async function TransactionsPage({
                           )}
                         >
                           {isIncome ? "+" : isExpense ? "−" : isAdjustment ? (t.amount > 0 ? "+" : "−") : ""}
-                          {formatCurrency(isAdjustment ? Math.abs(t.amount) : t.amount, t.wallet.currency)}
+                          <Money amount={isAdjustment ? Math.abs(t.amount) : t.amount} currency={t.wallet.currency} />
                         </div>
 
                         <TransactionActions transaction={formData} wallets={wallets} categories={categories} />
