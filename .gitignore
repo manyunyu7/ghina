@@ -51,3 +51,7 @@ next-env.d.ts
 # infra runbook — JANGAN commit ke repo publik
 DEPLOY.md
 /prisma/*.db*
+
+# Flutter app lives in its own repo: https://github.com/manyunyu7/ghina-mobile
+# (checked out here as mobile/ so ../docs paths keep working)
+/mobile/

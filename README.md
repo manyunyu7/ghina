@@ -132,3 +132,11 @@ src/
 ---
 
 Built with Next.js 16 + Auth.js + Prisma.
+
+## Mobile app
+
+The Flutter app (Android/iOS, offline-first) lives in **[manyunyu7/ghina-mobile](https://github.com/manyunyu7/ghina-mobile)**. Clone it into `mobile/` inside this repo so its references to `../docs/` (sync contract and feature specs) resolve:
+
+```bash
+git clone https://github.com/manyunyu7/ghina-mobile.git mobile
+```
