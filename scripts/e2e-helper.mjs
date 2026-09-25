@@ -4,6 +4,10 @@
 //
 //   node scripts/e2e-helper.mjs reset <email>        # web "Reset all data" (new sync epoch)
 //   node scripts/e2e-helper.mjs cleanup <emailPrefix> # delete throwaway users + their upload files
+//   node scripts/e2e-helper.mjs seed-prices '<json>'  # upsert shared SecurityPrice cache rows
+//        [{kind,symbol,price,prevClose?,fetchedAgoMin?,error?}] — symbols must start with ZZE2E
+//        (a fresh fetchedAt means the prices endpoint answers from the cache, no Yahoo call;
+//        an old fetchedAt + error + checkedAt now → stale, still no Yahoo call)
 //   node scripts/e2e-helper.mjs fill-titles <email>   # the server's link-title fill, against a
 //        local page at http://127.0.0.1:3199/… (loopback allowed only here, never in the app)
 //
@@ -53,7 +57,35 @@ try {
     ];
     for (const f of files) await deleteUpload(f);
     const { count } = await prisma.user.deleteMany({ where: { id: { in: ids } } });
+    await prisma.securityPrice.deleteMany({ where: { symbol: { startsWith: "ZZE2E" } } });
     console.log(JSON.stringify({ users: count, files: files.length }));
+  } else if (cmd === "seed-prices") {
+    const rows = JSON.parse(arg);
+    const now = Date.now();
+    for (const r of rows) {
+      if (!/^ZZE2E[A-Z0-9]*$/.test(r.symbol)) throw new Error(`refusing to seed ${r.symbol}`);
+      const fetchedAt = new Date(now - (r.fetchedAgoMin ?? 0) * 60_000);
+      const change = r.prevClose != null ? r.price - r.prevClose : null;
+      const data = {
+        name: r.name ?? `E2E ${r.symbol}`,
+        price: r.price,
+        prevClose: r.prevClose ?? null,
+        change,
+        changePct: change != null && r.prevClose ? (change / r.prevClose) * 100 : null,
+        currency: "IDR",
+        asOf: fetchedAt,
+        source: "yahoo",
+        fetchedAt,
+        checkedAt: new Date(now),
+        error: r.error ?? null,
+      };
+      await prisma.securityPrice.upsert({
+        where: { kind_symbol: { kind: r.kind, symbol: r.symbol } },
+        create: { kind: r.kind, symbol: r.symbol, ...data },
+        update: data,
+      });
+    }
+    console.log(JSON.stringify({ seeded: rows.length }));
   } else if (cmd === "fill-titles") {
     guard(arg);
     const user = await prisma.user.findUniqueOrThrow({ where: { email: arg } });
