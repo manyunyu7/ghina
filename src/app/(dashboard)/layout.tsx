@@ -18,7 +18,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <BalancePrivacyProvider initialHidden={hideBalance}>
       <div className="flex min-h-screen flex-col lg:flex-row">
-        <Sidebar user={{ name: user.name, email: user.email, image: user.image }} initialCollapsed={navCollapsed} />
+        <Sidebar
+          user={{ name: user.name, email: user.email, image: user.image }}
+          initialCollapsed={navCollapsed}
+          hideHrefs={isKillaAllowed(user.email) ? [] : ["/killa"]}
+        />
         <main className="flex-1 overflow-x-hidden">
           <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">{children}</div>
         </main>

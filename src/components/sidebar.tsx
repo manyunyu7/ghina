@@ -51,7 +51,7 @@ function persistCollapsed(ids: string[]) {
 const DESKTOP_QUERY = "(min-width: 1024px)";
 
 /** [initialCollapsed] comes from the cookie (dashboard layout) so SSR matches the client. */
-export function Sidebar({ user, initialCollapsed = [] }: { user: User; initialCollapsed?: string[] }) {
+export function Sidebar({ user, initialCollapsed = [], hideHrefs = [] }: { user: User; initialCollapsed?: string[]; hideHrefs?: string[] }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<string[]>(initialCollapsed);
@@ -139,6 +139,7 @@ export function Sidebar({ user, initialCollapsed = [] }: { user: User; initialCo
       onQuery={setQuery}
       inputRef={inputRef}
       onNavigate={closeAndReset}
+      hideHrefs={hideHrefs}
     />
   );
 
@@ -210,6 +211,7 @@ function NavBody({
   onQuery,
   inputRef,
   onNavigate,
+  hideHrefs,
 }: {
   id: string;
   pathname: string;
@@ -219,13 +221,16 @@ function NavBody({
   onQuery: (q: string) => void;
   inputRef: React.RefObject<HTMLInputElement | null>;
   onNavigate: () => void;
+  hideHrefs: string[];
 }) {
   const navRef = useRef<HTMLElement>(null);
   const activeHref = activeNavHref(pathname);
   const filtering = query.trim().length > 0;
   const sections = NAV_SECTIONS.map((s) => ({
     ...s,
-    items: filtering ? s.items.filter((it) => navItemMatches(it, query)) : s.items,
+    items: s.items
+      .filter((it) => !hideHrefs.includes(it.href))
+      .filter((it) => !filtering || navItemMatches(it, query)),
   })).filter((s) => s.items.length > 0);
   const matchCount = sections.reduce((n, s) => n + s.items.length, 0);
 
