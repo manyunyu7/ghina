@@ -5,13 +5,14 @@ import { requireUser } from "@/lib/auth-helpers";
 import { runAction, UserError, type ActionResult } from "@/lib/action-utils";
 import {
   isKillaAllowed,
+  killaChatKey,
   killaEngine,
   listKillaMessages,
   sendKillaMessage,
   startKillaSession,
   type KillaMessageDTO,
 } from "@/lib/killa";
-import type { KillaModel } from "@/lib/schemas";
+import { KILLA_MEDIA_MAX_BYTES, KILLA_MEDIA_MAX_FILES, killaCancelReminderSchema } from "@/lib/schemas";
 
 /**
  * Server actions of the Killa chat (docs/killa.md). Results `{ ok: true, … } | { ok: false, error }`.
@@ -25,12 +26,32 @@ function killaUserId(user: { id: string; email: string | null }) {
   return user.id;
 }
 
-/** Send a message and wait for Killa's reply (can take minutes). */
-export async function sendKillaChat(input: { text: string; model?: KillaModel }): Promise<
+/**
+ * Send a message and wait for Killa's reply (can take minutes). FormData: `text`,
+ * `model`, `files` (≤ 3 images/PDF, ≤ 8 MB each) — the files are stored in /uploads
+ * and passed to the engine as base64 media.
+ */
+export async function sendKillaChat(form: FormData): Promise<
   ActionResult<{ userMessage: KillaMessageDTO; reply: KillaMessageDTO }>
 > {
   const user = await requireUser();
-  const res = await runAction("killa", async () => sendKillaMessage(killaUserId(user), input));
+  const res = await runAction("killa", async () => {
+    const userId = killaUserId(user);
+    if (!(form instanceof FormData)) throw new UserError("Data tidak valid");
+    const files = form.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
+    if (files.length > KILLA_MEDIA_MAX_FILES) throw new UserError(`Maksimal ${KILLA_MEDIA_MAX_FILES} lampiran`);
+    if (files.some((f) => f.size > KILLA_MEDIA_MAX_BYTES)) throw new UserError("Lampiran terlalu besar (maks 8 MB)");
+    const media = await Promise.all(
+      files.map(async (f) => ({ name: f.name, dataBase64: Buffer.from(await f.arrayBuffer()).toString("base64") })),
+    );
+    const text = form.get("text");
+    const model = form.get("model");
+    return sendKillaMessage(userId, {
+      text: typeof text === "string" ? text : "",
+      model: typeof model === "string" && model ? model : null,
+      media,
+    });
+  });
   revalidatePath("/killa");
   return res;
 }
@@ -72,5 +93,18 @@ export async function commitKillaWorkspace(message?: string | null): Promise<Act
     return { hash };
   });
   if (res.ok) revalidatePath("/killa/commits");
+  return res;
+}
+
+/** Cancel one of Killa's reminders (POST /v1/reminders/cancel); `cancelled` false = already gone. */
+export async function cancelKillaReminder(id: number): Promise<ActionResult<{ cancelled: boolean }>> {
+  const user = await requireUser();
+  const res = await runAction("killa", async () => {
+    const userId = killaUserId(user);
+    const parsed = killaCancelReminderSchema.parse({ id });
+    const { ok } = await killaEngine.cancelReminder(killaChatKey(userId), parsed.id);
+    return { cancelled: ok };
+  });
+  if (res.ok) revalidatePath("/killa/reminders");
   return res;
 }

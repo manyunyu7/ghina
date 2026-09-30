@@ -65,6 +65,18 @@ export async function saveMediaUpload(
   return { url: `/uploads/${name}`, kind: type.kind };
 }
 
+/**
+ * Persist bytes whose type the caller already sniffed (`ext`, lowercase letters only —
+ * e.g. Killa chat attachments: images and PDF). Returns the public `/uploads/…` path.
+ */
+export async function saveUploadBytes(bytes: Uint8Array, ext: string): Promise<string> {
+  if (!/^[a-z]{2,5}$/.test(ext)) throw new Error("Invalid extension");
+  const name = `${randomUUID()}.${ext}`;
+  await mkdir(UPLOAD_DIR, { recursive: true });
+  await writeFile(join(UPLOAD_DIR, name), bytes);
+  return `/uploads/${name}`;
+}
+
 /** Best-effort removal of a previously stored upload. */
 export async function deleteUpload(photoUrl: string | null | undefined) {
   if (!photoUrl || !isUploadPath(photoUrl)) return;
@@ -78,7 +90,7 @@ export async function deleteUpload(photoUrl: string | null | undefined) {
 /**
  * Best-effort removal of uploads that no row references any more (a transaction's
  * `photos`, a food log's `photoUrl`, a note's `photos`/`audio`, a content item's
- * `photos`). Call AFTER the DB change is committed. The
+ * `photos`, a Killa message's `attachments`). Call AFTER the DB change is committed. The
  * reference check guards against deleting a file another row still shows (e.g. a
  * duplicated transaction that copied the photo list).
  */
@@ -93,6 +105,7 @@ export async function deleteUnreferencedUploads(urls: readonly string[]) {
         prisma.foodLog.count({ where: { photoUrl: url } }),
         prisma.note.count({ where: { OR: [{ photos: { contains: quoted } }, { audio: { contains: quoted } }] } }),
         prisma.contentItem.count({ where: { photos: { contains: quoted } } }),
+        prisma.killaMessage.count({ where: { attachments: { contains: quoted } } }),
       ]);
       if (refs.every((n) => n === 0)) await deleteUpload(url);
     } catch {

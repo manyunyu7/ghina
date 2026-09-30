@@ -173,13 +173,51 @@ export const KILLA_MODELS = ["default", "fable", "opus", "sonnet", "haiku"] as c
 export type KillaModel = (typeof KILLA_MODELS)[number];
 export const KILLA_TEXT_MAX = 20000;
 
-export const killaSendSchema = z.object({
-  text: z.string().trim().min(1, "Pesan kosong").max(KILLA_TEXT_MAX, "Pesan terlalu panjang"),
-  model: z
-    .enum(KILLA_MODELS, { message: "Model tidak dikenal" })
-    .nullish()
-    .transform((v) => (v && v !== "default" ? v : null)),
+/** Killa chat attachments: images (JPEG/PNG/WebP/GIF) and PDF, ≤ 3 per message, ≤ 8 MB each. */
+export const KILLA_MEDIA_MAX_FILES = 3;
+export const KILLA_MEDIA_MAX_BYTES = 8 * 1024 * 1024;
+
+/** One attachment on the mobile JSON wire (base64, no `data:` prefix; type is sniffed server-side). */
+export const killaMediaSchema = z.object({
+  name: z.string().max(200).nullish(),
+  mimeType: z.string().max(100).nullish(),
+  dataBase64: z
+    .string()
+    .min(1, "Lampiran kosong")
+    .max(Math.ceil(KILLA_MEDIA_MAX_BYTES / 3) * 4 + 4, "Lampiran terlalu besar (maks 8 MB)"),
 });
+
+export const killaSendSchema = z
+  .object({
+    text: z.string().trim().max(KILLA_TEXT_MAX, "Pesan terlalu panjang").default(""),
+    model: z
+      .enum(KILLA_MODELS, { message: "Model tidak dikenal" })
+      .nullish()
+      .transform((v) => (v && v !== "default" ? v : null)),
+    media: z
+      .array(killaMediaSchema)
+      .max(KILLA_MEDIA_MAX_FILES, `Maksimal ${KILLA_MEDIA_MAX_FILES} lampiran`)
+      .nullish()
+      .transform((v) => v ?? []),
+  })
+  .refine((v) => v.text.length > 0 || v.media.length > 0, { message: "Pesan kosong" });
+
+/** Engine mirror hook body (POST /api/killa/mirror; docs/killa.md "Mirror"). */
+export const killaMirrorSchema = z.object({
+  channel: z.literal("wa", { message: "channel harus \"wa\"" }),
+  number: z.string().regex(/^\d{5,20}$/, "number tidak valid"),
+  messages: z
+    .array(
+      z.object({
+        role: z.enum(["user", "assistant"], { message: "role tidak dikenal" }),
+        text: z.string().max(200_000),
+        at: z.number().int().positive(),
+      }),
+    )
+    .max(50),
+});
+
+export const killaCancelReminderSchema = z.object({ id: z.number().int().positive("id tidak valid") });
 
 // ---------- Reminders & calendar (synced; docs/mobile-sync.md) ----------
 

@@ -9,6 +9,8 @@ const TABS = [
   { href: "/killa", label: "Chat" },
   { href: "/killa/files", label: "Berkas" },
   { href: "/killa/commits", label: "Commit" },
+  { href: "/killa/reminders", label: "Pengingat Killa" },
+  { href: "/killa/usage", label: "Usage" },
 ] as const;
 
 /** Tabs of the Killa pages (same look as the Content planner tabs). */

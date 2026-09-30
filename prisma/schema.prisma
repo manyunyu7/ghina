@@ -665,6 +665,10 @@ model KillaMessage {
   role   String
   body   String
   model  String?
+  /// "app" (sent from Ghina) | "wa" (mirrored from the owner's WhatsApp DM)
+  channel     String  @default("app")
+  /// JSON array of strings: /uploads URLs (user's sent files) or engine paths (reply files)
+  attachments String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
