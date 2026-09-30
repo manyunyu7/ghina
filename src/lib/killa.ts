@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import type { KillaMessage } from "@prisma/client";
 import { requireUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
-import { killaSendSchema } from "@/lib/schemas";
+import { killaCommitSchema, killaSendSchema, killaWriteFileSchema } from "@/lib/schemas";
 
 /**
  * Killa — the personal Claude agent served by killa-engine on the same host (docs/killa.md).
@@ -59,7 +59,7 @@ type Query = Record<string, string | number | undefined>;
  * after 300 s without response headers, shorter than a long agent turn.
  */
 function engineRequest<T>(
-  method: "GET" | "POST",
+  method: "GET" | "POST" | "PUT" | "DELETE",
   path: string,
   opts: { query?: Query; body?: unknown; timeoutMs?: number } = {},
 ): Promise<T> {
@@ -156,6 +156,7 @@ export type KillaFileEntry = { name: string; type: "file" | "dir"; size: number 
 export type KillaFile = { path: string; content: string };
 export type KillaCommit = { hash: string; date: string; author: string; subject: string };
 export type KillaHistoryItem = { at: string; who: string; text: string };
+export type KillaCommitResult = { ok: boolean; hash: string | null };
 
 export const killaEngine = {
   chat: (chatKey: string, text: string, model?: string | null) =>
@@ -177,6 +178,31 @@ export const killaEngine = {
     if (!p) throw new KillaError("Path tidak valid", 400);
     const res = await engineRequest<Partial<KillaFile>>("GET", "v1/workspace/file", { query: { path: p } });
     return { path: typeof res.path === "string" ? res.path : p, content: typeof res.content === "string" ? res.content : "" };
+  },
+  /** Create or overwrite a text file (PUT /v1/workspace/file). */
+  async writeFile(input: unknown): Promise<{ ok: boolean; path: string }> {
+    const { path, content } = killaWriteFileSchema.parse(input);
+    const p = cleanKillaPath(path);
+    if (!p) throw new KillaError("Path tidak valid", 400);
+    const res = await engineRequest<{ ok?: boolean; path?: string }>("PUT", "v1/workspace/file", {
+      body: { path: p, content },
+    });
+    return { ok: res.ok !== false, path: typeof res.path === "string" ? res.path : p };
+  },
+  /** Delete a file (DELETE /v1/workspace/file?path=). */
+  async deleteFile(path: unknown): Promise<{ ok: boolean; path: string }> {
+    const p = cleanKillaPath(path);
+    if (!p) throw new KillaError("Path tidak valid", 400);
+    const res = await engineRequest<{ ok?: boolean; path?: string }>("DELETE", "v1/workspace/file", { query: { path: p } });
+    return { ok: res.ok !== false, path: typeof res.path === "string" ? res.path : p };
+  },
+  /** Commit the workspace (POST /v1/git/commit); `hash` null = nothing to commit. */
+  async commit(input: unknown): Promise<KillaCommitResult> {
+    const { message } = killaCommitSchema.parse(input ?? {});
+    const res = await engineRequest<{ ok?: boolean; hash?: string | null }>("POST", "v1/git/commit", {
+      body: message ? { message } : {},
+    });
+    return { ok: res.ok !== false, hash: typeof res.hash === "string" && res.hash ? res.hash : null };
   },
   async commits(limit?: unknown): Promise<KillaCommit[]> {
     const res = await engineRequest<{ commits?: KillaCommit[] }>("GET", "v1/git/log", {

@@ -59,6 +59,10 @@ export const ENTITY_FIELDS: Record<SyncEntity, readonly string[]> = {
     "id", "assetId", "type", "date", "quantity", "price", "fee", "amount", "ratio", "note", "cashTransactionId",
     "createdAt", "updatedAt",
   ],
+  reminders: ["id", "title", "notes", "dueAt", "recurrence", "done", "doneAt", "createdAt", "updatedAt"],
+  calendarEvents: [
+    "id", "title", "notes", "startAt", "endAt", "allDay", "color", "location", "createdAt", "updatedAt",
+  ],
 };
 
 /** Columns stored as JSON text that travel as JSON values on the wire. */

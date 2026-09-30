@@ -49,6 +49,8 @@ model User {
   assetTrades        AssetTrade[]
   portfolioSnapshots PortfolioSnapshot[]
   killaMessages      KillaMessage[]
+  reminders          Reminder[]
+  calendarEvents     CalendarEvent[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -669,6 +671,51 @@ model KillaMessage {
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
+}
+
+// ---------- Reminders & calendar (synced; docs/mobile-sync.md) ----------
+
+// A one-off or repeating reminder. Completing a repeating one moves `dueAt` to the next
+// occurrence (done stays false, doneAt = last completion); a one-off becomes done.
+model Reminder {
+  id         String    @id @default(cuid())
+  userId     String
+  title      String // 1–200 chars
+  notes      String? // ≤ 2000
+  dueAt      DateTime
+  recurrence String? // daily | weekly | monthly | yearly; null = one-off ("none" on input)
+  done       Boolean   @default(false)
+  doneAt     DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, done, dueAt])
+  @@index([userId, updatedAt])
+}
+
+// A calendar event. Timed: startAt/endAt are instants. All-day: startAt/endAt are UTC
+// midnight of the local first/last day (inclusive), i.e. the date part is the local date.
+model CalendarEvent {
+  id       String    @id @default(cuid())
+  userId   String
+  title    String // 1–200 chars
+  notes    String? // ≤ 2000
+  startAt  DateTime
+  endAt    DateTime? // ≥ startAt; null = no end (timed) / single day (all-day)
+  allDay   Boolean   @default(false)
+  color    String? // #rrggbb; null = default
+  location String? // ≤ 200
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, startAt])
+  @@index([userId, updatedAt])
 }
 
 // ---------- Mobile sync ----------

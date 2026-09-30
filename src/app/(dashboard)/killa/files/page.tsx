@@ -7,6 +7,7 @@ import { LinkPending } from "@/components/link-pending";
 import { cleanKillaPath, KillaError, killaEngine, requireKillaUser, type KillaFile, type KillaFileEntry } from "@/lib/killa";
 import { Markdown } from "../../notes/markdown";
 import { KillaNav } from "../killa-nav";
+import { FileEditor } from "./file-editor";
 
 export const metadata: Metadata = { title: "Berkas Killa — Ghina" };
 
@@ -33,7 +34,7 @@ async function attempt<T>(fn: () => Promise<T>): Promise<{ data: T; error: null 
   }
 }
 
-/** Read-only browser of Killa's workspace: `?path=dir` lists a directory, `?file=path` shows a file. */
+/** Browser of Killa's workspace: `?path=dir` lists a directory, `?file=path` shows (and edits) a text file. */
 export default async function KillaFilesPage({ searchParams }: { searchParams: Promise<Search> }) {
   await requireKillaUser();
   const sp = await searchParams;
@@ -53,7 +54,7 @@ export default async function KillaFilesPage({ searchParams }: { searchParams: P
 
   return (
     <div>
-      <PageHeader title="Killa" description="Isi workspace Killa (hanya baca)." />
+      <PageHeader title="Killa" description="Isi workspace Killa." />
       <KillaNav />
       <Breadcrumbs path={file || dir} />
       {result.error ? (
@@ -133,11 +134,11 @@ function DirList({ dir, entries }: { dir: string; entries: KillaFileEntry[] }) {
   );
 }
 
+/** Text files only (the engine answers 413/415 otherwise, shown as an error). */
 function FileView({ file }: { file: KillaFile }) {
   const markdown = /\.(md|markdown)$/i.test(file.path);
   return (
-    <Card className="overflow-hidden">
-      <div className="border-b border-border px-4 py-2.5 font-mono text-xs text-muted">{file.path}</div>
+    <FileEditor key={file.path} path={file.path} content={file.content}>
       {markdown ? (
         <div className="p-4">
           <Markdown text={file.content} />
@@ -147,6 +148,6 @@ function FileView({ file }: { file: KillaFile }) {
           {file.content}
         </pre>
       )}
-    </Card>
+    </FileEditor>
   );
 }

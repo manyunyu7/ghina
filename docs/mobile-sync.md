@@ -70,6 +70,8 @@ with UUID v4 ids, the server keeps its existing cuid ids — both are valid.
 | `habitLogs` | HabitLog | id, habitId, date, type, value, note, triggers, at, createdAt, updatedAt |
 | `assets` | Asset | id, kind, symbol, name, currency, priceMode, manualPrice, manualPriceAt, unit, walletId, archived, sortOrder, createdAt, updatedAt |
 | `assetTrades` | AssetTrade | id, assetId, type, date, quantity, price, fee, amount, ratio, note, cashTransactionId, createdAt, updatedAt |
+| `reminders` | Reminder | id, title, notes, dueAt, recurrence, done, doneAt, createdAt, updatedAt |
+| `calendarEvents` | CalendarEvent | id, title, notes, startAt, endAt, allDay, color, location, createdAt, updatedAt |
 
 `transactions.photos` is a JSON array of strings (docs/transaction-photos.md);
 `taskAreas.schedule` and `tasks.recurrence` are JSON objects or `null` (docs/tasks.md) —
@@ -112,6 +114,9 @@ Schema changes the server makes for sync:
   HabitLog, `@@unique([userId, kind, symbol])` on Asset (the server additionally enforces
   case-insensitive symbols), `cashTransactionId @unique`.
 - `Transaction.type` may be `investment` (docs/investments.md) — no column change.
+- New models `Reminder` and `CalendarEvent` (synced, see "Reminders" / "Calendar events"
+  below) — additive `CREATE TABLE`s only, no relations besides `userId`. Like every other
+  synced model they are hard-deleted with a `SyncTombstone` (no `deletedAt` column).
 
 ## Wallet balances
 
@@ -161,6 +166,7 @@ Relations, mirrored on both sides:
   (case-insensitive) get `pillar = null`. Renaming a pillar (sync upsert or web) renames
   it on those items too (updated rows re-sync).
 - Delete a habit → its logs are deleted (tombstoned).
+- Reminders and calendar events have no links: a delete removes just the row (tombstoned).
 - Delete an asset → its trades are deleted (tombstoned), each with its linked cash
   transaction (next rule).
 - Delete a trade → its linked transaction (`cashTransactionId`: the `investment` or the
@@ -181,7 +187,8 @@ budgets (subscriptions/planned stay, with `walletId`/`categoryId` nulled; task a
 tasks stay, with `walletId`/`categoryId`/`transactionId` nulled; notes, labels, social
 accounts, content items/posts/pillars stay, with `notes.linkedTransactionId` and
 `sponsor.transactionId` nulled — `paid` kept; habits and their logs stay; assets and
-trades stay with `walletId`/`cashTransactionId` nulled; prayers, health and food stay), removes the
+trades stay with `walletId`/`cashTransactionId` nulled; prayers, health, food, reminders and
+calendar events stay), removes the
 deleted transactions' photo files (except ones a note/content item still uses), drops
 all tombstones and assigns a new `syncEpoch`. Clients see the new
 epoch and do a full re-pull, so no tombstones are needed.
@@ -204,7 +211,8 @@ models anywhere else.
     "taskAreas": [ … ], "tasks": [ … ],
     "noteLabels": [ … ], "notes": [ … ], "socialAccounts": [ … ],
     "contentPillars": [ … ], "contentItems": [ … ], "contentPosts": [ … ],
-    "habits": [ … ], "habitLogs": [ … ], "assets": [ … ], "assetTrades": [ … ]
+    "habits": [ … ], "habitLogs": [ … ], "assets": [ … ], "assetTrades": [ … ],
+    "reminders": [ … ], "calendarEvents": [ … ]
   },
   "deleted": [ { "entity": "transactions", "id": "…", "deletedAt": "…" } ]
 }
@@ -365,6 +373,8 @@ from a pull.
 | habitLogs | habitId, date, type, value?, note?, triggers?, at? | see "Habit logs" below |
 | assets | kind, symbol, name?, currency?, priceMode?, manualPrice?, manualPriceAt?, unit?, walletId?, archived?, sortOrder? | see "Assets" below |
 | assetTrades | assetId, type, date, quantity?, price?, fee?, amount?, ratio?, note?, cashTransactionId? | see "Asset trades" below |
+| reminders | title, dueAt, notes?, recurrence?, done?, doneAt? | see "Reminders" below |
+| calendarEvents | title, startAt, endAt?, allDay?, color?, location?, notes? | see "Calendar events" below |
 
 Empty/whitespace `note` becomes `null`; `""` ids become `null`.
 
@@ -582,6 +592,42 @@ Pure rules: `src/lib/investments.ts` (`scripts/test-investments.mjs`; mobile mir
   sign, or one already linked to another trade → `rejected`. Editing a trade offline: push
   the updated transaction, then the trade. See Deletes for cascades.
 
+#### Reminders
+
+Validation: `reminderSchema` (src/lib/schemas.ts); pure rules in src/lib/reminders.ts.
+
+- `title` 1–200 (trimmed), `notes` ≤ 2000 (empty → null), `dueAt` ISO instant with Z/offset.
+- `recurrence`: `daily` / `weekly` / `monthly` / `yearly`; `"none"`, `""`, null or missing =
+  one-off, **stored and pulled as `null`**. Anything else → `rejected`.
+- `done` default false. `doneAt`: a done reminder without one is stamped with the server
+  time; a not-done one-off gets `null`; a not-done repeating reminder keeps the sent
+  `doneAt` (= its last completion).
+- **Completing** (client-side rule, same as the web): one-off → `done: true, doneAt: now`.
+  Repeating → the row stays `done: false`, `doneAt: now`, and `dueAt` moves to the next
+  occurrence: step `dueAt` in the user's **local wall clock** (07:00 stays 07:00 across
+  DST) by 1 day / 7 days / 1 month / 1 year, repeating until it is after now. Monthly and
+  yearly keep `dueAt`'s day of month, clamped to shorter months (Jan 31 → Feb 28; Feb 29 →
+  Feb 28). Push it as one plain upsert (LWW; no second row, no series id).
+- Status (UI only): overdue = not done and `dueAt` < now; upcoming = not done otherwise.
+- The server sends no notifications; the app schedules local notifications at `dueAt`.
+
+#### Calendar events
+
+Validation: `calendarEventSchema` (src/lib/schemas.ts); pure helpers in src/lib/calendar.ts.
+
+- `title` 1–200 (trimmed), `notes` ≤ 2000, `location` ≤ 200 (empty → null), `color`
+  `#rrggbb` or null (`""` → null; UI default `#6366f1`).
+- Timed (`allDay: false`, default): `startAt` / `endAt` are ISO instants; `endAt` null =
+  no end time. `endAt` < `startAt` → `rejected` ("End must not be before start").
+- All-day (`allDay: true`): `startAt` and `endAt` must be **UTC midnight**
+  (`2026-10-05T00:00:00.000Z`) — the date part is the user's **local** day (like
+  `tasks.dueDate`, not an instant). `endAt` = the last day, **inclusive** (a 3-day event
+  Oct 5–7 has `endAt` `…10-07T00:00:00.000Z`); null = single day. Any other time of day →
+  `rejected`. Clients must read the date part directly, never convert to local time.
+- Days an event occupies (grid): all-day → date parts from `startAt` to `endAt`; timed →
+  local days from `startAt` to `endAt − 1 ms` (an event ending exactly at midnight does
+  not spill into the next day).
+
 ### Prices
 
 `GET /api/mobile/prices?symbols=stock:BBCA,crypto:BTC` (auth required) — up to 50
@@ -615,6 +661,8 @@ call can take up to ~5 s. Mobile caches the last response for offline display.
   without an offset would be read in the server's local timezone.
 - `prayers.date` and `tasks.dueDate` are plain `YYYY-MM-DD` strings (the user's local
   day), `tasks.dueTime` a local `HH:mm` — not timestamps. `tasks.doneAt` is a timestamp.
+- `reminders.dueAt/doneAt` and timed `calendarEvents.startAt/endAt` are timestamps;
+  all-day `calendarEvents.startAt/endAt` are UTC-midnight dates (see "Calendar events").
 
 ## Client sync loop
 

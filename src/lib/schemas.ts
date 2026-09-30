@@ -180,3 +180,99 @@ export const killaSendSchema = z.object({
     .nullish()
     .transform((v) => (v && v !== "default" ? v : null)),
 });
+
+// ---------- Reminders & calendar (synced; docs/mobile-sync.md) ----------
+
+export const REMINDER_RECURRENCES = ["daily", "weekly", "monthly", "yearly"] as const;
+export type ReminderRecurrence = (typeof REMINDER_RECURRENCES)[number];
+export const REMINDER_TITLE_MAX = 200;
+export const REMINDER_NOTES_MAX = 2000;
+export const CALENDAR_LOCATION_MAX = 200;
+
+const isoInstant = (label: string) =>
+  z.iso.datetime({ offset: true, message: `${label} must be ISO-8601 with Z/offset` }).transform((v) => new Date(v));
+
+const optionalText = (max: number, label: string) =>
+  z
+    .string()
+    .nullish()
+    .transform((v) => (v && v.trim().length > 0 ? v.trim() : null))
+    .refine((v) => v == null || v.length <= max, `${label} is too long (max ${max})`);
+
+const requiredTitle = z
+  .string()
+  .trim()
+  .min(1, "Title is required")
+  .max(REMINDER_TITLE_MAX, `Title is too long (max ${REMINDER_TITLE_MAX})`);
+
+/** `recurrence`: daily/weekly/monthly/yearly; "none", "" and null all mean one-off (stored null). */
+export const reminderSchema = z
+  .object({
+    title: requiredTitle,
+    notes: optionalText(REMINDER_NOTES_MAX, "Notes"),
+    dueAt: isoInstant("dueAt"),
+    recurrence: z
+      .enum([...REMINDER_RECURRENCES, "none", ""], { message: "recurrence must be none/daily/weekly/monthly/yearly" })
+      .nullish()
+      .transform((v): ReminderRecurrence | null => (v && v !== "none" ? v : null)),
+    done: z.boolean().default(false),
+    doneAt: isoInstant("doneAt")
+      .nullish()
+      .transform((v) => v ?? null),
+  })
+  // A done reminder without doneAt is stamped now; doneAt on a repeating, not-done
+  // reminder is its last completion and is kept; a one-off that isn't done has none.
+  .transform((r) => ({
+    ...r,
+    doneAt: r.done ? (r.doneAt ?? new Date()) : r.recurrence ? r.doneAt : null,
+  }));
+
+export type ReminderData = z.output<typeof reminderSchema>;
+
+const isUtcMidnight = (d: Date) => d.getTime() % 86_400_000 === 0;
+
+/**
+ * Timed event: startAt/endAt instants. All-day: startAt/endAt must be UTC midnight
+ * (`YYYY-MM-DDT00:00:00.000Z`, the date part = the local day; endAt = last day, inclusive).
+ */
+export const calendarEventSchema = z
+  .object({
+    title: requiredTitle,
+    notes: optionalText(REMINDER_NOTES_MAX, "Notes"),
+    startAt: isoInstant("startAt"),
+    endAt: isoInstant("endAt")
+      .nullish()
+      .transform((v) => v ?? null),
+    allDay: z.boolean().default(false),
+    color: hexColor
+      .or(z.literal(""))
+      .nullish()
+      .transform((v) => (v ? v : null)),
+    location: optionalText(CALENDAR_LOCATION_MAX, "Location"),
+  })
+  .superRefine((e, ctx) => {
+    if (e.endAt && e.endAt < e.startAt)
+      ctx.addIssue({ code: "custom", path: ["endAt"], message: "End must not be before start" });
+    if (e.allDay && (!isUtcMidnight(e.startAt) || (e.endAt && !isUtcMidnight(e.endAt))))
+      ctx.addIssue({
+        code: "custom",
+        path: ["startAt"],
+        message: "All-day dates must be UTC midnight (YYYY-MM-DDT00:00:00Z)",
+      });
+  });
+
+export type CalendarEventData = z.output<typeof calendarEventSchema>;
+
+/** Killa workspace edits (docs/killa.md). Content ≤ 1 MB of text. */
+export const KILLA_FILE_MAX = 1_000_000;
+export const killaWriteFileSchema = z.object({
+  path: z.string().min(1, "Path wajib diisi").max(1024, "Path terlalu panjang"),
+  content: z.string().max(KILLA_FILE_MAX, "Isi berkas terlalu besar (maks 1 MB)"),
+});
+export const killaCommitSchema = z.object({
+  message: z
+    .string()
+    .nullish()
+    .transform((v) => (v && v.trim().length > 0 ? v.trim() : null))
+    .refine((v) => v == null || v.length <= 500, "Pesan commit terlalu panjang (maks 500)"),
+});

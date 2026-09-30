@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth-helpers";
 import { runAction, UserError, type ActionResult } from "@/lib/action-utils";
 import {
   isKillaAllowed,
+  killaEngine,
   listKillaMessages,
   sendKillaMessage,
   startKillaSession,
@@ -48,4 +49,28 @@ export async function loadOlderKillaMessages(
 ): Promise<ActionResult<{ messages: KillaMessageDTO[]; nextBefore: string | null }>> {
   const user = await requireUser();
   return runAction("killa", async () => listKillaMessages(killaUserId(user), { before }));
+}
+
+/** Save a workspace text file (PUT /v1/workspace/file). */
+export async function saveKillaFile(input: { path: string; content: string }): Promise<ActionResult<{ path: string }>> {
+  const user = await requireUser();
+  const res = await runAction("killa", async () => {
+    killaUserId(user);
+    const saved = await killaEngine.writeFile(input);
+    return { path: saved.path };
+  });
+  if (res.ok) revalidatePath("/killa/files");
+  return res;
+}
+
+/** Commit the workspace (POST /v1/git/commit); `hash` null = nothing to commit. */
+export async function commitKillaWorkspace(message?: string | null): Promise<ActionResult<{ hash: string | null }>> {
+  const user = await requireUser();
+  const res = await runAction("killa", async () => {
+    killaUserId(user);
+    const { hash } = await killaEngine.commit({ message: typeof message === "string" ? message : null });
+    return { hash };
+  });
+  if (res.ok) revalidatePath("/killa/commits");
+  return res;
 }

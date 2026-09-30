@@ -227,6 +227,10 @@ async function ownsRow(db: Db, userId: string, entity: SyncEntity, id: string): 
       return !!(await db.asset.findFirst(q));
     case "assetTrades":
       return !!(await db.assetTrade.findFirst(q));
+    case "reminders":
+      return !!(await db.reminder.findFirst(q));
+    case "calendarEvents":
+      return !!(await db.calendarEvent.findFirst(q));
   }
 }
 
@@ -293,6 +297,12 @@ export async function deleteSyncedRow(db: Db, userId: string, entity: SyncEntity
     case "health":
       await db.healthEntry.delete({ where: { id } });
       break;
+    case "reminders":
+      await db.reminder.delete({ where: { id } });
+      break;
+    case "calendarEvents":
+      await db.calendarEvent.delete({ where: { id } });
+      break;
     case "food": {
       const row = await db.foodLog.delete({ where: { id } });
       if (row.photoUrl) files = [row.photoUrl];
@@ -320,7 +330,7 @@ export async function deleteSynced(userId: string, entity: SyncEntity, id: strin
  * and task areas survive with their wallet/category/transaction links nulled
  * (prayers, health and food are untouched). Notes and the content planner survive too:
  * notes lose `linkedTransactionId`, sponsors their `transactionId` (paid stays).
- * Habits are untouched. Assets and trades survive (portfolio history is not wallet data):
+ * Habits, reminders and calendar events are untouched. Assets and trades survive (portfolio history is not wallet data):
  * assets lose `walletId`, trades `cashTransactionId`; portfolio snapshots stay.
  * Transaction photo files are removed unless a note/content item still uses them.
  */

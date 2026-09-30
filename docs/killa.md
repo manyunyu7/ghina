@@ -52,13 +52,19 @@ is returned. Reply `attachments` (paths) are appended to the reply body as a
 - `GET /v1/chat/history?chatKey=&limit=` → `{messages:[{at,who,text}]}` (client only; Ghina's own log is the source of truth)
 - `GET /v1/workspace/files?path=` → `{entries:[{name,type,size}]}`
 - `GET /v1/workspace/file?path=` → `{path, content}` (413 too large / 415 not text)
+- `PUT /v1/workspace/file {path, content}` → `{ok, path}` (create or overwrite)
+- `DELETE /v1/workspace/file?path=` → `{ok}`
+- `POST /v1/git/commit {message?}` → `{ok, hash|null}` (null = nothing to commit)
 - `GET /v1/git/log?limit=` → `{commits:[{hash,date,author,subject}]}`
 
 ## Web
 
 `/killa` chat (newest 50 messages, "Muat pesan lama" loads older pages; model selector;
-"Sesi baru"), `/killa/files?path=` / `?file=` read-only workspace browser (Markdown files
-rendered, others monospace), `/killa/commits` latest 100 commits.
+"Sesi baru"), `/killa/files?path=` / `?file=` workspace browser (Markdown files
+rendered, others monospace; a text file has an **Edit** mode — monospace textarea, Save
+(Ctrl/⌘+S) → `PUT /v1/workspace/file` — and a **Commit** bar with an optional message →
+`POST /v1/git/commit`, showing the new hash), `/killa/commits` latest 100 commits.
+Edits are not committed automatically.
 
 ## Mobile API
 
@@ -73,6 +79,9 @@ unreachable, 503 not configured, 504 engine timeout.
 | `POST /api/mobile/killa/chat/new` | `{divider}` |
 | `GET /api/mobile/killa/files?path=` | `{path, entries:[{name, type: "file"\|"dir", size}]}` |
 | `GET /api/mobile/killa/file?path=` | `{path, content}` |
+| `PUT /api/mobile/killa/file {path, content}` | `{ok, path}` — create or overwrite a text file; `content` ≤ 1 000 000 chars |
+| `DELETE /api/mobile/killa/file?path=` | `{ok, path}` |
+| `POST /api/mobile/killa/commit {message?}` | `{ok, hash}` — commits the workspace; `hash` null = nothing to commit; `message` ≤ 500 (empty body allowed) |
 | `GET /api/mobile/killa/commits?limit=50` (≤ 200) | `{commits:[{hash, date, author, subject}]}` |
 
 Message: `{id, role: "user"|"assistant"|"system", body, model, createdAt (ISO)}`.

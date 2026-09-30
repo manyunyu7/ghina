@@ -51,6 +51,8 @@ export const NAV_SECTIONS: readonly NavSection[] = [
     label: "Produktif",
     items: [
       { href: "/tasks", label: "Tugas", icon: "ListTodo", keywords: ["tasks", "todo", "to-do", "pekerjaan", "kerjaan"] },
+      { href: "/reminders", label: "Pengingat", icon: "Bell", keywords: ["reminders", "reminder", "alarm", "ingat", "jatuh tempo"] },
+      { href: "/calendar", label: "Kalender", icon: "CalendarDays", keywords: ["calendar", "jadwal", "acara", "event", "agenda"] },
       { href: "/notes", label: "Catatan", icon: "StickyNote", keywords: ["notes", "note", "memo", "jurnal"] },
       { href: "/content", label: "Konten", icon: "Clapperboard", keywords: ["content", "video", "youtube", "tiktok", "ide", "posting"] },
       { href: "/killa", label: "Killa", icon: "Bot", keywords: ["agent", "agen", "claude", "ai", "asisten", "chat", "bot"] },

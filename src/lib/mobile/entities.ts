@@ -3,10 +3,12 @@ import type { Db } from "@/lib/ledger";
 import { createLedgerTransaction, updateLedgerTransaction, validateTransactionRefs } from "@/lib/ledger";
 import {
   budgetSchema,
+  calendarEventSchema,
   categorySchema,
   foodSchema,
   healthSchema,
   plannedSchema,
+  reminderSchema,
   subscriptionSchema,
   transactionSchema,
   walletSchema,
@@ -456,6 +458,34 @@ const assetTrades: EntityDef = {
   },
 };
 
+// ---------- Reminders & calendar (docs/mobile-sync.md) ----------
+
+// Completing a repeating reminder: the client pushes an upsert with the next `dueAt`
+// (done stays false, doneAt = now) — a plain upsert here.
+const reminders: EntityDef = {
+  find: (db, id) => db.reminder.findUnique({ where: { id } }),
+  changedSince: (db, userId, s) => db.reminder.findMany(since(userId, s)),
+  lwwTime: (row) => row.updatedAt,
+  async upsert(db, userId, id, data, existing) {
+    const d = reminderSchema.parse(data);
+    if (existing) await db.reminder.update({ where: { id }, data: d });
+    else await db.reminder.create({ data: { id, userId, ...d } });
+    return "applied";
+  },
+};
+
+const calendarEvents: EntityDef = {
+  find: (db, id) => db.calendarEvent.findUnique({ where: { id } }),
+  changedSince: (db, userId, s) => db.calendarEvent.findMany(since(userId, s)),
+  lwwTime: (row) => row.updatedAt,
+  async upsert(db, userId, id, data, existing) {
+    const d = calendarEventSchema.parse(data);
+    if (existing) await db.calendarEvent.update({ where: { id }, data: d });
+    else await db.calendarEvent.create({ data: { id, userId, ...d } });
+    return "applied";
+  },
+};
+
 export const ENTITY_DEFS: Record<SyncEntity, EntityDef> = {
   wallets: wallets as unknown as EntityDef,
   categories,
@@ -478,4 +508,6 @@ export const ENTITY_DEFS: Record<SyncEntity, EntityDef> = {
   habitLogs,
   assets,
   assetTrades,
+  reminders,
+  calendarEvents,
 };

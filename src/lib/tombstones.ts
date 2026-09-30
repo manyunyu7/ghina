@@ -23,6 +23,8 @@ export const SYNC_ENTITIES = [
   "habitLogs",
   "assets",
   "assetTrades",
+  "reminders",
+  "calendarEvents",
 ] as const;
 
 export type SyncEntity = (typeof SYNC_ENTITIES)[number];
