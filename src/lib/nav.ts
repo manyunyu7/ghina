@@ -53,6 +53,7 @@ export const NAV_SECTIONS: readonly NavSection[] = [
       { href: "/tasks", label: "Tugas", icon: "ListTodo", keywords: ["tasks", "todo", "to-do", "pekerjaan", "kerjaan"] },
       { href: "/notes", label: "Catatan", icon: "StickyNote", keywords: ["notes", "note", "memo", "jurnal"] },
       { href: "/content", label: "Konten", icon: "Clapperboard", keywords: ["content", "video", "youtube", "tiktok", "ide", "posting"] },
+      { href: "/killa", label: "Killa", icon: "Bot", keywords: ["agent", "agen", "claude", "ai", "asisten", "chat", "bot"] },
     ],
   },
   {

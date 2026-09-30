@@ -4,6 +4,7 @@ import { ContentError } from "@/lib/content-server";
 import { TaskError } from "@/lib/tasks-server";
 import { HabitError } from "@/lib/habits-server";
 import { InvestmentError } from "@/lib/investments-server";
+import { KillaError } from "@/lib/killa";
 
 /**
  * Helpers for server actions that return `{ ok: true, … } | { ok: false, error }`
@@ -27,7 +28,8 @@ export async function runAction<T extends object>(tag: string, fn: () => Promise
       e instanceof ContentError ||
       e instanceof TaskError ||
       e instanceof HabitError ||
-      e instanceof InvestmentError
+      e instanceof InvestmentError ||
+      e instanceof KillaError
     )
       return { ok: false, error: e.message };
     console.error(`[${tag} action]`, e);

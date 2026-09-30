@@ -48,6 +48,7 @@ model User {
   assets             Asset[]
   assetTrades        AssetTrade[]
   portfolioSnapshots PortfolioSnapshot[]
+  killaMessages      KillaMessage[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -650,6 +651,24 @@ model PortfolioSnapshot {
   updatedAt DateTime @updatedAt
 
   @@unique([userId, date])
+}
+
+// ---------- Killa (docs/killa.md) ----------
+
+// One line of the Killa agent chat, recorded server-side (not synced). role: user | assistant |
+// system (a "sesi baru" divider). model: the model the message was sent with, null = default.
+model KillaMessage {
+  id     String  @id @default(cuid())
+  userId String
+  role   String
+  body   String
+  model  String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
 }
 
 // ---------- Mobile sync ----------

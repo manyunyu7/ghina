@@ -11,6 +11,7 @@ import {
   Clapperboard,
   Flame,
   LineChart,
+  Bot,
   ChevronDown,
   Search,
 } from "lucide-react";
@@ -27,7 +28,7 @@ import { AppDownload } from "@/components/app-download";
 import { NavPending } from "@/components/nav-pending";
 import { BalanceToggle } from "@/components/money/balance-privacy";
 
-const ICONS = { LayoutDashboard, ArrowLeftRight, Wallet, Target, Tags, PieChart, Settings, Repeat, Moon, HeartPulse, Utensils, TrendingUp, BarChart3, ListTodo, StickyNote, Clapperboard, Flame, LineChart };
+const ICONS = { LayoutDashboard, ArrowLeftRight, Wallet, Target, Tags, PieChart, Settings, Repeat, Moon, HeartPulse, Utensils, TrendingUp, BarChart3, ListTodo, StickyNote, Clapperboard, Flame, LineChart, Bot };
 
 type User = { name?: string | null; email?: string | null; image?: string | null };
 

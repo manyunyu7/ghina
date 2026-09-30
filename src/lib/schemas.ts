@@ -167,3 +167,16 @@ export const foodSchema = z.object({
     .transform((v) => (v && v.length > 0 ? v : null)),
   note: trimmedNote,
 });
+
+/** Killa chat models (docs/killa.md); "default" = let killa-engine pick (stored as null). */
+export const KILLA_MODELS = ["default", "fable", "opus", "sonnet", "haiku"] as const;
+export type KillaModel = (typeof KILLA_MODELS)[number];
+export const KILLA_TEXT_MAX = 20000;
+
+export const killaSendSchema = z.object({
+  text: z.string().trim().min(1, "Pesan kosong").max(KILLA_TEXT_MAX, "Pesan terlalu panjang"),
+  model: z
+    .enum(KILLA_MODELS, { message: "Model tidak dikenal" })
+    .nullish()
+    .transform((v) => (v && v !== "default" ? v : null)),
+});
