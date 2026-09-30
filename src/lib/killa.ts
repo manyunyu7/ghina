@@ -13,6 +13,7 @@ import {
   killaCommitSchema,
   killaMirrorSchema,
   killaSendSchema,
+  killaSetModelSchema,
   killaWriteFileSchema,
 } from "@/lib/schemas";
 
@@ -289,7 +290,8 @@ export type KillaCommit = { hash: string; date: string; author: string; subject:
 export type KillaHistoryItem = { at: string; who: string; text: string };
 export type KillaCommitResult = { ok: boolean; hash: string | null };
 export type KillaEngineMedia = { name?: string; mimeType: string; dataBase64: string };
-export type KillaReminder = { id: number; spec: string; text: string; nextAt: number };
+export type KillaModelState = { model: string | null; options: string[] };
+export type KillaReminder ={ id: number; spec: string; text: string; nextAt: number };
 export type KillaUsageTotals = {
   turns: number;
   inputTokens: number;
@@ -325,6 +327,24 @@ export const killaEngine = {
       body: { chatKey, text, ...(model ? { model } : {}), ...(media?.length ? { media } : {}) },
       timeoutMs: KILLA_CHAT_TIMEOUT_MS,
     }),
+  /**
+   * The chat's persisted model (GET /v1/model) — same store as WhatsApp's `/model`;
+   * `model` null = engine default, `options` = what the engine accepts.
+   */
+  async getModel(chatKey: string): Promise<KillaModelState> {
+    const res = await engineRequest<{ model?: unknown; options?: unknown }>("GET", "v1/model", { query: { chatKey } });
+    return {
+      model: typeof res.model === "string" && res.model && res.model !== "default" ? res.model : null,
+      options: Array.isArray(res.options) ? res.options.filter((o): o is string => typeof o === "string" && !!o) : [],
+    };
+  },
+  /** Persist the chat's model (POST /v1/model); "default" clears it. Applies to WA too. */
+  async setModel(chatKey: string, input: unknown): Promise<{ ok: boolean; model: string | null }> {
+    const { model } = killaSetModelSchema.parse(input);
+    const res = await engineRequest<{ ok?: boolean; model?: unknown }>("POST", "v1/model", { body: { chatKey, model } });
+    const saved = typeof res.model === "string" && res.model && res.model !== "default" ? res.model : null;
+    return { ok: res.ok !== false, model: saved };
+  },
   /** Scheduled reminders of the chat, soonest first (GET /v1/reminders). */
   async reminders(chatKey: string): Promise<KillaReminder[]> {
     const res = await engineRequest<{ reminders?: unknown[] }>("GET", "v1/reminders", { query: { chatKey } });
@@ -523,7 +543,11 @@ const BASE64_RE = /^[A-Za-z0-9+/]*={0,2}$/;
  * paths. If Killa fails the user message stays recorded and the KillaError is rethrown.
  */
 export async function sendKillaMessage(userId: string, input: unknown) {
-  const { text, model, media } = killaSendSchema.parse(input);
+  const { text, model: turnModel, media } = killaSendSchema.parse(input);
+  // No per-turn model (the web app never sends one) → the engine uses the chat's persisted
+  // model; look it up only to label the recorded messages (best-effort).
+  const model =
+    turnModel ?? (await killaEngine.getModel(killaChatKey(userId)).then((m) => m.model, () => null));
 
   const files = media.map((m, i) => {
     const b64 = m.dataBase64.replace(/^data:[^,]*,/, "").replace(/\s+/g, "");
@@ -547,7 +571,7 @@ export async function sendKillaMessage(userId: string, input: unknown) {
   const res = await killaEngine.chat(
     killaChatKey(userId),
     text,
-    model,
+    turnModel,
     files.map((f) => ({ name: f.name, mimeType: KILLA_MEDIA_MIME[f.ext], dataBase64: f.bytes.toString("base64") })),
   );
   const reply = typeof res.reply === "string" ? res.reply : "";

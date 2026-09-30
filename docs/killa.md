@@ -79,6 +79,8 @@ not mirror turns sent from Ghina), so nothing is recorded twice.
 - `POST /v1/chat {chatKey, text, model?, media?:[{name, mimeType, dataBase64}]}` → `{reply, attachments?}` (≤ ~5 min; Ghina waits 330 s)
 - `GET /v1/reminders?chatKey=` → `{reminders:[{id, spec, text, nextAt}]}`
 - `POST /v1/reminders/cancel {chatKey, id}` → `{ok}` (false = already gone)
+- `GET /v1/model?chatKey=` → `{model: string|null, options: string[]}` (null = engine default; persisted per chat — the same store as WhatsApp's `/model`)
+- `POST /v1/model {chatKey, model}` → `{ok, model}` (`"default"` clears → null)
 - `GET /v1/usage?days=` → `{since, days, byModel, total}` (all chats; cost = CLI estimate)
 - `GET /v1/media?path=` → raw file (reply attachments)
 - `POST /v1/chat/new {chatKey}` → `{ok}`
@@ -93,7 +95,16 @@ not mirror turns sent from Ghina), so nothing is recorded twice.
 ## Web
 
 `/killa` chat (newest 50 messages, "Muat pesan lama" loads older pages; model selector;
-"Sesi baru"), `/killa/files?path=` / `?file=` workspace browser (Markdown files
+"Sesi baru"). The model selector loads the chat's persisted model + options
+(`GET /v1/model`, server-side on page load) and a change saves it engine-side
+(`POST /v1/model`, action `setKillaModel`) — it applies to WhatsApp too (note
+"berlaku juga di WA"); sends carry no per-turn model, the engine uses the persisted one.
+The recorded messages are labelled with that persisted model (best-effort lookup).
+Engine unreachable on load → selector disabled ("model tidak bisa dimuat"). A floating
+chat button (bottom-right) links to `/killa` from every other dashboard page, rendered
+only for allowlisted users.
+
+Other pages: `/killa/files?path=` / `?file=` workspace browser (Markdown files
 rendered, others monospace; a text file has an **Edit** mode — monospace textarea, Save
 (Ctrl/⌘+S) → `PUT /v1/workspace/file` — and a **Commit** bar with an optional message →
 `POST /v1/git/commit`, showing the new hash), `/killa/commits` latest 100 commits,
@@ -117,8 +128,10 @@ unreachable, 503 not configured, 504 engine timeout.
 | Route | Result |
 | --- | --- |
 | `GET /api/mobile/killa/chat?before=<id>&limit=50` (limit ≤ 200) | `{messages, nextBefore}` — messages oldest first; pass `nextBefore` as `before` for the previous page (null = start reached) |
-| `POST /api/mobile/killa/chat {text, model?, media?}` | `{userMessage, reply}` — waits for the reply (up to ~5.5 min). `text` ≤ 20 000 chars (may be `""` with media); `model` ∈ default, fable, opus, sonnet, haiku; `media` ≤ 3 × `{name?, mimeType?, dataBase64}` (JPEG/PNG/WebP/GIF/PDF, ≤ 8 MB decoded; type sniffed, `mimeType` ignored; 413 too big, 415 wrong type) |
+| `POST /api/mobile/killa/chat {text, model?, media?}` | `{userMessage, reply}` — waits for the reply (up to ~5.5 min). `text` ≤ 20 000 chars (may be `""` with media); `model` optional per-turn override ∈ default, fable, opus, sonnet, haiku (legacy — omit it so the persisted model from `/model` applies); `media` ≤ 3 × `{name?, mimeType?, dataBase64}` (JPEG/PNG/WebP/GIF/PDF, ≤ 8 MB decoded; type sniffed, `mimeType` ignored; 413 too big, 415 wrong type) |
 | `POST /api/mobile/killa/chat/new` | `{divider}` |
+| `GET /api/mobile/killa/model` | `{model: string\|null, options: string[]}` — the chat's persisted model (null = engine default), shared with WhatsApp's `/model` |
+| `POST /api/mobile/killa/model {model}` | `{ok, model: string\|null}` — persists it engine-side (applies to WA too); `"default"` clears → null; unknown model → 400 from the engine |
 | `GET /api/mobile/killa/files?path=` | `{path, entries:[{name, type: "file"\|"dir", size}]}` |
 | `GET /api/mobile/killa/file?path=` | `{path, content}` |
 | `PUT /api/mobile/killa/file {path, content}` | `{ok, path}` — create or overwrite a text file; `content` ≤ 1 000 000 chars |

@@ -28,7 +28,7 @@ function killaUserId(user: { id: string; email: string | null }) {
 
 /**
  * Send a message and wait for Killa's reply (can take minutes). FormData: `text`,
- * `model`, `files` (≤ 3 images/PDF, ≤ 8 MB each) — the files are stored in /uploads
+ * `files` (≤ 3 images/PDF, ≤ 8 MB each) — the files are stored in /uploads
  * and passed to the engine as base64 media.
  */
 export async function sendKillaChat(form: FormData): Promise<
@@ -45,15 +45,24 @@ export async function sendKillaChat(form: FormData): Promise<
       files.map(async (f) => ({ name: f.name, dataBase64: Buffer.from(await f.arrayBuffer()).toString("base64") })),
     );
     const text = form.get("text");
-    const model = form.get("model");
-    return sendKillaMessage(userId, {
-      text: typeof text === "string" ? text : "",
-      model: typeof model === "string" && model ? model : null,
-      media,
-    });
+    // No per-turn model: the engine uses the chat's persisted one (setKillaModel).
+    return sendKillaMessage(userId, { text: typeof text === "string" ? text : "", media });
   });
   revalidatePath("/killa");
   return res;
+}
+
+/**
+ * Persist the chat model engine-side (POST /v1/model) — shared with WhatsApp's `/model`;
+ * "default" clears it. `model` null = engine default.
+ */
+export async function setKillaModel(model: string): Promise<ActionResult<{ model: string | null }>> {
+  const user = await requireUser();
+  return runAction("killa", async () => {
+    const userId = killaUserId(user);
+    const res = await killaEngine.setModel(killaChatKey(userId), { model });
+    return { model: res.model };
+  });
 }
 
 /** Start a new Killa session (adds a "Sesi baru" divider to the log). */

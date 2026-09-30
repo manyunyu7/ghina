@@ -4,6 +4,8 @@ import { BALANCE_PRIVACY_COOKIE } from "@/lib/balance-privacy";
 import { Sidebar } from "@/components/sidebar";
 import { NAV_COLLAPSED_COOKIE, parseCollapsed } from "@/lib/nav";
 import { BalancePrivacyProvider } from "@/components/money/balance-privacy";
+import { KillaFab } from "@/components/killa-fab";
+import { isKillaAllowed } from "@/lib/killa";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
@@ -21,6 +23,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">{children}</div>
         </main>
       </div>
+      {isKillaAllowed(user.email) && <KillaFab />}
     </BalancePrivacyProvider>
   );
 }

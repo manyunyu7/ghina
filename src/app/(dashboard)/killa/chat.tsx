@@ -7,19 +7,13 @@ import { Card } from "@/components/ui/card";
 import { Select, Textarea } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/misc";
 import { SavingHint } from "@/components/ui/saving-hint";
-import type { KillaAttachment, KillaMessageDTO } from "@/lib/killa";
-import { KILLA_MEDIA_MAX_BYTES, KILLA_MEDIA_MAX_FILES, KILLA_MODELS, KILLA_TEXT_MAX, type KillaModel } from "@/lib/schemas";
+import type { KillaAttachment, KillaMessageDTO, KillaModelState } from "@/lib/killa";
+import { KILLA_MEDIA_MAX_BYTES, KILLA_MEDIA_MAX_FILES, KILLA_TEXT_MAX } from "@/lib/schemas";
 import { cn } from "@/lib/utils";
 import { Markdown } from "../notes/markdown";
-import { loadOlderKillaMessages, newKillaSession, sendKillaChat } from "./actions";
+import { loadOlderKillaMessages, newKillaSession, sendKillaChat, setKillaModel } from "./actions";
 
-const MODEL_LABELS: Record<KillaModel, string> = {
-  default: "Default",
-  fable: "Fable",
-  opus: "Opus",
-  sonnet: "Sonnet",
-  haiku: "Haiku",
-};
+const modelLabel = (m: string) => (m ? m[0].toUpperCase() + m.slice(1) : m);
 
 const ACCEPT = "image/jpeg,image/png,image/webp,image/gif,application/pdf";
 /** Poll for WhatsApp-mirrored turns while the page is visible. */
@@ -38,9 +32,19 @@ type Pending = { id: string; file: File; preview: string | null };
  * demand, newest page re-polled every 20 s so WhatsApp-mirrored turns show up), a composer
  * with up to 3 image/PDF attachments and the "sesi baru" button. A reply can take
  * minutes, so the sent message shows optimistically with a "Killa sedang mengerjakan…"
- * bubble until it lands.
+ * bubble until it lands. The model selector shows the chat's persisted engine model
+ * (`modelState`, null when the engine was unreachable) and saves changes engine-side, so
+ * they apply to WhatsApp too; sends carry no per-turn model.
  */
-export function KillaChat({ messages, nextBefore }: { messages: KillaMessageDTO[]; nextBefore: string | null }) {
+export function KillaChat({
+  messages,
+  nextBefore,
+  modelState,
+}: {
+  messages: KillaMessageDTO[];
+  nextBefore: string | null;
+  modelState: KillaModelState | null;
+}) {
   // Every message seen so far (server pages merged by id), so a revalidated newest page
   // never drops messages that were shown before or loaded via "Muat pesan lama".
   const [known, setKnown] = React.useState(messages);
@@ -57,7 +61,14 @@ export function KillaChat({ messages, nextBefore }: { messages: KillaMessageDTO[
   const [text, setText] = React.useState("");
   const [files, setFiles] = React.useState<Pending[]>([]);
   const [preparing, setPreparing] = React.useState(false);
-  const [model, setModel] = React.useState<KillaModel>("default");
+  // "default" in the select = engine default (model null).
+  const [model, setModel] = React.useState(modelState?.model ?? "default");
+  const [savingModel, startSaveModel] = React.useTransition();
+  const modelOptions = React.useMemo(() => {
+    const opts = (modelState?.options ?? []).filter((o) => o !== "default");
+    if (model !== "default" && !opts.includes(model)) opts.push(model);
+    return ["default", ...opts];
+  }, [modelState, model]);
   const [error, setError] = React.useState<string | null>(null);
   const listRef = React.useRef<HTMLDivElement>(null);
   const fileRef = React.useRef<HTMLInputElement>(null);
@@ -146,7 +157,6 @@ export function KillaChat({ messages, nextBefore }: { messages: KillaMessageDTO[
     stickRef.current = true;
     const form = new FormData();
     form.set("text", body);
-    form.set("model", model);
     for (const p of sent) form.append("files", p.file, p.file.name);
     startSend(async () => {
       addOptimistic({
@@ -173,6 +183,20 @@ export function KillaChat({ messages, nextBefore }: { messages: KillaMessageDTO[
       } finally {
         // The optimistic bubble used the local previews; the recorded message has /uploads URLs.
         for (const p of sent) if (p.preview) URL.revokeObjectURL(p.preview);
+      }
+    });
+  }
+
+  function changeModel(next: string) {
+    const prev = model;
+    setModel(next);
+    setError(null);
+    startSaveModel(async () => {
+      const res = await setKillaModel(next).catch(() => ({ ok: false as const, error: "Terjadi kesalahan, coba lagi" }));
+      if (res.ok) setModel(res.model ?? "default");
+      else {
+        setModel(prev);
+        setError(res.error);
       }
     });
   }
@@ -217,16 +241,21 @@ export function KillaChat({ messages, nextBefore }: { messages: KillaMessageDTO[
           <Select
             id="killa-model"
             value={model}
-            onChange={(e) => setModel(e.target.value as KillaModel)}
+            onChange={(e) => changeModel(e.target.value)}
             className="h-9 w-32"
-            disabled={sending}
+            disabled={sending || savingModel || !modelState}
+            aria-describedby="killa-model-note"
           >
-            {KILLA_MODELS.map((m) => (
+            {modelOptions.map((m) => (
               <option key={m} value={m}>
-                {MODEL_LABELS[m]}
+                {m === "default" ? "Default" : modelLabel(m)}
               </option>
             ))}
           </Select>
+          <SavingHint pending={savingModel} label="Menyimpan…" />
+          <span id="killa-model-note" className="text-xs text-muted">
+            {modelState ? "berlaku juga di WA" : "model tidak bisa dimuat"}
+          </span>
         </div>
         <div className="flex items-center gap-2">
           <SavingHint pending={resetting} label="Memulai sesi…" />

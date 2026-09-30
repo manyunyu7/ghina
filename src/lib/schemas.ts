@@ -173,6 +173,19 @@ export const KILLA_MODELS = ["default", "fable", "opus", "sonnet", "haiku"] as c
 export type KillaModel = (typeof KILLA_MODELS)[number];
 export const KILLA_TEXT_MAX = 20000;
 
+/**
+ * Persisted chat model (POST /v1/model; shared with WhatsApp's /model). The engine owns
+ * the option list (GET /v1/model `options`) and validates; "default" clears it.
+ */
+export const killaSetModelSchema = z.object({
+  model: z
+    .string({ message: "Model wajib diisi" })
+    .trim()
+    .min(1, "Model wajib diisi")
+    .max(64, "Model tidak dikenal")
+    .regex(/^[\w.:\-[\]]+$/, "Model tidak dikenal"),
+});
+
 /** Killa chat attachments: images (JPEG/PNG/WebP/GIF) and PDF, ≤ 3 per message, ≤ 8 MB each. */
 export const KILLA_MEDIA_MAX_FILES = 3;
 export const KILLA_MEDIA_MAX_BYTES = 8 * 1024 * 1024;
